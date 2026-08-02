@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none';">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Private todos. No account, works offline, and nobody — including us — can read them.">
+<title>Haven — private tasks</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Haven</span>
+    </div>
+
+    <div class="topbar-center">
+      <label class="search-field">
+        <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+          <circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+          <line x1="13.2" y1="13.2" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+        </svg>
+        <input type="text" id="searchInput" placeholder="Search tasks…" autocomplete="off">
+        <kbd class="search-kbd">/</kbd>
+      </label>
+    </div>
+
+    <div class="topbar-right">
+      <div class="view-toggle" role="tablist" aria-label="View">
+        <button type="button" class="view-toggle-btn is-active" id="viewBoardBtn" role="tab" aria-selected="true">Board</button>
+        <button type="button" class="view-toggle-btn" id="viewListBtn" role="tab" aria-selected="false">List</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <form id="quickAddForm" class="quick-add" autocomplete="off">
+      <span class="quick-add-icon" aria-hidden="true">+</span>
+      <input type="text" id="quickAddInput" name="title" placeholder="Add a task and press Enter…" maxlength="200" required>
+      <select id="quickAddPriority" name="priority" aria-label="Priority" class="quick-add-priority">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+      </select>
+      <input type="date" id="quickAddDueDate" name="dueDate" aria-label="Due date" class="quick-add-date">
+    </form>
+
+    <div id="boardView" class="board" role="list">
+      <section class="board-col" data-status="todo">
+        <div class="board-col-head">
+          <h2><span class="dot dot-todo" aria-hidden="true"></span>To Do</h2>
+          <span class="count" id="count-todo">0</span>
+        </div>
+        <div class="board-col-body" data-dropzone="todo" id="col-todo"></div>
+      </section>
+
+      <section class="board-col" data-status="in-progress">
+        <div class="board-col-head">
+          <h2><span class="dot dot-in-progress" aria-hidden="true"></span>In Progress</h2>
+          <span class="count" id="count-in-progress">0</span>
+        </div>
+        <div class="board-col-body" data-dropzone="in-progress" id="col-in-progress"></div>
+      </section>
+
+      <section class="board-col" data-status="done">
+        <div class="board-col-head">
+          <h2><span class="dot dot-done" aria-hidden="true"></span>Done</h2>
+          <span class="count" id="count-done">0</span>
+        </div>
+        <div class="board-col-body" data-dropzone="done" id="col-done"></div>
+      </section>
+    </div>
+
+    <div id="listView" class="list-view" hidden>
+      <div class="list-head">
+        <span class="list-head-title">Task</span>
+        <span class="list-head-status">Status</span>
+        <span class="list-head-priority">Priority</span>
+        <span class="list-head-due">Due</span>
+        <span class="list-head-actions"></span>
+      </div>
+      <div id="listBody" class="list-body"></div>
+    </div>
+
+    <div id="emptyState" class="empty-state" hidden>
+      <p class="empty-state-title">Nothing here yet</p>
+      <p class="empty-state-sub">Type a task above and press <kbd>Enter</kbd> to get started.</p>
+    </div>
+
+    <div id="noResultsState" class="empty-state" hidden>
+      <p class="empty-state-title">No matching tasks</p>
+      <p class="empty-state-sub">Try a different search term.</p>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="editModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <h2 id="editModalTitle">Edit task</h2>
+    <form id="editForm">
+      <input type="hidden" id="editId">
+
+      <div class="field">
+        <label for="editTitle">Title</label>
+        <input type="text" id="editTitle" maxlength="200" required>
+      </div>
+
+      <div class="field">
+        <label for="editNotes">Notes</label>
+        <textarea id="editNotes" rows="3" maxlength="2000"></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="editStatus">Status</label>
+          <select id="editStatus">
+            <option value="todo">To Do</option>
+            <option value="in-progress">In Progress</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="editPriority">Priority</label>
+          <select id="editPriority">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="editDueDate">Due date</label>
+          <input type="date" id="editDueDate">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
+        <div class="modal-actions-right">
+          <button type="button" class="btn btn-ghost" id="editCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="js/app.js" type="module"></script>
+</body>
+</html>

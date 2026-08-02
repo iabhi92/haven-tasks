@@ -1,0 +1,108 @@
+# THREAT_MODEL.md — Haven
+
+> A working demo says "I can code." This document says "I think like an attacker."
+> It is written to be honest about what the system does and does NOT protect against.
+>
+> Status: Phase 1 (no crypto yet). This document describes the target model for Phase 2+ and is
+> the design contract that later phases must satisfy.
+
+## Assets (what we are protecting)
+
+1. **Task contents** — titles, notes, due dates, priorities, status. The primary secret.
+2. **Encryption keys** — the DEK, and the passphrase/recovery code that derive the wrapping keys.
+3. **Integrity of task data** — a user should not silently get altered data.
+
+## Trust boundaries
+
+- **Trusted:** the user's browser tab while unlocked, and the user's own device.
+- **Untrusted:** the network, the sync server, the hosting provider, and anyone with read access
+  to the local database or the server database.
+- **Key claim:** the operator (developer) is in the *untrusted* set. The design must hold even if
+  the operator is malicious or compromised.
+
+## Adversaries and what defends against each
+
+### A1. Malicious or compromised operator / sync server
+- **Capability:** full read/write access to the server, sees all stored data and all traffic.
+- **Defense:** the server only ever holds ciphertext + non-secret metadata. Keys are derived
+  on-device and never transmitted. The operator cannot decrypt tasks.
+- **Residual risk:** the server learns metadata — record counts, ciphertext sizes, update timing,
+  sync-token activity. A malicious server could also serve **malicious frontend code** (see A5).
+  This is the most important honest limitation: E2EE in a web app trusts the code delivery.
+  Mitigations: self-hosting, static hosting with integrity, reproducible/pinned frontend builds.
+
+### A2. Network attacker (passive or active)
+- **Capability:** intercepts or tampers with traffic.
+- **Defense:** TLS in transit; AES-GCM provides confidentiality + integrity at rest, so tampered
+  ciphertext fails the GCM auth tag and is rejected rather than silently accepted.
+- **Residual risk:** metadata visible to a network observer, similar to A1.
+
+### A3. Attacker with the local database (stolen/shared device, forensic dump)
+- **Capability:** reads IndexedDB.
+- **Defense:** IndexedDB holds only ciphertext and the wrapped keyring (Phase 3+). Without the
+  passphrase or recovery code, it is useless. Argon2id makes offline brute-force of a strong
+  passphrase expensive.
+- **Residual risk:** a weak user passphrase is brute-forceable offline. We enforce a minimum and
+  warn; we cannot force entropy. Plaintext exists in memory while unlocked.
+
+### A4. Compromised or curious collaborator (future, sharing feature)
+- **Status:** v1 is single-user, so this is out of scope. When sharing is added, removing a
+  collaborator must rotate the content key. Named here so it is not forgotten.
+
+### A5. XSS — the existential threat
+- **Capability:** if an attacker can run JavaScript in the app's origin, they can read the DEK and
+  plaintext directly from memory before encryption, defeating the entire scheme.
+- **Why it dominates:** in a client-side-crypto web app, XSS is not "a vulnerability," it is game
+  over.
+- **Defenses:**
+  - Strict CSP: `default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none';
+    frame-ancestors 'none'`. No inline scripts, no `eval`, no third-party script origins.
+  - **Never** render task content with `innerHTML`. Use `textContent` exclusively for anything
+    user-supplied. (Enforced starting Phase 1 — see `js/ui.js`.)
+  - No CDN dependencies — vendor everything locally.
+  - Minimal dependency count; audit each one.
+- **Residual risk:** a supply-chain compromise of a vendored dependency (e.g. `hash-wasm`) or the
+  frontend host (A1/A5 overlap).
+
+### A6. Clickjacking / UI redress
+- **Defense:** `frame-ancestors 'none'` (CSP) and/or `X-Frame-Options: DENY`.
+
+### A7. Future quantum adversary ("harvest now, decrypt later")
+- **Status:** AES-256-GCM is considered quantum-resistant for confidentiality. The asymmetric
+  surface is minimal in v1 (no public-key sharing yet). Noted as a design-aware future concern,
+  not an active v1 defense.
+
+## Explicit non-goals / honest limitations
+
+1. **Metadata is not hidden.** Record counts, sizes, and timing are visible to the server and
+   network. Mitigations (padding, batching) are future work.
+2. **Web-delivery trust.** E2EE in a browser trusts that the served code is honest. Self-hosting
+   and integrity-pinning reduce, not eliminate, this.
+3. **Lose both credentials = data gone.** There is deliberately no server-side reset.
+4. **Weak passphrases remain the user's risk.**
+5. **Last-write-wins can lose edits** on concurrent multi-device changes until CRDT merge lands.
+6. **v1 is single-user.** Sharing, and the revocation problem it brings, is out of scope.
+
+## Self-attack checklist (becomes `docs/SECURITY.md` in Phase 7)
+
+- [ ] **XSS via task content** — put `<img src=x onerror=alert(1)>` and `<script>` in a task
+      title/notes. Confirm inert via `textContent` + CSP.
+- [ ] **CSP bypass** — try to load an external script; confirm CSP blocks it.
+- [ ] **IDOR on sync** — can sync token A read or overwrite token B's bucket?
+- [ ] **IV reuse** — encrypt the same task many times; confirm every IV differs.
+- [ ] **Key-in-memory exposure** — confirm the DEK is dropped on lock/refresh and never persisted.
+- [ ] **Plaintext leak to storage** — inspect IndexedDB; confirm zero readable task content.
+- [ ] **Plaintext leak to network** — inspect every sync request; confirm only ciphertext.
+- [ ] **Tamper detection** — flip a byte of stored ciphertext; confirm decryption rejects it.
+- [ ] **Wrong-passphrase behaviour** — confirm it fails closed.
+- [ ] **Recovery-code entropy** — confirm 256 bits via `crypto.getRandomValues`, not `Math.random`.
+- [ ] **Deletion is real** — confirm a deleted task's ciphertext is actually removed server-side.
+- [ ] **Dependency audit** — confirm every dependency is vendored, pinned, integrity-checked.
+- [ ] **Clickjacking** — confirm the app refuses to be framed.
+- [ ] **Timing on unlock** — note whether unlock failure timing leaks anything meaningful.
+
+## How to read this document (for a reviewer)
+
+Every design decision in `ARCHITECTURE.md` maps to a defense here, and every limitation is stated
+rather than hidden. The goal is not to claim the system is unbreakable — it is to demonstrate a
+clear-eyed account of exactly what it protects, against whom, and where the honest edges are.
