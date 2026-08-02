@@ -39,6 +39,11 @@
   --rail-icon-hover-bg: rgba(255, 255, 255, 0.08);
   --rail-icon-active-bg: var(--accent);
   --rail-icon-active: #ffffff;
+
+  --glass-blur: blur(20px) saturate(180%);
+  --bg-glass: rgba(247, 247, 248, 0.72);
+  --surface-glass: rgba(255, 255, 255, 0.62);
+  --overlay-glass: rgba(15, 16, 20, 0.35);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -70,6 +75,10 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+
+    --bg-glass: rgba(12, 13, 16, 0.7);
+    --surface-glass: rgba(23, 24, 28, 0.58);
+    --overlay-glass: rgba(4, 4, 6, 0.55);
   }
 }
 
@@ -177,10 +186,14 @@ body { display: flex; }
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  padding: 28px 0 22px;
+  padding: 28px 32px 22px;
+  margin: 0 -32px;
   position: sticky;
   top: 0;
-  background: var(--bg);
+  background: var(--bg-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--border);
   z-index: 10;
 }
 
@@ -259,7 +272,9 @@ body { display: flex; }
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--surface);
+  background: var(--surface-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
@@ -301,7 +316,9 @@ body { display: flex; }
   align-items: center;
   gap: 10px;
   padding: 4px 6px 4px 16px;
-  background: var(--surface);
+  background: var(--surface-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
@@ -538,7 +555,9 @@ body { display: flex; }
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 11, 13, 0.4);
+  background: var(--overlay-glass);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -548,7 +567,9 @@ body { display: flex; }
 .modal {
   width: 100%;
   max-width: 460px;
-  background: var(--surface);
+  background: var(--surface-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 24px;
@@ -623,7 +644,9 @@ body { display: flex; }
 .cmdk {
   width: 100%;
   max-width: 560px;
-  background: var(--surface);
+  background: var(--surface-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border);
