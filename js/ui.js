@@ -190,6 +190,127 @@ export function readEditForm() {
   };
 }
 
+// ---------- stat pills ----------
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function svg(paths) {
+  const node = document.createElementNS(SVG_NS, "svg");
+  node.setAttribute("viewBox", "0 0 20 20");
+  node.setAttribute("fill", "none");
+  node.setAttribute("aria-hidden", "true");
+  for (const attrs of paths) {
+    const shape = document.createElementNS(SVG_NS, attrs.tag);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (key === "tag") continue;
+      shape.setAttribute(key, value);
+    }
+    node.appendChild(shape);
+  }
+  return node;
+}
+
+const STAT_ICONS = {
+  dueToday: () => svg([
+    { tag: "circle", cx: 10, cy: 10, r: 7, stroke: "currentColor", "stroke-width": 1.6 },
+    { tag: "path", d: "M10 6v4l3 2", stroke: "currentColor", "stroke-width": 1.6, "stroke-linecap": "round" },
+  ]),
+  overdue: () => svg([
+    { tag: "path", d: "M10 3l8 14H2z", stroke: "currentColor", "stroke-width": 1.6, "stroke-linejoin": "round" },
+    { tag: "path", d: "M10 8.5v3.5", stroke: "currentColor", "stroke-width": 1.6, "stroke-linecap": "round" },
+    { tag: "circle", cx: 10, cy: 14.5, r: 0.9, fill: "currentColor" },
+  ]),
+  inProgress: () => svg([
+    { tag: "path", d: "M16.5 10a6.5 6.5 0 1 1-2-4.7", stroke: "currentColor", "stroke-width": 1.6, "stroke-linecap": "round" },
+    { tag: "path", d: "M16.5 4v4h-4", stroke: "currentColor", "stroke-width": 1.6, "stroke-linecap": "round", "stroke-linejoin": "round" },
+  ]),
+  completed: () => svg([
+    { tag: "path", d: "M4 10.5l4 4 8-9", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" },
+  ]),
+};
+
+function computeStats(tasks) {
+  // Compare as Date objects at local midnight, not ISO date strings — toISOString()
+  // converts to UTC and can shift the calendar day in timezones ahead of UTC.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekAgo = Date.now() - 7 * 86400000;
+
+  let dueToday = 0;
+  let overdue = 0;
+  let inProgress = 0;
+  let completedThisWeek = 0;
+
+  for (const t of tasks) {
+    if (t.status !== "done" && t.dueDate) {
+      const due = new Date(t.dueDate + "T00:00:00");
+      const diffDays = Math.round((due - today) / 86400000);
+      if (diffDays === 0) dueToday += 1;
+      else if (diffDays < 0) overdue += 1;
+    }
+    if (t.status === "in-progress") inProgress += 1;
+    if (t.status === "done" && t.updatedAt >= weekAgo) completedThisWeek += 1;
+  }
+
+  return [
+    { key: "due-today", icon: "dueToday", value: dueToday, label: "Due today" },
+    { key: "overdue", icon: "overdue", value: overdue, label: "Overdue" },
+    { key: "in-progress", icon: "inProgress", value: inProgress, label: "In progress" },
+    { key: "completed", icon: "completed", value: completedThisWeek, label: "Done this week" },
+  ];
+}
+
+export function renderStats(tasks) {
+  const row = document.getElementById("statsRow");
+  row.textContent = "";
+  for (const stat of computeStats(tasks)) {
+    const pill = el("div", `stat-pill stat-pill-${stat.key}`);
+    const iconWrap = el("div", "stat-pill-icon");
+    iconWrap.appendChild(STAT_ICONS[stat.icon]());
+    const text = el("div", "stat-pill-text");
+    text.appendChild(el("div", "stat-pill-value", String(stat.value)));
+    text.appendChild(el("div", "stat-pill-label", stat.label));
+    pill.appendChild(iconWrap);
+    pill.appendChild(text);
+    row.appendChild(pill);
+  }
+}
+
+export function setPageSubtitle(text) {
+  document.getElementById("pageSubtitle").textContent = text;
+}
+
+// ---------- command palette ----------
+
+export function openCmdk() {
+  const overlay = document.getElementById("cmdkModal");
+  overlay.hidden = false;
+  const input = document.getElementById("cmdkInput");
+  input.value = "";
+  input.focus();
+}
+
+export function closeCmdk() {
+  document.getElementById("cmdkModal").hidden = true;
+}
+
+export function renderCmdkItems(items, activeIndex) {
+  const list = document.getElementById("cmdkList");
+  list.textContent = "";
+  if (items.length === 0) {
+    list.appendChild(el("div", "cmdk-empty", "No matching commands"));
+    return;
+  }
+  items.forEach((item, index) => {
+    const row = el("div", "cmdk-item" + (index === activeIndex ? " is-active" : ""));
+    row.setAttribute("role", "option");
+    row.dataset.index = String(index);
+    row.appendChild(el("span", "", item.label));
+    if (item.hint) row.appendChild(el("kbd", "cmdk-item-hint", item.hint));
+    list.appendChild(row);
+  });
+}
+
 export function getDragAfterElement(container, y) {
   const cards = [...container.querySelectorAll(".task-card:not(.is-dragging)")];
   return cards.reduce(

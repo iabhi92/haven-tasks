@@ -11,14 +11,34 @@
 </head>
 <body>
 
+<div class="rail">
+  <div class="rail-logo" aria-hidden="true">H</div>
+  <nav class="rail-nav" role="tablist" aria-label="View">
+    <button type="button" class="rail-btn is-active" id="viewBoardBtn" role="tab" aria-selected="true" aria-label="Board view" title="Board">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="2.5" width="6" height="15" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect><rect x="11.5" y="2.5" width="6" height="9" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect></svg>
+    </button>
+    <button type="button" class="rail-btn" id="viewListBtn" role="tab" aria-selected="false" aria-label="List view" title="List">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="3" cy="5" r="1.3" fill="currentColor"></circle>
+        <line x1="7" y1="5" x2="17.5" y2="5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+        <circle cx="3" cy="10" r="1.3" fill="currentColor"></circle>
+        <line x1="7" y1="10" x2="17.5" y2="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+        <circle cx="3" cy="15" r="1.3" fill="currentColor"></circle>
+        <line x1="7" y1="15" x2="17.5" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+      </svg>
+    </button>
+  </nav>
+</div>
+
+<div class="main-wrap">
 <div class="app-shell">
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-name">Haven</span>
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Tasks</h1>
+      <p class="page-subtitle" id="pageSubtitle">&nbsp;</p>
     </div>
 
-    <div class="topbar-center">
+    <div class="header-actions">
       <label class="search-field">
         <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
           <circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
@@ -27,15 +47,15 @@
         <input type="text" id="searchInput" placeholder="Search tasks…" autocomplete="off">
         <kbd class="search-kbd">/</kbd>
       </label>
-    </div>
 
-    <div class="topbar-right">
-      <div class="view-toggle" role="tablist" aria-label="View">
-        <button type="button" class="view-toggle-btn is-active" id="viewBoardBtn" role="tab" aria-selected="true">Board</button>
-        <button type="button" class="view-toggle-btn" id="viewListBtn" role="tab" aria-selected="false">List</button>
-      </div>
+      <button type="button" class="btn btn-ghost btn-cmdk" id="openCmdkBtn" aria-label="Open command menu">
+        <span>Menu</span>
+        <kbd class="search-kbd">⌘K</kbd>
+      </button>
     </div>
   </header>
+
+  <div class="stats-row" id="statsRow"></div>
 
   <main class="content">
     <form id="quickAddForm" class="quick-add" autocomplete="off">
@@ -97,6 +117,7 @@
     </div>
   </main>
 </div>
+</div>
 
 <div class="modal-overlay" id="editModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
@@ -149,6 +170,21 @@
     </form>
   </div>
 </div>
+
+<div class="modal-overlay cmdk-overlay" id="cmdkModal" hidden>
+  <div class="cmdk" role="dialog" aria-modal="true" aria-label="Command menu">
+    <div class="cmdk-input-wrap">
+      <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+        <line x1="13.2" y1="13.2" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+      </svg>
+      <input type="text" id="cmdkInput" class="cmdk-input" placeholder="Type a command…" autocomplete="off">
+    </div>
+    <div id="cmdkList" class="cmdk-list" role="listbox"></div>
+  </div>
+</div>
+
+<a id="exportLink" hidden></a>
 
 <script src="js/app.js" type="module"></script>
 </body>

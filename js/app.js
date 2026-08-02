@@ -8,6 +8,11 @@ import {
   closeEditModal,
   readEditForm,
   getDragAfterElement,
+  renderStats,
+  setPageSubtitle,
+  openCmdk,
+  closeCmdk,
+  renderCmdkItems,
 } from "./ui.js";
 
 const STATUSES = ["todo", "in-progress", "done"];
@@ -50,9 +55,19 @@ function render() {
   const hasAnyTasks = tasks.length > 0;
   const hasVisibleTasks = visible.length > 0;
 
-  setEmptyState({ hasAnyTasks, hasVisibleTasks, view });
-  if (!hasAnyTasks || !hasVisibleTasks) return;
+  renderStats(tasks);
+  const dateStr = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  setPageSubtitle(`${tasks.length} task${tasks.length === 1 ? "" : "s"} · ${dateStr}`);
 
+  setEmptyState({ hasAnyTasks, hasVisibleTasks, view });
+
+  // Always re-render board/list against current data, even when empty — the containers
+  // may just be hidden behind the empty state, not absent, and stale nodes left over
+  // from before the last item was removed should never linger in the DOM.
   const handlers = {
     onOpen: (task) => openEditModal(task),
     onDelete: (task) => removeTask(task.id),
@@ -107,6 +122,17 @@ async function removeTask(id) {
   await deleteTask(id);
 }
 
+function exportTasks() {
+  const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.getElementById("exportLink");
+  const stamp = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `haven-tasks-${stamp}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 async function persistReorder(status) {
   const inStatus = tasks.filter((t) => t.status === status).sort((a, b) => a.order - b.order);
   await Promise.all(inStatus.map((t) => putTask(t)));
@@ -157,6 +183,7 @@ function wireSearch() {
     }
     if (e.key === "Escape") {
       closeEditModal();
+      closeCmdk();
     }
   });
 }
@@ -247,6 +274,85 @@ function wireDragAndDrop() {
   }
 }
 
+function getCmdkItems() {
+  return [
+    { label: "New task", hint: "Enter", action: () => document.getElementById("quickAddInput").focus() },
+    { label: "Focus search", hint: "/", action: () => document.getElementById("searchInput").focus() },
+    { label: "Switch to board view", action: () => { view = "board"; setView(view); render(); } },
+    { label: "Switch to list view", action: () => { view = "list"; setView(view); render(); } },
+    { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
+  ];
+}
+
+let cmdkFiltered = [];
+let cmdkActiveIndex = 0;
+
+function updateCmdkList(query) {
+  const q = query.trim().toLowerCase();
+  cmdkFiltered = getCmdkItems().filter((item) => !q || item.label.toLowerCase().includes(q));
+  cmdkActiveIndex = 0;
+  renderCmdkItems(cmdkFiltered, cmdkActiveIndex);
+}
+
+function runCmdkItem(index) {
+  const item = cmdkFiltered[index];
+  if (!item) return;
+  closeCmdk();
+  item.action();
+}
+
+function wireCommandPalette() {
+  const overlay = document.getElementById("cmdkModal");
+  const input = document.getElementById("cmdkInput");
+  const list = document.getElementById("cmdkList");
+  const openBtn = document.getElementById("openCmdkBtn");
+
+  const open = () => {
+    openCmdk();
+    updateCmdkList("");
+  };
+
+  openBtn.addEventListener("click", open);
+
+  document.addEventListener("keydown", (e) => {
+    // Accept either modifier rather than sniffing navigator.platform (deprecated,
+    // unreliable) — harmless to support both Cmd+K and Ctrl+K on every OS.
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      open();
+    }
+  });
+
+  input.addEventListener("input", () => updateCmdkList(input.value));
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      cmdkActiveIndex = Math.min(cmdkActiveIndex + 1, cmdkFiltered.length - 1);
+      renderCmdkItems(cmdkFiltered, cmdkActiveIndex);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      cmdkActiveIndex = Math.max(cmdkActiveIndex - 1, 0);
+      renderCmdkItems(cmdkFiltered, cmdkActiveIndex);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      runCmdkItem(cmdkActiveIndex);
+    } else if (e.key === "Escape") {
+      closeCmdk();
+    }
+  });
+
+  list.addEventListener("click", (e) => {
+    const item = e.target.closest(".cmdk-item");
+    if (!item) return;
+    runCmdkItem(Number(item.dataset.index));
+  });
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeCmdk();
+  });
+}
+
 async function boot() {
   tasks = await getAllTasks();
   wireQuickAdd();
@@ -254,6 +360,7 @@ async function boot() {
   wireViewToggle();
   wireEditModal();
   wireDragAndDrop();
+  wireCommandPalette();
   render();
   document.getElementById("quickAddInput").focus();
 }
