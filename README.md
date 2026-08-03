@@ -8,7 +8,7 @@ encrypted client-side (AES-256-GCM, key derived from your passphrase via PBKDF2-
 ciphertext through a small self-hostable server.
 
 **Live:** [taskhavens.com](https://taskhavens.com) (pitch) ·
-[taskhavens.com/app.html](https://taskhavens.com/app.html) (app). Optional sync server:
+[taskhavens.com/app](https://taskhavens.com/app) (app). Optional sync server:
 `https://haven-sync.onrender.com` (free-tier — see its README for what that means for durability).
 
 ## Run it locally
