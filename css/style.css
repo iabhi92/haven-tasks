@@ -42,8 +42,8 @@
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  --rail-bg: rgba(10, 11, 15, 0.62);
-  --rail-border: rgba(255, 255, 255, 0.08);
+  --rail-bg: rgba(8, 9, 12, 0.55);
+  --rail-border: rgba(255, 255, 255, 0.1);
   --rail-icon: #9295a0;
   --rail-icon-hover-bg: rgba(255, 255, 255, 0.08);
   --rail-icon-active-bg: var(--accent);
@@ -226,13 +226,16 @@ body { display: flex; }
 .rail {
   flex: 0 0 76px;
   width: 76px;
-  height: 100vh;
+  height: calc(100vh - 32px);
   position: sticky;
-  top: 0;
+  top: 16px;
+  margin: 16px 0 16px 16px;
+  border-radius: 24px;
   background: var(--rail-bg);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-right: 1px solid var(--rail-border);
+  border: 1px solid var(--rail-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -635,40 +638,59 @@ body { display: flex; }
 }
 
 /* ---------- list view ---------- */
+/* List view: one continuous notebook page rather than a data table — same
+   punch-hole/ruled-line/typewriter language as the board cards, applied once
+   to the whole page instead of per-card. */
 .list-view {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  position: relative;
+  background: var(--paper-bg);
+  border: none;
+  border-radius: 3px;
+  padding: 6px 10px 6px 34px;
+  filter: drop-shadow(2px 3px 8px rgba(0, 0, 0, 0.16));
+
+  mask:
+    linear-gradient(#000, #000) no-repeat center / 100% 100%,
+    radial-gradient(circle, #000 42%, transparent 0) repeat-y 11px 14px / 15px 32px;
+  mask-mode: alpha, alpha;
+  mask-composite: subtract;
+}
+.list-view::before {
+  content: "";
+  position: absolute;
+  inset: 8px 8px 8px 30px;
+  background-image: repeating-linear-gradient(var(--paper-line) 0 1px, transparent 1px 41px);
+  pointer-events: none;
 }
 .list-head, .list-row {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr 120px 110px 110px 70px;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
+  padding: 11px 6px;
 }
 .list-head {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-faint);
-  border-bottom: 1px solid var(--border);
+  color: var(--paper-text-muted);
 }
 .list-row {
-  border-bottom: 1px solid var(--border);
   cursor: pointer;
+  color: var(--paper-text);
+  transition: background-color 0.15s ease;
 }
-.list-row:last-child { border-bottom: none; }
-.list-row:hover { background: var(--surface-sunken); }
+.list-row:hover { background: color-mix(in srgb, var(--paper-text) 6%, transparent); }
 .list-row-title {
-  font-size: 13.5px;
-  font-weight: 500;
+  font-family: "Special Elite", var(--font);
+  font-size: 14.5px;
+  font-weight: 400;
 }
 .list-row.is-done .list-row-title {
   text-decoration: line-through;
-  color: var(--text-faint);
+  color: var(--paper-text-muted);
 }
 .list-row-actions {
   display: flex;
@@ -677,7 +699,7 @@ body { display: flex; }
 .list-row-delete {
   border: none;
   background: transparent;
-  color: var(--text-faint);
+  color: var(--paper-text-muted);
   padding: 4px 6px;
   border-radius: var(--radius-sm);
   font-size: 12px;
@@ -844,14 +866,13 @@ body { display: flex; }
 @media (max-width: 860px) {
   body { flex-direction: column; }
   .rail {
-    width: 100%;
     height: auto;
-    position: sticky;
+    margin: 12px;
+    border-radius: 18px;
+    top: 12px;
     flex-direction: row;
     padding: 10px 14px;
     gap: 16px;
-    border-right: none;
-    border-bottom: 1px solid var(--rail-border);
   }
   .rail-nav { flex-direction: row; }
   .board { grid-template-columns: 1fr; }

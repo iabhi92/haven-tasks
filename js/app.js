@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask } from "./store.js?v=20260803a";
+import { getAllTasks, putTask, deleteTask } from "./store.js?v=20260803c";
 import {
   renderBoard,
   renderList,
@@ -13,7 +13,7 @@ import {
   openCmdk,
   closeCmdk,
   renderCmdkItems,
-} from "./ui.js?v=20260803a";
+} from "./ui.js?v=20260803c";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
