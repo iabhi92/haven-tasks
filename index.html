@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none';">
+<!-- connect-src is deliberately wider than everything else here: optional sync
+     (docs/ARCHITECTURE.md §5) talks to a server at a URL the user types in, which
+     a static CSP can't know or allowlist in advance. Every other directive stays
+     locked to 'self' — this widens only the one thing that has to be wide, not
+     the whole policy. Documented as a real trade-off in docs/THREAT_MODEL.md,
+     not a silent loosening: an XSS payload could now fetch() plaintext to an
+     arbitrary origin, whereas without sync it could only reach this app's own
+     origin. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Private todos. No account, works offline, and nobody — including us — can read them.">
 <title>Haven — private tasks</title>
@@ -11,7 +19,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260803i">
+<link rel="stylesheet" href="css/style.css?v=20260803k">
 </head>
 <body>
 
@@ -325,8 +333,71 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="syncModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
+    <h2 id="syncModalTitle">Sync (optional)</h2>
+
+    <div id="syncSetupSection">
+      <p class="lock-sub">Sync keeps tasks in step across your devices through a server that only
+        ever stores ciphertext — same guarantee as this device, nothing new to trust. Leave the
+        token blank to start a fresh, empty bucket, or paste one from a device you've already set
+        up to join it.</p>
+      <div class="field">
+        <label for="syncServerUrl">Sync server URL</label>
+        <input type="text" id="syncServerUrl" placeholder="https://your-sync-server.example.com" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="syncTokenInput">Sync token</label>
+        <input type="text" id="syncTokenInput" placeholder="Leave blank to create a new one" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="syncJoinFields" hidden>
+        <p class="lock-hint">Joining an existing bucket needs the recovery code from the device
+          that started it — that's what lets this device decrypt the same tasks, not the token
+          alone. Your passphrase on this device doesn't change; confirming it just re-locks the
+          shared key under it.</p>
+        <div class="field">
+          <label for="syncJoinRecoveryCode">Recovery code (from the other device)</label>
+          <input type="text" id="syncJoinRecoveryCode" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="syncJoinPassphrase">Confirm your current passphrase</label>
+          <input type="password" id="syncJoinPassphrase" autocomplete="current-password">
+        </div>
+      </div>
+      <p class="lock-error" id="syncSetupError" role="alert"></p>
+      <button type="button" class="btn btn-primary" id="enableSyncBtn">Enable sync</button>
+    </div>
+
+    <div id="syncActiveSection" hidden>
+      <p class="lock-sub">Sync is on. This token is a bearer capability for your ciphertext bucket
+        — anyone who has it can read and write it, so treat it like a password. Enter this same
+        server and token on another device, along with your recovery code, to sync between them —
+        your recovery code now unlocks this synced task list on any joined device, not just this
+        one, so it's worth treating with the same care.</p>
+      <div class="field">
+        <label>Server</label>
+        <div class="recovery-code-box" id="syncServerDisplay"></div>
+      </div>
+      <div class="field">
+        <label>Sync token</label>
+        <div class="recovery-code-box" id="syncTokenDisplay"></div>
+      </div>
+      <button type="button" class="btn btn-ghost recovery-copy-btn" id="copySyncTokenBtn">Copy token</button>
+      <p class="lock-error" id="syncStatus" role="status"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="disableSyncBtn">Disable sync</button>
+        <button type="button" class="btn btn-primary" id="syncNowBtn">Sync now</button>
+      </div>
+    </div>
+
+    <div class="modal-actions-right sync-close-row">
+      <button type="button" class="btn btn-ghost" id="closeSyncModalBtn">Close</button>
+    </div>
+  </div>
+</div>
+
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260803i" type="module"></script>
+<script src="js/app.js?v=20260803k" type="module"></script>
 </body>
 </html>

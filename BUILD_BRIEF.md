@@ -75,8 +75,21 @@ the UX is not smooth, the security is irrelevant because no one stays.
   against whatever's typed, on every keystroke — nothing is simulated or persisted. "Dump my local
   database" calls the real `getAllTasks()` and prints the actual stored records. Reachable even
   with zero real tasks on the board, since the demo doesn't depend on any existing data.
-- **Phase 6 — Optional sync (Flask blob store).** Random bearer token, push/pull ciphertext only,
-  last-write-wins.
+- **Phase 6 — Optional sync (Flask blob store). ✅ Done.** `server/` — Flask + SQLite, bearer-token
+  buckets, `/sync/push`/`/sync/pull`, last-write-wins enforced server-side too, deletion scrubs
+  ciphertext (not just a flag), 14 pytest tests including cross-token isolation. Real gap found and
+  fixed during this phase, not shipped broken: the spec as written never established a shared key
+  between two devices, so cross-device sync could move ciphertext but no second device could ever
+  decrypt it. Fixed by extending the protocol with a `/sync/keyring` bootstrap endpoint that
+  republishes the *recovery*-wrapped DEK (never the passphrase-wrapped one) per token — "joining" a
+  bucket now means unwrapping that shared DEK with the recovery code, then re-wrapping it under the
+  joining device's own existing local passphrase (re-verified correct first, not trusted blindly).
+  CSP's `connect-src` widened from `'self'` to `*` to allow the user-configurable server URL —
+  documented as a real trade-off in `docs/THREAT_MODEL.md`, not a silent loosening. Verified
+  end-to-end with two real browser profiles and a running server: zero plaintext (task title,
+  recovery code, or passphrase) ever appeared in network traffic, wrong recovery code and wrong
+  local passphrase both fail closed, and a bidirectional edit + deletion actually round-tripped
+  between "devices" correctly.
 - **Phase 7 — Hardening + self-attack.** Server-enforced CSP, innerHTML audit, vendored deps with
   SRI, `docs/SECURITY.md` self-attack writeup.
 - **Phase 8 — Ship.** Static deploy, landing page, optional sync server deployed separately.

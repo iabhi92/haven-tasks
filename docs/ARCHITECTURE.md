@@ -4,7 +4,7 @@ This is the source of truth for anything security-critical. Do not improvise key
 Every primitive below is a standard, reviewed construction composed correctly — we are NOT
 inventing crypto.
 
-**Status: Phase 5 complete.** `js/crypto.js` (Phase 2) is wired into `app.js`/`store.js` (Phase 3):
+**Status: Phase 6 complete.** `js/crypto.js` (Phase 2) is wired into `app.js`/`store.js` (Phase 3):
 a real lock/unlock flow, encrypt-before-store on every write, decrypt-on-load on unlock, DEK held
 only in an in-memory module variable, explicit Lock action. Verified by direct inspection of the
 raw IndexedDB contents — every task record is `{id, iv, ciphertext, updatedAt}`, nothing else.
@@ -27,6 +27,24 @@ layout below. The reveal logic (a live `encryptTask()` call on keystroke, a real
 dump) is small and tightly coupled to the same in-memory `dek`/`tasks` state every other view
 already reads, the same way the lock screen's logic lives in `app.js` rather than its own module —
 splitting it out would have added an import boundary without a real separation-of-concerns benefit.
+
+**Phase 6 (§5) is implemented, with one protocol extension beyond the original spec below — a real
+gap found during implementation, not a planned feature.** §5 as originally written syncs only task
+records, which means two devices can move ciphertext between each other but neither ever obtains
+the *key* to decrypt the other's copy — nothing in the original design establishes a shared DEK
+across devices. Fixed by adding a `/sync/keyring` endpoint (`server/routes.py`) that republishes a
+device's *recovery*-wrapped DEK (never the passphrase-wrapped one) per sync token. "Joining" a
+bucket now means: fetch that bootstrap material, unwrap it with the recovery code to obtain the
+shared DEK, verify the joining device's own current local passphrase is actually correct (by
+attempting to unwrap its *existing* local `wrappedDek` — the result is discarded, this is a
+correctness check only, never trusted blindly), then re-wrap the shared DEK under that verified
+local KEK and adopt the shared `saltRecovery`/`wrappedDekRecovery`/`wrapIvRecovery` locally too.
+See `docs/THREAT_MODEL.md` items 7–8 for what this changes about the recovery code's blast radius
+and what happens to a joining device's pre-existing local-only tasks.
+
+`connect-src` in the CSP meta tag is now `*` instead of `'self'` — the sync server runs at a
+user-typed URL a static CSP can't allowlist in advance. Documented as a real widening of the XSS
+blast radius in `docs/THREAT_MODEL.md`'s A5 section, not a silent change.
 
 ## 1. Key hierarchy
 
@@ -177,11 +195,20 @@ plaintext.
   - `POST /sync/push` — body: `{ records: [ {id, iv, ciphertext, updatedAt, deleted}, ... ] }`.
     Upsert into the token's bucket.
   - `GET /sync/pull?since=<timestamp>` — returns records in the bucket with `updatedAt > since`.
+  - `POST /sync/keyring` — body: `{ wrappedDekRecovery, wrapIvRecovery, saltRecovery, updatedAt }`.
+    **Not in the original spec** — added because nothing above establishes a shared DEK between two
+    devices; see the Phase 6 status note at the top of this document for why. Republishes a
+    device's own *recovery*-wrapped DEK per token, so a second device can later obtain the same
+    key via the recovery code. Never the passphrase-wrapped copy.
+  - `GET /sync/keyring` — returns `{ wrappedDekRecovery, wrapIvRecovery, saltRecovery }` for the
+    token, or 404 if no device has published bootstrap material for it yet.
 - **Conflict resolution:** last-write-wins by `updatedAt` for v1. CRDT-based merge is later.
 - **What the server learns:** record counts, ciphertext sizes, update timestamps, sync frequency,
-  the bucket token. Nothing about task contents.
-- **Deletion:** `deleted: true` tombstones sync; ensure a real delete path also removes the
-  ciphertext row server-side, not just flags it.
+  the bucket token. Nothing about task contents. The keyring-bootstrap row is exactly as useless
+  without the recovery code as a device's own local keyring already is.
+- **Deletion:** `deleted: true` tombstones sync; a real delete path also removes the ciphertext
+  row server-side (`iv`/`ciphertext` set to `NULL` on the same row, not just a flag toggled) — see
+  `server/storage.py`'s `upsert_records`.
 
 ## 6. The "You vs The Server" reveal
 

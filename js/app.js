@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803i";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803k";
 import {
   renderBoard,
   renderList,
@@ -24,7 +24,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260803i";
+} from "./ui.js?v=20260803k";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -40,7 +40,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260803i";
+} from "./crypto.js?v=20260803k";
+import {
+  generateSyncToken,
+  pushRecords,
+  pullRecords,
+  pushKeyringBootstrap,
+  pullKeyringBootstrap,
+} from "./sync.js?v=20260803k";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -49,6 +56,10 @@ let view = "board";
 let searchQuery = "";
 let draggedId = null;
 let dek = null; // the in-memory DEK CryptoKey — null whenever locked
+
+const SYNC_SERVER_KEY = "haven-sync-server";
+const SYNC_TOKEN_KEY = "haven-sync-token";
+const SYNC_LAST_KEY = "haven-sync-last";
 
 // Setup is a two-step flow (passphrase -> confirm recovery code saved), so the
 // generated keyring/DEK/code have to sit here in between those two steps.
@@ -212,6 +223,21 @@ async function removeTask(id) {
   tasks = tasks.filter((t) => t.id !== id);
   render();
   await deleteTask(id);
+
+  // Local storage hard-deletes immediately (as it always has, since Phase 1) — but
+  // if sync is on, other devices need to learn about this deletion too, and once
+  // it's gone locally there's no second chance to tell them. Push a tombstone now,
+  // while we still know it happened. A deletion that occurs before sync was ever
+  // enabled can never be propagated later — an honest, documented limitation, not
+  // a bug (see docs/ARCHITECTURE.md §5).
+  const config = getSyncConfig();
+  if (config) {
+    try {
+      await pushRecords(config.server, config.token, [{ id, updatedAt: now(), deleted: true }]);
+    } catch (err) {
+      console.error("Failed to push deletion tombstone to sync server:", err);
+    }
+  }
 }
 
 function exportTasks() {
@@ -223,6 +249,253 @@ function exportTasks() {
   link.download = `haven-tasks-${stamp}.json`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+// ---------- sync (Phase 6, optional) ----------
+
+function getSyncConfig() {
+  const server = localStorage.getItem(SYNC_SERVER_KEY);
+  const token = localStorage.getItem(SYNC_TOKEN_KEY);
+  if (!server || !token) return null;
+  return { server, token };
+}
+
+function setSyncConfig(server, token) {
+  localStorage.setItem(SYNC_SERVER_KEY, server);
+  localStorage.setItem(SYNC_TOKEN_KEY, token);
+}
+
+function clearSyncConfig() {
+  localStorage.removeItem(SYNC_SERVER_KEY);
+  localStorage.removeItem(SYNC_TOKEN_KEY);
+  localStorage.removeItem(SYNC_LAST_KEY);
+}
+
+// Push every local record, then pull whatever changed remotely since the last
+// sync and merge it in (last-write-wins by updatedAt — see docs/ARCHITECTURE.md
+// §5). Pushing everything every time, not just a local diff, is the simple v1
+// choice the brief explicitly allows ("CRDT-based merge is later") — the server
+// upsert is idempotent, so a redundant push of an unchanged record is harmless,
+// just not maximally efficient.
+async function syncNow() {
+  const config = getSyncConfig();
+  if (!config) throw new Error("Sync is not configured");
+
+  const localRecords = await getAllTasks();
+  await pushRecords(config.server, config.token, localRecords);
+
+  const since = Number(localStorage.getItem(SYNC_LAST_KEY) || "0");
+  const remoteRecords = await pullRecords(config.server, config.token, since);
+
+  for (const remote of remoteRecords) {
+    const local = localRecords.find((r) => r.id === remote.id);
+    if (local && local.updatedAt >= remote.updatedAt) continue; // local already newer or equal
+    if (remote.deleted) {
+      await deleteTask(remote.id);
+    } else {
+      await putTask({ id: remote.id, iv: remote.iv, ciphertext: remote.ciphertext, updatedAt: remote.updatedAt });
+    }
+  }
+
+  localStorage.setItem(SYNC_LAST_KEY, String(now()));
+
+  tasks = await loadAndDecryptTasks();
+  render();
+
+  return { pushed: localRecords.length, pulled: remoteRecords.length };
+}
+
+function refreshSyncModalState() {
+  const config = getSyncConfig();
+  const setupError = document.getElementById("syncSetupError");
+  const statusEl = document.getElementById("syncStatus");
+  setupError.textContent = "";
+  statusEl.textContent = "";
+  statusEl.classList.remove("is-ok");
+  if (config) {
+    document.getElementById("syncSetupSection").hidden = true;
+    document.getElementById("syncActiveSection").hidden = false;
+    document.getElementById("syncServerDisplay").textContent = config.server;
+    document.getElementById("syncTokenDisplay").textContent = config.token;
+  } else {
+    document.getElementById("syncSetupSection").hidden = false;
+    document.getElementById("syncActiveSection").hidden = true;
+    document.getElementById("syncServerUrl").value = "";
+    document.getElementById("syncTokenInput").value = "";
+    document.getElementById("syncJoinFields").hidden = true;
+    document.getElementById("syncJoinRecoveryCode").value = "";
+    document.getElementById("syncJoinPassphrase").value = "";
+  }
+}
+
+function openSyncModal() {
+  refreshSyncModalState();
+  document.getElementById("syncModal").hidden = false;
+}
+
+// Creating a fresh bucket: generate a token, publish this device's own recovery
+// wrap (already sitting in its local keyring since Phase 4) so a second device
+// can join later, then do a normal sync.
+async function createSyncBucket(server, setupError, statusEl) {
+  const token = generateSyncToken();
+  const localKeyring = await getKeyring();
+
+  statusEl.textContent = "Syncing…";
+  try {
+    await pushKeyringBootstrap(server, token, {
+      wrappedDekRecovery: localKeyring.wrappedDekRecovery,
+      wrapIvRecovery: localKeyring.wrapIvRecovery,
+      saltRecovery: localKeyring.saltRecovery,
+      updatedAt: now(),
+    });
+    setSyncConfig(server, token);
+    localStorage.setItem(SYNC_LAST_KEY, "0");
+    refreshSyncModalState();
+    const result = await syncNow();
+    statusEl.textContent = `Synced. Pushed ${result.pushed}, pulled ${result.pulled}.`;
+    statusEl.classList.add("is-ok");
+  } catch (err) {
+    setupError.textContent = `Couldn't reach the sync server: ${err.message}`;
+  }
+}
+
+// Joining an existing bucket: fetch the originating device's recovery wrap,
+// unwrap it with the recovery code to obtain the *same* DEK, verify the
+// current local passphrase is actually correct (never trust it blindly — a
+// typo here would silently lock this device out), then re-wrap the shared DEK
+// under the existing local KEK and adopt the shared recovery wrap too. See
+// docs/ARCHITECTURE.md §5 and the Phase 6 note in docs/THREAT_MODEL.md.
+async function joinSyncBucket(server, token, setupError, statusEl) {
+  const recoveryCode = document.getElementById("syncJoinRecoveryCode").value;
+  const confirmPassphrase = document.getElementById("syncJoinPassphrase").value;
+
+  if (!recoveryCode || !confirmPassphrase) {
+    setupError.textContent = "Joining needs the recovery code and your current passphrase.";
+    return;
+  }
+
+  const warned = confirm(
+    "Joining replaces this device's encryption key with the shared one from the other device. " +
+    "Any tasks on this device that haven't been synced anywhere else will become inaccessible " +
+    "(not deleted, just unreadable with the new key). Continue?"
+  );
+  if (!warned) return;
+
+  const bootstrap = await pullKeyringBootstrap(server, token);
+  if (!bootstrap) {
+    setupError.textContent = "No sync data found for that token yet — has sync been enabled on the other device?";
+    return;
+  }
+
+  const kekR = await deriveKek(normalizeRecoveryCode(recoveryCode), base64ToBuf(bootstrap.saltRecovery));
+  let sharedDekBytes;
+  try {
+    sharedDekBytes = await unwrapDek(bootstrap.wrappedDekRecovery, bootstrap.wrapIvRecovery, kekR);
+  } catch {
+    setupError.textContent = "That recovery code doesn't match this sync token.";
+    return;
+  }
+
+  const localKeyring = await getKeyring();
+  const localKek = await deriveKek(confirmPassphrase, base64ToBuf(localKeyring.salt));
+  try {
+    // Correctness check only — the unwrapped result is discarded either way,
+    // this just confirms the entered passphrase before overwriting anything.
+    await unwrapDek(localKeyring.wrappedDek, localKeyring.wrapIv, localKek);
+  } catch {
+    setupError.textContent = "That's not your current passphrase.";
+    return;
+  }
+
+  const extractableSharedDek = await importDek(sharedDekBytes, true);
+  const { wrappedDek: newWrappedDek, wrapIv: newWrapIv } = await wrapDek(extractableSharedDek, localKek);
+
+  await putKeyring({
+    ...localKeyring,
+    wrappedDek: newWrappedDek,
+    wrapIv: newWrapIv,
+    saltRecovery: bootstrap.saltRecovery,
+    wrappedDekRecovery: bootstrap.wrappedDekRecovery,
+    wrapIvRecovery: bootstrap.wrapIvRecovery,
+  });
+
+  dek = await importDek(sharedDekBytes);
+  setSyncConfig(server, token);
+  localStorage.setItem(SYNC_LAST_KEY, "0");
+
+  refreshSyncModalState();
+  statusEl.textContent = "Syncing…";
+  try {
+    const result = await syncNow();
+    statusEl.textContent = `Joined. Synced. Pushed ${result.pushed}, pulled ${result.pulled}.`;
+    statusEl.classList.add("is-ok");
+  } catch (err) {
+    statusEl.textContent = `Joined, but couldn't reach the sync server yet: ${err.message}`;
+  }
+}
+
+function wireSyncModal() {
+  const overlay = document.getElementById("syncModal");
+  const serverInput = document.getElementById("syncServerUrl");
+  const tokenInput = document.getElementById("syncTokenInput");
+  const setupError = document.getElementById("syncSetupError");
+  const statusEl = document.getElementById("syncStatus");
+
+  tokenInput.addEventListener("input", () => {
+    document.getElementById("syncJoinFields").hidden = !tokenInput.value.trim();
+  });
+
+  document.getElementById("enableSyncBtn").addEventListener("click", async () => {
+    const server = serverInput.value.trim().replace(/\/+$/, "");
+    setupError.textContent = "";
+
+    if (!/^https?:\/\/.+/.test(server)) {
+      setupError.textContent = "Enter a server URL starting with http:// or https://.";
+      return;
+    }
+
+    const pastedToken = tokenInput.value.trim();
+    if (pastedToken) {
+      await joinSyncBucket(server, pastedToken, setupError, statusEl);
+    } else {
+      await createSyncBucket(server, setupError, statusEl);
+    }
+  });
+
+  document.getElementById("disableSyncBtn").addEventListener("click", () => {
+    clearSyncConfig();
+    refreshSyncModalState();
+  });
+
+  document.getElementById("syncNowBtn").addEventListener("click", async () => {
+    statusEl.textContent = "Syncing…";
+    statusEl.classList.remove("is-ok");
+    try {
+      const result = await syncNow();
+      statusEl.textContent = `Synced. Pushed ${result.pushed}, pulled ${result.pulled}.`;
+      statusEl.classList.add("is-ok");
+    } catch (err) {
+      statusEl.textContent = `Couldn't reach the sync server: ${err.message}`;
+    }
+  });
+
+  document.getElementById("copySyncTokenBtn").addEventListener("click", async () => {
+    const config = getSyncConfig();
+    if (!config) return;
+    try {
+      await navigator.clipboard.writeText(config.token);
+    } catch {
+      // Non-fatal — the token text is user-select:all, manual copy still works.
+    }
+  });
+
+  document.getElementById("closeSyncModalBtn").addEventListener("click", () => {
+    overlay.hidden = true;
+  });
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) overlay.hidden = true;
+  });
 }
 
 async function persistReorder(status) {
@@ -432,6 +705,7 @@ function getCmdkItems() {
       },
     },
     { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
+    { label: "Sync settings", action: openSyncModal },
   ];
 }
 
@@ -724,6 +998,7 @@ async function boot() {
   wireDragAndDrop();
   wireCommandPalette();
   wireRevealView();
+  wireSyncModal();
 }
 
 wireThemeToggle();

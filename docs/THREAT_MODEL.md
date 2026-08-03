@@ -71,6 +71,15 @@
   - Minimal dependency count; audit each one.
 - **Residual risk:** a supply-chain compromise of a vendored dependency (e.g. `hash-wasm`) or the
   frontend host (A1/A5 overlap).
+- **Widened by Phase 6 (optional sync), stated plainly:** `connect-src` is now `*` instead of
+  `'self'`, because the sync server runs at a URL the user types in — a static CSP can't allowlist
+  a destination it doesn't know in advance. Every other directive (script-src, object-src, etc.)
+  stays locked to `'self'`. The real-world cost: before sync existed, a successful XSS payload
+  could only ever `fetch()` data back to this app's own origin; now it can exfiltrate to any
+  origin. This doesn't change who's protected by default — sync is opt-in, and a user who never
+  enables it isn't exposed to this — but it's a genuine widening of the blast radius the moment
+  sync is turned on, not a cost-free feature. No mitigation beyond "don't let XSS happen" exists
+  for this specific trade-off; noted here so it's an informed choice, not a hidden one.
 
 ### A6. Clickjacking / UI redress
 - **Defense:** `frame-ancestors 'none'` (CSP) and/or `X-Frame-Options: DENY`.
@@ -90,6 +99,19 @@
 4. **Weak passphrases remain the user's risk.**
 5. **Last-write-wins can lose edits** on concurrent multi-device changes until CRDT merge lands.
 6. **v1 is single-user.** Sharing, and the revocation problem it brings, is out of scope.
+7. **The recovery code becomes a shared secret once sync is joined.** Before sync, it protects one
+   device. After a second device joins a sync bucket (docs/ARCHITECTURE.md §5's keyring-bootstrap
+   mechanism), the *same* recovery code unwraps the *same* DEK on every joined device — so anyone
+   who has it can decrypt the whole synced task list, not just one device's copy. This is inherent
+   to how joining works (it's the only secret that lets a second device obtain the same key without
+   the server ever seeing it), not a bug, but it does raise the code's blast radius the moment it's
+   used for more than one device.
+8. **Joining a sync bucket replaces the local DEK — pre-existing local-only tasks become
+   inaccessible, not deleted.** If a device already has tasks encrypted under its own independently
+   generated DEK before joining someone else's sync bucket, those records are never re-encrypted or
+   migrated — they just silently fail to decrypt afterward (the app skips undecryptable records
+   rather than crash) and stay invisible in IndexedDB indefinitely. The UI warns about this
+   explicitly before a join proceeds, but there's no migration/merge path in v1.
 
 ## Self-attack checklist (becomes `docs/SECURITY.md` in Phase 7)
 
