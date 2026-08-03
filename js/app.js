@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask } from "./store.js?v=20260803c";
+import { getAllTasks, putTask, deleteTask } from "./store.js?v=20260803d";
 import {
   renderBoard,
   renderList,
@@ -13,7 +13,7 @@ import {
   openCmdk,
   closeCmdk,
   renderCmdkItems,
-} from "./ui.js?v=20260803c";
+} from "./ui.js?v=20260803d";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -164,6 +164,46 @@ function exportTasks() {
   URL.revokeObjectURL(url);
 }
 
+// RFC 5545 TEXT escaping — order matters, backslash first.
+function icsEscape(text) {
+  return String(text)
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\n/g, "\\n");
+}
+
+function icsTimestamp(date) {
+  return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+}
+
+function generateICS(taskList) {
+  const withDue = taskList.filter((t) => t.dueDate);
+  const stamp = icsTimestamp(new Date());
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Haven//Tasks//EN", "CALSCALE:GREGORIAN"];
+  for (const t of withDue) {
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:${t.id}@haven.local`);
+    lines.push(`DTSTAMP:${stamp}`);
+    lines.push(`DTSTART;VALUE=DATE:${t.dueDate.replace(/-/g, "")}`);
+    lines.push(`SUMMARY:${icsEscape(t.title)}`);
+    if (t.notes) lines.push(`DESCRIPTION:${icsEscape(t.notes)}`);
+    lines.push("END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n");
+}
+
+function downloadICS(taskList, filename) {
+  const blob = new Blob([generateICS(taskList)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.getElementById("exportLink");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 async function persistReorder(status) {
   const inStatus = tasks.filter((t) => t.status === status).sort((a, b) => a.order - b.order);
   await Promise.all(inStatus.map((t) => putTask(t)));
@@ -239,6 +279,14 @@ function wireEditModal() {
   const form = document.getElementById("editForm");
   const cancelBtn = document.getElementById("editCancelBtn");
   const deleteBtn = document.getElementById("editDeleteBtn");
+  const calendarBtn = document.getElementById("editAddToCalendarBtn");
+
+  calendarBtn.addEventListener("click", () => {
+    const id = document.getElementById("editId").value;
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    downloadICS([task], `haven-reminder-${task.dueDate}.ics`);
+  });
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -312,6 +360,11 @@ function getCmdkItems() {
     { label: "Switch to board view", action: () => { view = "board"; setView(view); render(); } },
     { label: "Switch to list view", action: () => { view = "list"; setView(view); render(); } },
     { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
+    {
+      label: "Export calendar reminders (.ics)",
+      hint: ".ics",
+      action: () => downloadICS(tasks, `haven-reminders-${new Date().toISOString().slice(0, 10)}.ics`),
+    },
   ];
 }
 

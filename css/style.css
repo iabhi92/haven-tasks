@@ -98,6 +98,11 @@
     --paper-line: rgba(255, 248, 230, 0.08);
     --paper-text: #efe9db;
     --paper-text-muted: #a89d85;
+
+    /* Rail must be visibly lighter than the near-black page background here —
+       reusing the light-mode dark rail tone would blend rail into page. */
+    --rail-bg: rgba(255, 255, 255, 0.055);
+    --rail-border: rgba(255, 255, 255, 0.16);
   }
 }
 
@@ -144,6 +149,9 @@
   --paper-line: rgba(255, 248, 230, 0.08);
   --paper-text: #efe9db;
   --paper-text-muted: #a89d85;
+
+  --rail-bg: rgba(255, 255, 255, 0.055);
+  --rail-border: rgba(255, 255, 255, 0.16);
 }
 
 :root[data-theme="light"] {
@@ -183,6 +191,9 @@
   --paper-line: rgba(30, 25, 15, 0.1);
   --paper-text: #2c2620;
   --paper-text-muted: #6f6656;
+
+  --rail-bg: rgba(8, 9, 12, 0.55);
+  --rail-border: rgba(255, 255, 255, 0.1);
 }
 
 /* ---------- reset ---------- */
@@ -787,6 +798,7 @@ body { display: flex; }
   align-items: center;
   margin-top: 18px;
 }
+.modal-actions-left { display: flex; gap: 8px; }
 .modal-actions-right { display: flex; gap: 8px; }
 
 /* ---------- buttons ---------- */

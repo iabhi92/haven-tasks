@@ -11,7 +11,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260803c">
+<link rel="stylesheet" href="css/style.css?v=20260803d">
 </head>
 <body>
 
@@ -184,7 +184,10 @@
       </div>
 
       <div class="modal-actions">
-        <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
+        <div class="modal-actions-left">
+          <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
+          <button type="button" class="btn btn-ghost" id="editAddToCalendarBtn" hidden>Add to calendar</button>
+        </div>
         <div class="modal-actions-right">
           <button type="button" class="btn btn-ghost" id="editCancelBtn">Cancel</button>
           <button type="submit" class="btn btn-primary">Save</button>
@@ -209,6 +212,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260803c" type="module"></script>
+<script src="js/app.js?v=20260803d" type="module"></script>
 </body>
 </html>
