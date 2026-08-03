@@ -11,7 +11,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260803g">
+<link rel="stylesheet" href="css/style.css?v=20260803h">
 </head>
 <body>
 
@@ -22,8 +22,7 @@
 
     <form id="setupForm" class="lock-form" autocomplete="off" hidden>
       <p class="lock-sub">Set a passphrase. This encrypts everything on this device — we never
-        see it, and there is no "forgot passphrase" link, because that would mean someone else
-        could read your tasks too.</p>
+        see it. Next you'll get a one-time recovery code as a backup if you forget it.</p>
       <div class="field">
         <label for="setupPassphrase">Passphrase</label>
         <input type="password" id="setupPassphrase" autocomplete="new-password" minlength="10" required>
@@ -35,8 +34,20 @@
       <p class="lock-hint">At least 10 characters. Longer and less guessable beats complex —
         four random words work well.</p>
       <p class="lock-error" id="setupError" role="alert"></p>
-      <button type="submit" class="btn btn-primary lock-submit">Create and unlock</button>
+      <button type="submit" class="btn btn-primary lock-submit">Continue</button>
     </form>
+
+    <div class="lock-form" id="recoveryCodeScreen" hidden>
+      <p class="lock-sub">Save this recovery code. We never see it. If you lose both your
+        passphrase and this code, your data cannot be recovered by anyone — not even us.</p>
+      <div class="recovery-code-box" id="recoveryCodeText"></div>
+      <button type="button" class="btn btn-ghost recovery-copy-btn" id="copyRecoveryCodeBtn">Copy code</button>
+      <label class="recovery-confirm">
+        <input type="checkbox" id="recoveryCodeConfirmCheckbox">
+        I've saved this recovery code somewhere safe
+      </label>
+      <button type="button" class="btn btn-primary lock-submit" id="recoveryCodeContinueBtn" disabled>Continue to Haven</button>
+    </div>
 
     <form id="unlockForm" class="lock-form" autocomplete="off" hidden>
       <p class="lock-sub">Enter your passphrase to unlock your tasks.</p>
@@ -46,6 +57,33 @@
       </div>
       <p class="lock-error" id="unlockError" role="alert"></p>
       <button type="submit" class="btn btn-primary lock-submit">Unlock</button>
+      <button type="button" class="lock-link" id="forgotPassphraseBtn">Forgot your passphrase?</button>
+    </form>
+
+    <form id="recoveryForm" class="lock-form" autocomplete="off" hidden>
+      <p class="lock-sub">Enter your recovery code to regain access and set a new passphrase.</p>
+      <div class="field">
+        <label for="recoveryCodeInput">Recovery code</label>
+        <input type="text" id="recoveryCodeInput" autocomplete="off" spellcheck="false" required>
+      </div>
+      <p class="lock-error" id="recoveryError" role="alert"></p>
+      <button type="submit" class="btn btn-primary lock-submit">Continue</button>
+      <button type="button" class="lock-link" id="backToUnlockBtn">Back to passphrase</button>
+    </form>
+
+    <form id="resetPassphraseForm" class="lock-form" autocomplete="off" hidden>
+      <p class="lock-sub">Recovery code accepted. Set a new passphrase — your existing tasks
+        stay exactly as they are, only the passphrase changes.</p>
+      <div class="field">
+        <label for="resetPassphrase">New passphrase</label>
+        <input type="password" id="resetPassphrase" autocomplete="new-password" minlength="10" required>
+      </div>
+      <div class="field">
+        <label for="resetPassphraseConfirm">Confirm new passphrase</label>
+        <input type="password" id="resetPassphraseConfirm" autocomplete="new-password" minlength="10" required>
+      </div>
+      <p class="lock-error" id="resetError" role="alert"></p>
+      <button type="submit" class="btn btn-primary lock-submit">Set new passphrase and unlock</button>
     </form>
   </div>
 </div>
@@ -251,6 +289,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260803g" type="module"></script>
+<script src="js/app.js?v=20260803h" type="module"></script>
 </body>
 </html>

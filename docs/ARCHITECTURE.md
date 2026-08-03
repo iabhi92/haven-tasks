@@ -4,16 +4,22 @@ This is the source of truth for anything security-critical. Do not improvise key
 Every primitive below is a standard, reviewed construction composed correctly — we are NOT
 inventing crypto.
 
-**Status: Phase 3 complete.** `js/crypto.js` (Phase 2) is wired into `app.js`/`store.js`: a real
-lock/unlock flow, encrypt-before-store on every write, decrypt-on-load on unlock, DEK held only in
-an in-memory module variable, explicit Lock action. Verified by direct inspection of the raw
-IndexedDB contents — every task record is `{id, iv, ciphertext, updatedAt}`, nothing else.
+**Status: Phase 4 complete.** `js/crypto.js` (Phase 2) is wired into `app.js`/`store.js` (Phase 3):
+a real lock/unlock flow, encrypt-before-store on every write, decrypt-on-load on unlock, DEK held
+only in an in-memory module variable, explicit Lock action. Verified by direct inspection of the
+raw IndexedDB contents — every task record is `{id, iv, ciphertext, updatedAt}`, nothing else.
 
-**Recovery is not implemented yet (that's Phase 4).** The stored keyring record currently has only
-`{kdf, kdfParams, salt, wrappedDek, wrapIv, version}` — no `saltRecovery`/`wrappedDekRecovery`/
-`wrapIvRecovery` fields. Losing the passphrase right now means the data is genuinely unrecoverable.
-This is the honest state of an in-progress build, not a hidden gap — Phase 4 adds the recovery-code
-wrap on top of this same record shape.
+Recovery (Phase 4) is implemented per §4 below: the keyring record now has the full
+`{kdf, kdfParams, salt, wrappedDek, wrapIv, saltRecovery, wrappedDekRecovery, wrapIvRecovery,
+version}` shape. A recovery code is generated at setup, the DEK is wrapped a second time under it,
+and the code is shown once behind a forced confirmation checkbox before the app unlocks. "Forgot
+passphrase?" on the unlock screen recovers via the code and sets a new passphrase — verified the
+same recovery code keeps working after a reset, matching §2's "recovery wrap is unaffected"
+guarantee for ordinary passphrase changes.
+
+**Deliberately not done:** the onboarding-order part of Phase 4 (reaching a first created task
+before any crypto concept) — Phase 3's passphrase-first gate was kept as an explicit choice, not
+restructured. See `BUILD_BRIEF.md`'s Phase 4 entry.
 
 ## 1. Key hierarchy
 

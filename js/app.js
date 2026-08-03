@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803g";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803h";
 import {
   renderBoard,
   renderList,
@@ -14,12 +14,17 @@ import {
   closeCmdk,
   renderCmdkItems,
   showSetupScreen,
+  showRecoveryCodeScreen,
   showUnlockScreen,
+  showRecoveryForm,
+  showResetPassphraseScreen,
   showApp,
   showLockScreen,
   setSetupError,
   setUnlockError,
-} from "./ui.js?v=20260803g";
+  setRecoveryError,
+  setResetError,
+} from "./ui.js?v=20260803h";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -31,9 +36,11 @@ import {
   importDek,
   encryptTask,
   decryptTask,
+  generateRecoveryCode,
+  normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260803g";
+} from "./crypto.js?v=20260803h";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -42,6 +49,15 @@ let view = "board";
 let searchQuery = "";
 let draggedId = null;
 let dek = null; // the in-memory DEK CryptoKey — null whenever locked
+
+// Setup is a two-step flow (passphrase -> confirm recovery code saved), so the
+// generated keyring/DEK/code have to sit here in between those two steps.
+let pendingKeyring = null;
+let pendingDek = null;
+let pendingRecoveryCode = null;
+
+// DEK recovered via recovery code, pending a new passphrase to re-wrap it under.
+let recoveredDek = null;
 
 const THEME_KEY = "haven-theme";
 
@@ -439,6 +455,13 @@ async function afterUnlock() {
 function wireLockScreen() {
   const setupForm = document.getElementById("setupForm");
   const unlockForm = document.getElementById("unlockForm");
+  const recoveryForm = document.getElementById("recoveryForm");
+  const resetPassphraseForm = document.getElementById("resetPassphraseForm");
+  const recoveryCheckbox = document.getElementById("recoveryCodeConfirmCheckbox");
+  const recoveryContinueBtn = document.getElementById("recoveryCodeContinueBtn");
+  const copyRecoveryCodeBtn = document.getElementById("copyRecoveryCodeBtn");
+  const forgotPassphraseBtn = document.getElementById("forgotPassphraseBtn");
+  const backToUnlockBtn = document.getElementById("backToUnlockBtn");
 
   setupForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -460,26 +483,55 @@ function wireLockScreen() {
     const newDek = await generateDek();
     const { wrappedDek, wrapIv } = await wrapDek(newDek, kek);
 
-    await putKeyring({
+    const recoveryCode = generateRecoveryCode();
+    const saltRecovery = generateSalt();
+    const kekR = await deriveKek(normalizeRecoveryCode(recoveryCode), saltRecovery);
+    const { wrappedDek: wrappedDekRecovery, wrapIv: wrapIvRecovery } = await wrapDek(newDek, kekR);
+
+    // Self-verify both wraps before the user is ever shown the code — never show a
+    // recovery code, or finish a setup, that quietly doesn't actually work.
+    const rawDekBytes = await unwrapDek(wrappedDek, wrapIv, kek);
+    await unwrapDek(wrappedDekRecovery, wrapIvRecovery, kekR);
+
+    pendingDek = await importDek(rawDekBytes);
+    pendingKeyring = {
       kdf: KDF_NAME,
       kdfParams: { iterations: PBKDF2_ITERATIONS },
       salt: bufToBase64(salt),
       wrappedDek,
       wrapIv,
+      saltRecovery: bufToBase64(saltRecovery),
+      wrappedDekRecovery,
+      wrapIvRecovery,
       version: 1,
-    });
+    };
+    pendingRecoveryCode = recoveryCode;
 
-    // Unwrap immediately rather than reusing newDek directly — self-verifies the
-    // wrap/unwrap round trip at setup time instead of trusting it silently.
-    const rawDekBytes = await unwrapDek(wrappedDek, wrapIv, kek);
-    dek = await importDek(rawDekBytes);
-
-    // The raw passphrase has no reason to keep existing anywhere once it's done its
-    // one job (deriving the KEK, above) — clear it from the DOM rather than leave it
-    // sitting in a hidden input's .value for the rest of the session.
     document.getElementById("setupPassphrase").value = "";
     document.getElementById("setupPassphraseConfirm").value = "";
 
+    showRecoveryCodeScreen(recoveryCode);
+  });
+
+  recoveryCheckbox.addEventListener("change", () => {
+    recoveryContinueBtn.disabled = !recoveryCheckbox.checked;
+  });
+
+  copyRecoveryCodeBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(pendingRecoveryCode || "");
+    } catch {
+      // Clipboard permission denied/unavailable — the code text itself has
+      // user-select:all, so manual copy still works. Non-fatal either way.
+    }
+  });
+
+  recoveryContinueBtn.addEventListener("click", async () => {
+    await putKeyring(pendingKeyring);
+    dek = pendingDek;
+    pendingKeyring = null;
+    pendingDek = null;
+    pendingRecoveryCode = null;
     await afterUnlock();
   });
 
@@ -505,6 +557,82 @@ function wireLockScreen() {
     // Same reasoning as the setup path — the passphrase's job is done once it's
     // derived the KEK above, so it shouldn't keep sitting in the DOM.
     passphraseInput.value = "";
+
+    await afterUnlock();
+  });
+
+  forgotPassphraseBtn.addEventListener("click", () => {
+    setUnlockError("");
+    document.getElementById("unlockPassphrase").value = "";
+    setRecoveryError("");
+    document.getElementById("recoveryCodeInput").value = "";
+    showRecoveryForm();
+  });
+
+  backToUnlockBtn.addEventListener("click", () => {
+    setRecoveryError("");
+    showUnlockScreen();
+  });
+
+  recoveryForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const codeInput = document.getElementById("recoveryCodeInput");
+    setRecoveryError("");
+
+    const keyring = await getKeyring();
+    if (!keyring.wrappedDekRecovery) {
+      setRecoveryError("No recovery code was ever set up on this device.");
+      return;
+    }
+
+    const kekR = await deriveKek(normalizeRecoveryCode(codeInput.value), base64ToBuf(keyring.saltRecovery));
+
+    try {
+      const rawDekBytes = await unwrapDek(keyring.wrappedDekRecovery, keyring.wrapIvRecovery, kekR);
+      // extractable: true — it's about to be wrapped again under a new passphrase-derived KEK.
+      recoveredDek = await importDek(rawDekBytes, true);
+    } catch {
+      setRecoveryError("That recovery code doesn't match.");
+      codeInput.value = "";
+      codeInput.focus();
+      return;
+    }
+
+    codeInput.value = "";
+    showResetPassphraseScreen();
+  });
+
+  resetPassphraseForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const newPassphrase = document.getElementById("resetPassphrase").value;
+    const confirmNewPassphrase = document.getElementById("resetPassphraseConfirm").value;
+    setResetError("");
+
+    if (newPassphrase.length < 10) {
+      setResetError("Passphrase must be at least 10 characters.");
+      return;
+    }
+    if (newPassphrase !== confirmNewPassphrase) {
+      setResetError("Passphrases don't match.");
+      return;
+    }
+
+    // Same pattern as changing a passphrase normally (docs/ARCHITECTURE.md §2): only
+    // salt/wrappedDek/wrapIv change. Task data and the recovery wrap are untouched —
+    // the same recovery code keeps working after this.
+    const keyring = await getKeyring();
+    const newSalt = generateSalt();
+    const newKek = await deriveKek(newPassphrase, newSalt);
+    const { wrappedDek: newWrappedDek, wrapIv: newWrapIv } = await wrapDek(recoveredDek, newKek);
+
+    await putKeyring({ ...keyring, salt: bufToBase64(newSalt), wrappedDek: newWrappedDek, wrapIv: newWrapIv });
+
+    const rawDekBytes = await unwrapDek(newWrappedDek, newWrapIv, newKek);
+    dek = await importDek(rawDekBytes);
+    recoveredDek = null;
+
+    document.getElementById("resetPassphrase").value = "";
+    document.getElementById("resetPassphraseConfirm").value = "";
 
     await afterUnlock();
   });

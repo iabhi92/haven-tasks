@@ -61,7 +61,15 @@ the UX is not smooth, the security is irrelevant because no one stays.
   outside the ciphertext. **No recovery code yet** — that's Phase 4, deliberately not pulled
   forward; losing the passphrase right now means the data is unrecoverable, matching the honest
   v1-in-progress state, not a hidden gap.
-- **Phase 4 — Recovery + onboarding.** Passphrase + recovery code at first run, DEK wrapped twice.
+- **Phase 4 — Recovery. ✅ Done (onboarding-order deferred).** Recovery code generated at setup,
+  DEK wrapped a second time under it, shown once behind a forced "I've saved it" confirmation gate
+  before the app unlocks. "Forgot passphrase?" on the unlock screen recovers via the code and sets
+  a new passphrase — verified the same recovery code keeps working after a reset (only
+  salt/wrappedDek change, matching the passphrase-change behavior in `docs/ARCHITECTURE.md` §2).
+  **Onboarding-order part of this phase intentionally not done**: `BUILD_BRIEF.md` originally says
+  a new user should reach their first created task before any crypto concept appears; Phase 3 (already
+  built) shows the passphrase screen immediately instead. Kept as-is by explicit choice rather than
+  restructured — noted here so it doesn't read as an oversight.
 - **Phase 5 — "You vs The Server" reveal.** Live plaintext/ciphertext split panel + "dump my local
   database" page.
 - **Phase 6 — Optional sync (Flask blob store).** Random bearer token, push/pull ciphertext only,

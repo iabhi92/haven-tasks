@@ -932,6 +932,47 @@ body { display: flex; }
 }
 .lock-submit { width: 100%; padding: 11px; font-size: 14px; }
 
+.lock-link {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  text-decoration: underline;
+}
+.lock-link:hover { color: var(--accent); }
+
+.recovery-code-box {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  line-height: 1.7;
+  text-align: center;
+  word-break: break-all;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  user-select: all;
+}
+.recovery-copy-btn { width: 100%; margin-bottom: 18px; }
+.recovery-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.recovery-confirm input { margin-top: 2px; }
+
 @media (max-width: 860px) {
   body { flex-direction: column; }
   .rail {

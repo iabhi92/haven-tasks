@@ -197,16 +197,36 @@ export function readEditForm() {
 
 // ---------- lock screen ----------
 
+const LOCK_PANEL_IDS = ["setupForm", "recoveryCodeScreen", "unlockForm", "recoveryForm", "resetPassphraseForm"];
+
+function showLockPanel(id, focusId) {
+  for (const panelId of LOCK_PANEL_IDS) {
+    document.getElementById(panelId).hidden = panelId !== id;
+  }
+  if (focusId) document.getElementById(focusId).focus();
+}
+
 export function showSetupScreen() {
-  document.getElementById("setupForm").hidden = false;
-  document.getElementById("unlockForm").hidden = true;
-  document.getElementById("setupPassphrase").focus();
+  showLockPanel("setupForm", "setupPassphrase");
+}
+
+export function showRecoveryCodeScreen(code) {
+  document.getElementById("recoveryCodeText").textContent = code;
+  document.getElementById("recoveryCodeConfirmCheckbox").checked = false;
+  document.getElementById("recoveryCodeContinueBtn").disabled = true;
+  showLockPanel("recoveryCodeScreen");
 }
 
 export function showUnlockScreen() {
-  document.getElementById("unlockForm").hidden = false;
-  document.getElementById("setupForm").hidden = true;
-  document.getElementById("unlockPassphrase").focus();
+  showLockPanel("unlockForm", "unlockPassphrase");
+}
+
+export function showRecoveryForm() {
+  showLockPanel("recoveryForm", "recoveryCodeInput");
+}
+
+export function showResetPassphraseScreen() {
+  showLockPanel("resetPassphraseForm", "resetPassphrase");
 }
 
 export function showApp() {
@@ -227,6 +247,14 @@ export function setSetupError(message) {
 
 export function setUnlockError(message) {
   document.getElementById("unlockError").textContent = message || "";
+}
+
+export function setRecoveryError(message) {
+  document.getElementById("recoveryError").textContent = message || "";
+}
+
+export function setResetError(message) {
+  document.getElementById("resetError").textContent = message || "";
 }
 
 // ---------- stat pills ----------
