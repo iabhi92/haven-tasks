@@ -7,8 +7,10 @@ encrypted client-side (AES-256-GCM, key derived from your passphrase via PBKDF2-
 600,000 iterations) before it ever touches storage or the network. Optional sync moves only
 ciphertext through a small self-hostable server.
 
-See [`landing.html`](landing.html) for the pitch, or just open [`index.html`](index.html) to use
-the app directly.
+**Live:** [haven-tasks.haven-deploy.workers.dev/landing.html](https://haven-tasks.haven-deploy.workers.dev/landing.html)
+(pitch) · [/index.html](https://haven-tasks.haven-deploy.workers.dev/index.html) (app). Optional
+sync server: `https://haven-sync.onrender.com` (free-tier — see its README for what that means for
+durability).
 
 ## Run it locally
 
@@ -49,9 +51,18 @@ sensitive — it says plainly what is and isn't defended against.
 
 The frontend (`index.html`, `landing.html`, `css/`, `js/`, `vendor/`) is fully static — deploy it
 anywhere that serves static files over HTTPS. Use a host that honors the `_headers` file at the
-repo root (Netlify, Cloudflare Pages) so the real CSP/clickjacking headers apply — a host that
-ignores `_headers` (e.g. GitHub Pages) falls back to the `<meta>` CSP only, which browsers don't
-fully enforce for every directive (see `docs/SECURITY.md`'s clickjacking finding).
+repo root (Netlify, Cloudflare Pages/Workers static assets) so the real CSP/clickjacking headers
+apply — a host that ignores `_headers` (e.g. GitHub Pages) falls back to the `<meta>` CSP only,
+which browsers don't fully enforce for every directive (see `docs/SECURITY.md`'s clickjacking
+finding). Verified live on the current deploy: framing is actually blocked in production, not just
+documented as fixed.
+
+Deployed here via `wrangler` (Cloudflare's CLI): the site files were copied into an isolated
+subdirectory before running `wrangler deploy`, because letting wrangler scan the repo root directly
+also swept up its own generated `.wrangler/`/`wrangler.jsonc` files into the public asset set on
+the first attempt — worth knowing if you redeploy this way yourself.
 
 The sync server (`server/`) is optional and deploys separately — it's a small Flask app backed by
-SQLite, statelessly scoped by bearer token per bucket. See [`server/README.md`](server/README.md).
+SQLite, statelessly scoped by bearer token per bucket, served via `gunicorn` in production. See
+[`server/README.md`](server/README.md) for deploy steps and two honest free-tier limitations
+(non-durable storage, cold-start delay).

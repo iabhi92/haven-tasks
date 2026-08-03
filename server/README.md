@@ -44,3 +44,9 @@ but it means **the sync bucket is not durable** on a free tier. For real durabil
 a persistent disk (a paid tier on most hosts) or point `SYNC_DB_PATH` at a managed database volume.
 This is a hosting-layer limitation, not a code limitation — the storage layer (`storage.py`) is
 plain SQLite and doesn't care where the file lives.
+
+**Also on free tiers:** the instance spins down after a period of inactivity and takes a while to
+wake back up on the next request — observed directly while deploying this (an immediate sync
+attempt failed with a CORS error because the cold-starting instance's response didn't carry the
+app's own headers yet; the same request succeeded once the instance was warm). The first sync
+after idle time may need a retry, not just a slow response.

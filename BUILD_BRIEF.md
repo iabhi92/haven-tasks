@@ -104,7 +104,22 @@ the UX is not smooth, the security is irrelevant because no one stays.
   deploy-target-dependent, not silently claimed as fixed everywhere. Also added
   `Content-Security-Policy`/`X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy` headers to
   the Flask sync server's responses (previously only CORS headers were set).
-- **Phase 8 — Ship.** Static deploy, landing page, optional sync server deployed separately.
+- **Phase 8 — Ship. ✅ Done.** `landing.html` + `css/landing.css` + `js/landing.js` — pitch, "Open
+  Haven" CTA, and a live encryption demo reusing the real `crypto.js` (non-persisted, same idea as
+  the app's own reveal page). Frontend deployed to Cloudflare Workers static assets at
+  https://haven-tasks.haven-deploy.workers.dev, verified end-to-end in a real browser: setup,
+  unlock, add-task-with-live-reveal, and — the actual point of Phase 7's `_headers` fix — the app
+  now genuinely refuses to be framed in production (confirmed by actually trying to iframe it from
+  another origin; it's blocked, unlike on the plain local dev server). Sync server deployed
+  separately to Render (`https://haven-sync.onrender.com`) with `gunicorn` as the real WSGI server
+  (the `python3 app.py` path is dev-only and warns against production use). Full-stack sync
+  verified live between the two real deployments, not just localhost. Two honest deploy-time
+  limitations found and documented in `server/README.md`, not hidden: (1) Render's free tier has
+  no persistent disk, so the SQLite file is wiped on redeploy/restart — fine for trying sync, not
+  durable; (2) the free instance spins down when idle and the first request after that needs a
+  retry while it wakes up (hit this directly: an immediate post-deploy sync attempt failed with a
+  CORS error because the cold-starting instance's response lacked the app's own headers, then
+  succeeded once warm).
 
 ## Definition of done (v1)
 
