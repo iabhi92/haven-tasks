@@ -26,7 +26,7 @@ security reviewer.
 - [x] Status (todo / in-progress / done), priority, due date — Low
 - [x] Subtasks / nested checklists — Low
 - [x] Tags / labels — Low
-- [ ] Sort, filter, and saved smart views (Today / Upcoming / Overdue) — Med
+- [x] Sort, filter, and saved smart views (Today / Upcoming / Overdue) — Med
 - [x] Search (client-side, decrypt-in-memory) — Med
 - [x] Fast keyboard entry (type + Enter) + command palette — Med
 - [ ] Recurring tasks with recurrence rules — Med

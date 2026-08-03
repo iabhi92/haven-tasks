@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804b";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804d";
 import {
   renderBoard,
   renderList,
@@ -28,7 +28,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804b";
+} from "./ui.js?v=20260804d";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -44,20 +44,24 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260804b";
+} from "./crypto.js?v=20260804d";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260804b";
+} from "./sync.js?v=20260804d";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
 let tasks = [];
 let view = "board";
 let searchQuery = "";
+let smartView = "all";
+let priorityFilter = "";
+let tagFilter = "";
+let sortMode = "manual";
 let draggedId = null;
 let dek = null; // the in-memory DEK CryptoKey — null whenever locked
 
@@ -113,10 +117,15 @@ function now() {
   return Date.now();
 }
 
+// Partitions by status. In manual mode each group is ordered by the persisted
+// drag-order; otherwise `list` is expected to already be sorted (by sortTasks())
+// and that relative order is preserved via a stable partition, not re-sorted.
 function groupByStatus(list) {
   const groups = { todo: [], "in-progress": [], done: [] };
   for (const t of list) groups[t.status].push(t);
-  for (const status of STATUSES) groups[status].sort((a, b) => a.order - b.order);
+  if (sortMode === "manual") {
+    for (const status of STATUSES) groups[status].sort((a, b) => a.order - b.order);
+  }
   return groups;
 }
 
@@ -130,8 +139,80 @@ function matchesSearch(task, query) {
   );
 }
 
+// Same local-midnight comparison js/ui.js's dueBadgeInfo() uses, so "Today"/
+// "overdue" here always agrees with what the due-date badge on the card shows.
+function dueDiffDays(dueDate) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + "T00:00:00");
+  return Math.round((due - today) / 86400000);
+}
+
+function matchesSmartView(task, smartViewValue) {
+  if (smartViewValue === "all") return true;
+  if (!task.dueDate) return false;
+  const diff = dueDiffDays(task.dueDate);
+  if (smartViewValue === "today") return diff === 0;
+  if (smartViewValue === "upcoming") return diff > 0;
+  if (smartViewValue === "overdue") return diff < 0 && task.status !== "done";
+  return true;
+}
+
 function visibleTasks() {
-  return tasks.filter((t) => matchesSearch(t, searchQuery));
+  return tasks.filter(
+    (t) =>
+      matchesSearch(t, searchQuery) &&
+      matchesSmartView(t, smartView) &&
+      (!priorityFilter || t.priority === priorityFilter) &&
+      (!tagFilter || (t.tags || []).includes(tagFilter))
+  );
+}
+
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+
+function sortTasks(list) {
+  if (sortMode === "manual") return list;
+  const sorted = [...list];
+  if (sortMode === "dueDate") {
+    sorted.sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+  } else if (sortMode === "priority") {
+    sorted.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
+  } else if (sortMode === "created") {
+    sorted.sort((a, b) => a.createdAt - b.createdAt);
+  }
+  return sorted;
+}
+
+function allTags() {
+  const set = new Set();
+  for (const t of tasks) for (const tag of t.tags || []) set.add(tag);
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+// Rebuilds the tag filter <select>'s options from whatever tags currently
+// exist on any task, keeping the current selection if it's still a real tag.
+function syncTagFilterOptions() {
+  const select = document.getElementById("tagFilter");
+  const tags = allTags();
+  const current = select.value;
+  select.textContent = "";
+  const allOption = document.createElement("option");
+  allOption.value = "";
+  allOption.textContent = "All tags";
+  select.appendChild(allOption);
+  for (const tag of tags) {
+    const opt = document.createElement("option");
+    opt.value = tag;
+    opt.textContent = tag;
+    select.appendChild(opt);
+  }
+  select.value = tags.includes(current) ? current : "";
+  if (select.value !== current) tagFilter = select.value;
 }
 
 function render() {
@@ -163,14 +244,17 @@ function render() {
     onDragEnd: () => { draggedId = null; },
   };
 
-  const sorted = [...visible].sort((a, b) => {
+  const sortedVisible = sortTasks(visible);
+
+  const sorted = [...sortedVisible].sort((a, b) => {
     const statusDiff = STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status);
     if (statusDiff !== 0) return statusDiff;
-    return a.order - b.order;
+    return sortMode === "manual" ? a.order - b.order : 0; // stable: keep sortTasks()'s order
   });
 
-  renderBoard(groupByStatus(visible), handlers);
+  renderBoard(groupByStatus(sortedVisible), handlers);
   renderList(sorted, handlers);
+  syncTagFilterOptions();
 }
 
 function nextOrder(status) {
@@ -563,6 +647,33 @@ function wireSearch() {
       closeAddModal();
       closeCmdk();
     }
+  });
+}
+
+function wireFilterBar() {
+  const bar = document.getElementById("filterBar");
+
+  bar.querySelectorAll("[data-smart-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      smartView = btn.dataset.smartView;
+      bar.querySelectorAll("[data-smart-view]").forEach((b) => b.classList.toggle("is-active", b === btn));
+      render();
+    });
+  });
+
+  document.getElementById("priorityFilter").addEventListener("change", (e) => {
+    priorityFilter = e.target.value;
+    render();
+  });
+
+  document.getElementById("tagFilter").addEventListener("change", (e) => {
+    tagFilter = e.target.value;
+    render();
+  });
+
+  document.getElementById("sortBy").addEventListener("change", (e) => {
+    sortMode = e.target.value;
+    render();
   });
 }
 
@@ -1141,6 +1252,7 @@ async function boot() {
   wireLockButton();
   wireQuickAdd();
   wireSearch();
+  wireFilterBar();
   wireViewToggle();
   wireEditModal();
   wireAddModal();

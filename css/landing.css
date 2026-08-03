@@ -253,39 +253,40 @@ p.hero-word, div.hero-word { display: block; }
     inset 0 2px 0 rgba(255, 255, 255, 0.35),
     inset 0 -3px 8px rgba(0, 0, 0, 0.3);
 }
+/* Four spheres, one per quadrant, deliberately spaced so nothing collides
+   with the task-card mockups or the lock badge — the earlier version had a
+   5th sphere and cards stacked directly on top of spheres, which read as
+   cluttered rather than composed. */
 .hero-sphere-1 {
-  width: 17%; aspect-ratio: 1; left: 10%; top: 16%;
+  width: 16%; aspect-ratio: 1; left: 7%; top: 12%;
   background: radial-gradient(circle at 32% 28%, #c4b5fd, #7c3aed 55%, #4c1d95);
 }
 .hero-sphere-2 {
-  width: 12%; aspect-ratio: 1; right: 16%; top: 14%;
+  width: 11%; aspect-ratio: 1; right: 10%; top: 10%;
   background: radial-gradient(circle at 32% 28%, #fde68a, #f59e0b 55%, #92400e);
 }
 .hero-sphere-3 {
-  width: 20%; aspect-ratio: 1; right: 8%; bottom: 14%;
+  width: 15%; aspect-ratio: 1; right: 9%; bottom: 12%;
   background: radial-gradient(circle at 32% 28%, #a7f3d0, #10b981 55%, #065f46);
 }
 .hero-sphere-4 {
-  width: 10%; aspect-ratio: 1; left: 30%; bottom: 10%;
-  background: radial-gradient(circle at 32% 28%, #fbcfe8, #ec4899 55%, #831843);
-}
-.hero-sphere-5 {
-  width: 9%; aspect-ratio: 1; left: 6%; bottom: 34%;
+  width: 9%; aspect-ratio: 1; left: 9%; bottom: 16%;
   background: radial-gradient(circle at 32% 28%, #bfdbfe, #3b82f6 55%, #1e3a8a);
 }
+.hero-sphere-5 { display: none; }
 .hero-showcase-card {
   position: absolute;
-  width: 140px;
-  padding: 10px 12px;
+  width: 148px;
+  padding: 11px 13px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 14px 24px -8px rgba(0, 0, 0, 0.35);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 28px -10px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
-.hero-showcase-card-1 { left: 8%; top: 42%; transform: rotate(-4deg); }
-.hero-showcase-card-2 { right: 6%; bottom: 22%; transform: rotate(3deg); }
+.hero-showcase-card-1 { left: 27%; top: 22%; transform: rotate(-3deg); }
+.hero-showcase-card-2 { right: 22%; bottom: 20%; transform: rotate(3deg); }
 .hero-showcase-dot {
   width: 9px;
   height: 9px;
