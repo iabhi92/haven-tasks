@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804g">
+<link rel="stylesheet" href="css/style.css?v=20260804h">
 </head>
 <body>
 
@@ -174,12 +174,28 @@
         <kbd class="search-kbd">/</kbd>
       </label>
 
+      <button type="button" class="btn btn-ghost" id="selectModeBtn" aria-pressed="false">Select</button>
+
       <button type="button" class="btn btn-ghost btn-cmdk" id="openCmdkBtn" aria-label="Open command menu">
         <span>Menu</span>
         <kbd class="search-kbd">⌘K</kbd>
       </button>
     </div>
   </header>
+
+  <div class="bulk-action-bar" id="bulkActionBar" hidden>
+    <span id="bulkActionCount">0 selected</span>
+    <div class="bulk-action-buttons">
+      <select id="bulkStatusSelect" aria-label="Move selected to">
+        <option value="">Move to…</option>
+        <option value="todo">To Do</option>
+        <option value="in-progress">In Progress</option>
+        <option value="done">Done</option>
+      </select>
+      <button type="button" class="btn btn-danger" id="bulkDeleteBtn">Delete</button>
+      <button type="button" class="btn btn-ghost" id="bulkCancelBtn">Cancel</button>
+    </div>
+  </div>
 
   <div class="stats-row" id="statsRow"></div>
 
@@ -304,6 +320,11 @@
 </div>
 
 <datalist id="projectOptions"></datalist>
+
+<div class="undo-toast" id="undoToast" hidden>
+  <span id="undoToastMessage"></span>
+  <button type="button" class="btn btn-ghost btn-sm" id="undoToastBtn">Undo</button>
+</div>
 
 <div class="modal-overlay" id="editModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
@@ -556,6 +577,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260804g" type="module"></script>
+<script src="js/app.js?v=20260804h" type="module"></script>
 </body>
 </html>

@@ -62,12 +62,23 @@ function dueBadge(dueDate) {
   return el("span", info.cls, info.label);
 }
 
-export function createTaskCard(task, { onOpen, onDragStart, onDragEnd }) {
-  const card = el("div", "task-card" + (task.status === "done" ? " is-done" : ""));
-  card.draggable = true;
+export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selectionMode, selectedIds, onToggleSelect }) {
+  const selected = !!(selectedIds && selectedIds.has(task.id));
+  const card = el("div", "task-card" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : ""));
+  card.draggable = !selectionMode;
   card.dataset.id = task.id;
   card.setAttribute("role", "listitem");
   card.tabIndex = 0;
+
+  if (selectionMode) {
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "task-select-checkbox";
+    checkbox.checked = !!selected;
+    checkbox.addEventListener("click", (e) => e.stopPropagation());
+    checkbox.addEventListener("change", () => onToggleSelect(task.id));
+    card.appendChild(checkbox);
+  }
 
   card.appendChild(el("h3", "task-title", task.title));
   if (task.notes) {
@@ -87,9 +98,9 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd }) {
   const tags = tagChips(task.tags);
   if (tags) card.appendChild(tags);
 
-  card.addEventListener("click", () => onOpen(task));
+  card.addEventListener("click", () => (selectionMode ? onToggleSelect(task.id) : onOpen(task)));
   card.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") onOpen(task);
+    if (e.key === "Enter") (selectionMode ? onToggleSelect(task.id) : onOpen(task));
   });
   card.addEventListener("dragstart", (e) => {
     card.classList.add("is-dragging");
@@ -105,12 +116,22 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd }) {
   return card;
 }
 
-export function createListRow(task, { onOpen, onDelete }) {
-  const row = el("div", "list-row" + (task.status === "done" ? " is-done" : ""));
+export function createListRow(task, { onOpen, onDelete, selectionMode, selectedIds, onToggleSelect }) {
+  const selected = !!(selectedIds && selectedIds.has(task.id));
+  const row = el("div", "list-row" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : ""));
   row.dataset.id = task.id;
 
   const titleCell = el("span", "list-row-title-cell");
   const titleRow = el("span", "list-row-title-row");
+  if (selectionMode) {
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "list-row-select-checkbox";
+    checkbox.checked = !!selected;
+    checkbox.addEventListener("click", (e) => e.stopPropagation());
+    checkbox.addEventListener("change", () => onToggleSelect(task.id));
+    titleRow.appendChild(checkbox);
+  }
   titleRow.appendChild(el("span", "list-row-title", task.title));
   const progress = subtaskProgressBadge(task.subtasks);
   if (progress) titleRow.appendChild(progress);
@@ -141,7 +162,7 @@ export function createListRow(task, { onOpen, onDelete }) {
   actions.appendChild(delBtn);
   row.appendChild(actions);
 
-  row.addEventListener("click", () => onOpen(task));
+  row.addEventListener("click", () => (selectionMode ? onToggleSelect(task.id) : onOpen(task)));
   return row;
 }
 
@@ -464,6 +485,26 @@ export function renderStats(tasks) {
 
 export function setPageSubtitle(text) {
   document.getElementById("pageSubtitle").textContent = text;
+}
+
+// ---------- undo toast ----------
+
+let undoToastTimer = null;
+
+export function showUndoToast(message, onUndo) {
+  clearTimeout(undoToastTimer);
+  const toast = document.getElementById("undoToast");
+  document.getElementById("undoToastMessage").textContent = message;
+  const btn = document.getElementById("undoToastBtn");
+  const freshBtn = btn.cloneNode(true); // drop any previous click listener
+  btn.replaceWith(freshBtn);
+  freshBtn.addEventListener("click", () => {
+    clearTimeout(undoToastTimer);
+    toast.hidden = true;
+    onUndo();
+  });
+  toast.hidden = false;
+  undoToastTimer = setTimeout(() => { toast.hidden = true; }, 6000);
 }
 
 // ---------- command palette ----------

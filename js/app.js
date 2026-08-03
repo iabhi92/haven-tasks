@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804g";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804h";
 import {
   renderBoard,
   renderList,
@@ -11,6 +11,7 @@ import {
   closeAddModal,
   readAddForm,
   renderSubtaskList,
+  showUndoToast,
   getDragAfterElement,
   renderStats,
   setPageSubtitle,
@@ -28,7 +29,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804g";
+} from "./ui.js?v=20260804h";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -44,14 +45,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260804g";
+} from "./crypto.js?v=20260804h";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260804g";
+} from "./sync.js?v=20260804h";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -76,6 +77,9 @@ let dek = null; // the in-memory DEK CryptoKey — null whenever locked
 // name outside the encryption boundary — not acceptable here). An honest,
 // documented limitation, not an oversight.
 let activeProject = "Inbox";
+
+let selectionMode = false;
+let selectedIds = new Set();
 
 const SYNC_SERVER_KEY = "haven-sync-server";
 const SYNC_TOKEN_KEY = "haven-sync-token";
@@ -286,9 +290,16 @@ function render() {
       renderEditSubtasks();
       openEditModal(task);
     },
-    onDelete: (task) => removeTask(task.id),
+    onDelete: (task) => deleteTasksWithUndo([task.id]),
     onDragStart: (task) => { draggedId = task.id; },
     onDragEnd: () => { draggedId = null; },
+    selectionMode,
+    selectedIds,
+    onToggleSelect: (id) => {
+      if (selectedIds.has(id)) selectedIds.delete(id);
+      else selectedIds.add(id);
+      render();
+    },
   };
 
   const sortedVisible = sortTasks(visible);
@@ -303,6 +314,14 @@ function render() {
   renderList(sorted, handlers);
   syncTagFilterOptions();
   syncProjectUI();
+  syncBulkActionBar();
+}
+
+function syncBulkActionBar() {
+  const bar = document.getElementById("bulkActionBar");
+  const count = document.getElementById("bulkActionCount");
+  bar.hidden = selectedIds.size === 0;
+  count.textContent = `${selectedIds.size} selected`;
 }
 
 function nextOrder(status) {
@@ -437,6 +456,31 @@ async function removeTask(id) {
       console.error("Failed to push deletion tombstone to sync server:", err);
     }
   }
+}
+
+// The undo half of delete: re-adds a full task snapshot with a fresh
+// updatedAt. No special sync handling needed beyond persistTask() itself —
+// a later manual sync compares timestamps like any other edit, so this
+// naturally wins over the tombstone removeTask() already pushed, the same
+// last-write-wins rule docs/ARCHITECTURE.md §5 already documents.
+async function restoreTask(snapshot) {
+  const restored = { ...snapshot, updatedAt: now() };
+  tasks.push(restored);
+  render();
+  await persistTask(restored);
+}
+
+// Deletes one or more tasks and offers an undo toast instead of a blocking
+// confirm() dialog — delete immediately, make it reversible, per
+// docs/FEATURES.md's "Bulk actions, undo" Layer 1 item.
+async function deleteTasksWithUndo(ids) {
+  const snapshots = tasks.filter((t) => ids.includes(t.id)).map((t) => ({ ...t }));
+  if (snapshots.length === 0) return;
+  for (const id of ids) await removeTask(id);
+  const message = snapshots.length === 1 ? `Deleted "${snapshots[0].title}"` : `Deleted ${snapshots.length} tasks`;
+  showUndoToast(message, async () => {
+    for (const snap of snapshots) await restoreTask(snap);
+  });
 }
 
 function exportTasks() {
@@ -827,6 +871,39 @@ function wireSearch() {
   });
 }
 
+function wireSelectMode() {
+  const btn = document.getElementById("selectModeBtn");
+  btn.addEventListener("click", () => {
+    selectionMode = !selectionMode;
+    btn.setAttribute("aria-pressed", String(selectionMode));
+    btn.textContent = selectionMode ? "Done" : "Select";
+    if (!selectionMode) selectedIds.clear();
+    render();
+  });
+}
+
+function wireBulkActions() {
+  document.getElementById("bulkStatusSelect").addEventListener("change", async (e) => {
+    const status = e.target.value;
+    if (!status) return;
+    for (const id of selectedIds) await updateTask({ id, status });
+    e.target.value = "";
+    selectedIds.clear();
+    render();
+  });
+
+  document.getElementById("bulkDeleteBtn").addEventListener("click", async () => {
+    const ids = [...selectedIds];
+    selectedIds.clear();
+    await deleteTasksWithUndo(ids);
+  });
+
+  document.getElementById("bulkCancelBtn").addEventListener("click", () => {
+    selectedIds.clear();
+    render();
+  });
+}
+
 function wireFilterBar() {
   const bar = document.getElementById("filterBar");
 
@@ -1118,10 +1195,8 @@ function wireEditModal() {
 
   deleteBtn.addEventListener("click", () => {
     const id = document.getElementById("editId").value;
-    if (confirm("Delete this task?")) {
-      removeTask(id);
-      closeEditModal();
-    }
+    deleteTasksWithUndo([id]);
+    closeEditModal();
   });
 
   overlay.addEventListener("click", (e) => {
@@ -1481,6 +1556,8 @@ async function boot() {
   wireQuickAdd();
   wireSearch();
   wireFilterBar();
+  wireSelectMode();
+  wireBulkActions();
   wireProjectSwitcher();
   wireViewToggle();
   wireEditModal();
