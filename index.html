@@ -7,7 +7,11 @@
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Private todos. No account, works offline, and nobody — including us — can read them.">
 <title>Haven — private tasks</title>
-<link rel="stylesheet" href="css/style.css">
+<!-- No build step means no auto cache-busting either: the ?v= query string on this
+     stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
+     by hand whenever those files change, or browsers will keep serving stale cached
+     copies after a normal reload — a real, repeated issue during development. -->
+<link rel="stylesheet" href="css/style.css?v=20260803a">
 </head>
 <body>
 
@@ -205,6 +209,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js" type="module"></script>
+<script src="js/app.js?v=20260803a" type="module"></script>
 </body>
 </html>
