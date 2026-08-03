@@ -40,10 +40,18 @@
 ### A3. Attacker with the local database (stolen/shared device, forensic dump)
 - **Capability:** reads IndexedDB.
 - **Defense:** IndexedDB holds only ciphertext and the wrapped keyring (Phase 3+). Without the
-  passphrase or recovery code, it is useless. Argon2id makes offline brute-force of a strong
+  passphrase or recovery code, it is useless. Key derivation makes offline brute-force of a strong
   passphrase expensive.
 - **Residual risk:** a weak user passphrase is brute-forceable offline. We enforce a minimum and
   warn; we cannot force entropy. Plaintext exists in memory while unlocked.
+- **KDF choice, stated plainly:** v1 uses PBKDF2-SHA256 at 600,000 iterations, not Argon2id.
+  PBKDF2 is meaningfully weaker against an attacker with GPU/ASIC hardware — Argon2id's memory-hard
+  design specifically defeats that kind of parallelism, PBKDF2's doesn't. We chose it anyway for
+  v1 because the alternative was vendoring a third-party WASM Argon2id implementation without the
+  time to properly review it, which is a worse trade than a slower, native, fully-auditable KDF.
+  600,000 iterations is still within current OWASP guidance for PBKDF2-SHA256, so this is "weaker
+  than the stronger option," not "weak" outright. Documented as a real limitation, not hidden —
+  see `docs/ARCHITECTURE.md`'s key-derivation section for the migration path once Argon2id lands.
 
 ### A4. Compromised or curious collaborator (future, sharing feature)
 - **Status:** v1 is single-user, so this is out of scope. When sharing is added, removing a

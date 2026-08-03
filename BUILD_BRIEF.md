@@ -44,13 +44,16 @@ the UX is not smooth, the security is irrelevant because no one stays.
 
 ## Phased build plan
 
-- **Phase 0 — Scaffold.** Static shell, CSS baseline, empty ES-module layout, strict CSP meta tag
-  from day one.
-- **Phase 1 — The good task app (NO crypto yet).** Board (kanban, drag-and-drop) and list view.
-  Add/edit/delete. Status, priority, due date. Search. Fast keyboard entry. Plaintext IndexedDB
-  for now — this phase is purely about UX. Gate: would a stranger happily use this daily?
-- **Phase 2 — Crypto core (isolated module).** `crypto.js` per `docs/ARCHITECTURE.md`, pure and
-  unit-tested against the vectors before any wiring.
+- **Phase 0 — Scaffold. ✅ Done.** Static shell, CSS baseline, empty ES-module layout, strict CSP
+  meta tag from day one.
+- **Phase 1 — The good task app (NO crypto yet). ✅ Done.** Board (kanban, drag-and-drop) and list
+  view. Add/edit/delete. Status, priority, due date. Search. Fast keyboard entry. Plaintext
+  IndexedDB for now — this phase is purely about UX. Gate: would a stranger happily use this daily?
+- **Phase 2 — Crypto core (isolated module). ✅ Done.** `crypto.js` per `docs/ARCHITECTURE.md`,
+  pure and unit-tested against all six vectors (`js/crypto.test.mjs`) before any wiring. Ships with
+  PBKDF2-SHA256 (the documented fallback), not Argon2id — see `docs/ARCHITECTURE.md`'s
+  key-derivation section for why and the migration path. **Not yet wired into the app** — that's
+  Phase 3.
 - **Phase 3 — Encrypt the storage layer.** Lock/unlock flow, encrypt-before-store,
   decrypt-on-load, DEK in memory only. Gate: DevTools IndexedDB shows ciphertext only.
 - **Phase 4 — Recovery + onboarding.** Passphrase + recovery code at first run, DEK wrapped twice.

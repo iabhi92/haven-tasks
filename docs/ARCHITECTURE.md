@@ -2,7 +2,13 @@
 
 This is the source of truth for anything security-critical. Do not improvise key handling.
 Every primitive below is a standard, reviewed construction composed correctly — we are NOT
-inventing crypto. (Not yet implemented — Phase 1 has no crypto. This document governs Phase 2+.)
+inventing crypto.
+
+**Status: Phase 2 complete.** `js/crypto.js` implements key derivation, DEK generation,
+wrap/unwrap, task encrypt/decrypt, and recovery-code generation exactly as specified below, and
+`js/crypto.test.mjs` proves all six vectors in §8 pass — in Node and in the real browser under the
+app's CSP. It is not yet wired into `store.js`/`app.js` (that's Phase 3) — deliberately: Phase 2's
+own gate is passing these vectors in isolation before anything imports the module.
 
 ## 1. Key hierarchy
 
@@ -28,13 +34,22 @@ recovery code ──Argon2id──> KEK_r (recovery KEK, 256-bit, used once)
 - **KEK_r**: derived from a high-entropy recovery code, used to wrap a second copy of the DEK so
   the user can recover if they forget the passphrase.
 
-### Key derivation (Argon2id via hash-wasm)
+### Key derivation — PBKDF2-SHA256 (v1), Argon2id documented as the future upgrade
 
-- Parameters: memory = 65536 KiB (64 MB), iterations = 3, parallelism = 1, hashLength = 32,
-  salt = 16 random bytes.
+**v1 ships with the documented fallback, not Argon2id.** `js/crypto.js` derives KEK/KEK_r via
+PBKDF2-SHA256 at 600,000 iterations (32-byte output), native to Web Crypto — no WASM library to
+vendor, review, keep patched, or trust. This was a deliberate choice, not a shortcut: this
+document's own non-negotiable is "do not improvise key handling," and vendoring a third-party
+Argon2id/hash-wasm build under time pressure without properly reviewing it would have been exactly
+that kind of improvisation. PBKDF2 is weaker than Argon2id against GPU/ASIC brute-force of a weak
+passphrase — see `docs/THREAT_MODEL.md` A3 for the honest accounting of that cost.
+
+Original Argon2id parameters, preserved here as the intended upgrade path: memory = 65536 KiB
+(64 MB), iterations = 3, parallelism = 1, hashLength = 32, salt = 16 random bytes. Migrating later
+means adding `"argon2id"` as a second value of the `kdf` field below and deriving accordingly —
+existing PBKDF2 keyrings keep working unchanged.
+
 - Store salt and the KDF parameters alongside the wrapped DEK (they are not secret).
-- Fallback if deferring WASM: PBKDF2-SHA256, 600,000 iterations, 32-byte output. Document in the
-  threat model that this is a weaker choice and why.
 
 ### DEK generation
 
@@ -55,8 +70,8 @@ Wrapping = AES-256-GCM encrypt of the raw DEK bytes under the KEK, with a random
 
 ```json
 {
-  "kdf": "argon2id",
-  "kdfParams": { "memory": 65536, "iterations": 3, "parallelism": 1 },
+  "kdf": "pbkdf2-sha256",
+  "kdfParams": { "iterations": 600000 },
   "salt": "<base64>",
   "wrappedDek": "<base64 ciphertext>",
   "wrapIv": "<base64>",
@@ -168,13 +183,15 @@ Show real bytes only. No simulated hacker aesthetic.
 index.html          // shell + CSP meta; loads app.js as type="module"
 /js
   app.js            // bootstrap, state, event wiring (Phase 1); lock/unlock state machine (Phase 3+)
-  crypto.js         // KDF, wrap/unwrap, encrypt/decrypt, recovery — pure, unit-tested (Phase 2)
+  crypto.js         // KDF, wrap/unwrap, encrypt/decrypt, recovery — pure, unit-tested (done, Phase 2)
+  crypto.test.mjs   // the six vectors in §8 below — run with `node js/crypto.test.mjs`
   store.js          // IndexedDB read/write of task records (plaintext in Phase 1, ciphertext from Phase 3)
   ui.js             // rendering (textContent only for task content), board/list, DnD
   sync.js           // optional: push/pull against the Flask blob store (Phase 6)
   reveal.js         // "You vs The Server" panel + protection page (Phase 5)
 /vendor
-  hash-wasm/        // vendored, not from CDN (Phase 2)
+  hash-wasm/        // reserved for the future Argon2id migration — empty for now, v1 uses
+                     // PBKDF2-SHA256 natively (no WASM to vendor yet, see key-derivation above)
 /css
   style.css
 ```
