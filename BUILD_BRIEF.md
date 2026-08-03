@@ -70,8 +70,11 @@ the UX is not smooth, the security is irrelevant because no one stays.
   a new user should reach their first created task before any crypto concept appears; Phase 3 (already
   built) shows the passphrase screen immediately instead. Kept as-is by explicit choice rather than
   restructured — noted here so it doesn't read as an oversight.
-- **Phase 5 — "You vs The Server" reveal.** Live plaintext/ciphertext split panel + "dump my local
-  database" page.
+- **Phase 5 — "You vs The Server" reveal. ✅ Done.** A third rail view (shield icon, also reachable
+  from the command palette) alongside Board/List. Live split panel runs the real `encryptTask()`
+  against whatever's typed, on every keystroke — nothing is simulated or persisted. "Dump my local
+  database" calls the real `getAllTasks()` and prints the actual stored records. Reachable even
+  with zero real tasks on the board, since the demo doesn't depend on any existing data.
 - **Phase 6 — Optional sync (Flask blob store).** Random bearer token, push/pull ciphertext only,
   last-write-wins.
 - **Phase 7 — Hardening + self-attack.** Server-enforced CSP, innerHTML audit, vendored deps with

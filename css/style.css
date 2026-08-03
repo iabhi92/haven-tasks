@@ -648,6 +648,72 @@ body { display: flex; }
   background: color-mix(in srgb, var(--warn) 14%, transparent);
 }
 
+/* ---------- reveal view ---------- */
+.reveal-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.reveal-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+.reveal-section h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.reveal-intro {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 640px;
+}
+.reveal-demo-input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+.reveal-demo-input:focus { border-color: var(--accent); }
+.reveal-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.reveal-col h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+.reveal-pre {
+  margin: 0;
+  padding: 14px;
+  min-height: 140px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.reveal-pre-wide { margin-top: 14px; max-height: 420px; }
+
 /* ---------- list view ---------- */
 /* List view: one continuous notebook page rather than a data table — same
    punch-hole/ruled-line/typewriter language as the board cards, applied once
@@ -990,6 +1056,7 @@ body { display: flex; }
   .header-actions { width: 100%; }
   .search-field { flex: 1 1 auto; width: auto; }
   .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .reveal-columns { grid-template-columns: 1fr; }
   .list-head, .list-row { grid-template-columns: 1fr 90px 40px; }
   .list-head-due, .list-row-due, .list-head-priority ~ .list-head-due { display: none; }
 }

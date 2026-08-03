@@ -4,7 +4,7 @@ This is the source of truth for anything security-critical. Do not improvise key
 Every primitive below is a standard, reviewed construction composed correctly — we are NOT
 inventing crypto.
 
-**Status: Phase 4 complete.** `js/crypto.js` (Phase 2) is wired into `app.js`/`store.js` (Phase 3):
+**Status: Phase 5 complete.** `js/crypto.js` (Phase 2) is wired into `app.js`/`store.js` (Phase 3):
 a real lock/unlock flow, encrypt-before-store on every write, decrypt-on-load on unlock, DEK held
 only in an in-memory module variable, explicit Lock action. Verified by direct inspection of the
 raw IndexedDB contents — every task record is `{id, iv, ciphertext, updatedAt}`, nothing else.
@@ -20,6 +20,13 @@ guarantee for ordinary passphrase changes.
 **Deliberately not done:** the onboarding-order part of Phase 4 (reaching a first created task
 before any crypto concept) — Phase 3's passphrase-first gate was kept as an explicit choice, not
 restructured. See `BUILD_BRIEF.md`'s Phase 4 entry.
+
+**§6's reveal is implemented per spec**, but as a third rail view inside `app.js`/`ui.js` rather
+than a standalone `js/reveal.js` module — a deliberate deviation from §7's originally-planned
+layout below. The reveal logic (a live `encryptTask()` call on keystroke, a real `getAllTasks()`
+dump) is small and tightly coupled to the same in-memory `dek`/`tasks` state every other view
+already reads, the same way the lock screen's logic lives in `app.js` rather than its own module —
+splitting it out would have added an import boundary without a real separation-of-concerns benefit.
 
 ## 1. Key hierarchy
 
@@ -193,13 +200,13 @@ Show real bytes only. No simulated hacker aesthetic.
 ```
 index.html          // shell + CSP meta; loads app.js as type="module"
 /js
-  app.js            // bootstrap, state, event wiring, lock/unlock state machine (done, Phase 3)
+  app.js            // bootstrap, state, event wiring, lock/unlock, reveal panel (done, Phases 3+5)
   crypto.js         // KDF, wrap/unwrap, encrypt/decrypt, recovery — pure, unit-tested (done, Phase 2)
   crypto.test.mjs   // the six vectors in §8 below — run with `node js/crypto.test.mjs`
   store.js          // IndexedDB read/write — task records (ciphertext) + keyring (done, Phase 3)
-  ui.js             // rendering (textContent only for task content), board/list, DnD
+  ui.js             // rendering (textContent only for task content), board/list, DnD, reveal view
   sync.js           // optional: push/pull against the Flask blob store (Phase 6)
-  reveal.js         // "You vs The Server" panel + protection page (Phase 5)
+  // no separate reveal.js — folded into app.js/ui.js instead, see the Phase 5 status note above
 /vendor
   hash-wasm/        // reserved for the future Argon2id migration — empty for now, v1 uses
                      // PBKDF2-SHA256 natively (no WASM to vendor yet, see key-derivation above)

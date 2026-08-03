@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803h";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803i";
 import {
   renderBoard,
   renderList,
@@ -24,7 +24,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260803h";
+} from "./ui.js?v=20260803i";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -40,7 +40,7 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260803h";
+} from "./crypto.js?v=20260803i";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -283,6 +283,7 @@ function wireSearch() {
 function wireViewToggle() {
   const boardBtn = document.getElementById("viewBoardBtn");
   const listBtn = document.getElementById("viewListBtn");
+  const revealBtn = document.getElementById("viewRevealBtn");
   boardBtn.addEventListener("click", () => {
     view = "board";
     setView(view);
@@ -292,6 +293,55 @@ function wireViewToggle() {
     view = "list";
     setView(view);
     render();
+  });
+  revealBtn.addEventListener("click", () => {
+    view = "reveal";
+    setView(view);
+    render();
+    updateReveal(document.getElementById("revealDemoInput").value);
+  });
+}
+
+// Live plaintext/ciphertext demo — runs the exact same encryptTask() every real
+// task goes through, on whatever the user is currently typing. Nothing here is
+// persisted; it exists purely to show real bytes, per docs/ARCHITECTURE.md §6.
+let revealToken = 0;
+
+async function updateReveal(title) {
+  const token = ++revealToken;
+  const demoTask = {
+    id: "demo-preview",
+    title,
+    notes: "",
+    status: "todo",
+    priority: "medium",
+    dueDate: null,
+    order: 0,
+    createdAt: now(),
+    updatedAt: now(),
+  };
+  const record = await encryptTask(demoTask, dek);
+  if (token !== revealToken) return; // a newer keystroke already superseded this one
+
+  document.getElementById("revealPlaintext").textContent = JSON.stringify(demoTask, null, 2);
+  document.getElementById("revealCiphertext").textContent = JSON.stringify(
+    { id: demoTask.id, iv: record.iv, ciphertext: record.ciphertext, updatedAt: demoTask.updatedAt },
+    null,
+    2
+  );
+}
+
+function wireRevealView() {
+  const input = document.getElementById("revealDemoInput");
+  input.addEventListener("input", () => {
+    if (dek) updateReveal(input.value);
+  });
+
+  document.getElementById("dumpDbBtn").addEventListener("click", async () => {
+    // The real, currently-stored records — exactly what DevTools would show,
+    // just surfaced inside the app itself instead of making the user go find it.
+    const records = await getAllTasks();
+    document.getElementById("dbDumpOutput").textContent = JSON.stringify(records, null, 2);
   });
 }
 
@@ -372,6 +422,15 @@ function getCmdkItems() {
     { label: "Focus search", hint: "/", action: () => document.getElementById("searchInput").focus() },
     { label: "Switch to board view", action: () => { view = "board"; setView(view); render(); } },
     { label: "Switch to list view", action: () => { view = "list"; setView(view); render(); } },
+    {
+      label: "How your data is protected",
+      action: () => {
+        view = "reveal";
+        setView(view);
+        render();
+        updateReveal(document.getElementById("revealDemoInput").value);
+      },
+    },
     { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
   ];
 }
@@ -664,6 +723,7 @@ async function boot() {
   wireEditModal();
   wireDragAndDrop();
   wireCommandPalette();
+  wireRevealView();
 }
 
 wireThemeToggle();

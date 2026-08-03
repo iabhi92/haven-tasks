@@ -128,39 +128,49 @@ export function renderList(tasks, handlers) {
   }
 }
 
+const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView" };
+const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn" };
+
 export function setView(view) {
-  const board = document.getElementById("boardView");
-  const list = document.getElementById("listView");
-  const boardBtn = document.getElementById("viewBoardBtn");
-  const listBtn = document.getElementById("viewListBtn");
-  const isBoard = view === "board";
-  board.hidden = !isBoard;
-  list.hidden = isBoard;
-  boardBtn.classList.toggle("is-active", isBoard);
-  listBtn.classList.toggle("is-active", !isBoard);
-  boardBtn.setAttribute("aria-selected", String(isBoard));
-  listBtn.setAttribute("aria-selected", String(!isBoard));
+  for (const key of Object.keys(VIEW_PANEL_IDS)) {
+    const isActive = key === view;
+    document.getElementById(VIEW_PANEL_IDS[key]).hidden = !isActive;
+    const btn = document.getElementById(VIEW_BTN_IDS[key]);
+    btn.classList.toggle("is-active", isActive);
+    btn.setAttribute("aria-selected", String(isActive));
+  }
+}
+
+function hideAllViewPanels() {
+  for (const id of Object.values(VIEW_PANEL_IDS)) {
+    document.getElementById(id).hidden = true;
+  }
 }
 
 export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
   const empty = document.getElementById("emptyState");
   const noResults = document.getElementById("noResultsState");
-  const board = document.getElementById("boardView");
-  const list = document.getElementById("listView");
+
+  // The reveal page has its own live demo input and doesn't depend on whether any
+  // real tasks exist — it must stay reachable even on a genuinely empty board.
+  if (view === "reveal") {
+    empty.hidden = true;
+    noResults.hidden = true;
+    setView(view);
+    return;
+  }
 
   if (!hasAnyTasks) {
     empty.hidden = false;
     noResults.hidden = true;
-    board.hidden = true;
-    list.hidden = true;
+    hideAllViewPanels();
     return;
   }
 
   if (!hasVisibleTasks) {
     empty.hidden = true;
     noResults.hidden = false;
-    board.hidden = true;
-    list.hidden = true;
+    hideAllViewPanels();
     return;
   }
 
