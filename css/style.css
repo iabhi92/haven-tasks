@@ -798,7 +798,6 @@ body { display: flex; }
   align-items: center;
   margin-top: 18px;
 }
-.modal-actions-left { display: flex; gap: 8px; }
 .modal-actions-right { display: flex; gap: 8px; }
 
 /* ---------- buttons ---------- */

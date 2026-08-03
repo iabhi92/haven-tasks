@@ -176,9 +176,6 @@ export function openEditModal(task) {
   document.getElementById("editStatus").value = task.status;
   document.getElementById("editPriority").value = task.priority;
   document.getElementById("editDueDate").value = task.dueDate || "";
-  // A calendar reminder needs a date to attach to — hide the action rather than
-  // let it produce a dateless, meaningless .ics file.
-  document.getElementById("editAddToCalendarBtn").hidden = !task.dueDate;
   document.getElementById("editModal").hidden = false;
   document.getElementById("editTitle").focus();
 }
