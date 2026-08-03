@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- connect-src is deliberately wider than everything else here: optional sync
+     (docs/ARCHITECTURE.md §5) talks to a server at a URL the user types in, which
+     a static CSP can't know or allowlist in advance. Every other directive stays
+     locked to 'self' — this widens only the one thing that has to be wide, not
+     the whole policy. Documented as a real trade-off in docs/THREAT_MODEL.md,
+     not a silent loosening: an XSS payload could now fetch() plaintext to an
+     arbitrary origin, whereas without sync it could only reach this app's own
+     origin. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Private todos. No account, works offline, and nobody — including us — can read them.">
+<title>Haven — private tasks</title>
+<link rel="canonical" href="https://taskhavens.com/app.html">
+<!-- No build step means no auto cache-busting either: the ?v= query string on this
+     stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
+     by hand whenever those files change, or browsers will keep serving stale cached
+     copies after a normal reload — a real, repeated issue during development. -->
+<link rel="stylesheet" href="css/style.css?v=20260803l">
+</head>
+<body>
+
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-logo" aria-hidden="true">H</div>
+    <h1 class="lock-title">Haven</h1>
+
+    <form id="setupForm" class="lock-form" autocomplete="off" hidden>
+      <p class="lock-sub">Set a passphrase. This encrypts everything on this device — we never
+        see it. Next you'll get a one-time recovery code as a backup if you forget it.</p>
+      <div class="field">
+        <label for="setupPassphrase">Passphrase</label>
+        <input type="password" id="setupPassphrase" autocomplete="new-password" minlength="10" required>
+      </div>
+      <div class="field">
+        <label for="setupPassphraseConfirm">Confirm passphrase</label>
+        <input type="password" id="setupPassphraseConfirm" autocomplete="new-password" minlength="10" required>
+      </div>
+      <p class="lock-hint">At least 10 characters. Longer and less guessable beats complex —
+        four random words work well.</p>
+      <p class="lock-error" id="setupError" role="alert"></p>
+      <button type="submit" class="btn btn-primary lock-submit">Continue</button>
+    </form>
+
+    <div class="lock-form" id="recoveryCodeScreen" hidden>
+      <p class="lock-sub">Save this recovery code. We never see it. If you lose both your
+        passphrase and this code, your data cannot be recovered by anyone — not even us.</p>
+      <div class="recovery-code-box" id="recoveryCodeText"></div>
+      <button type="button" class="btn btn-ghost recovery-copy-btn" id="copyRecoveryCodeBtn">Copy code</button>
+      <label class="recovery-confirm">
+        <input type="checkbox" id="recoveryCodeConfirmCheckbox">
+        I've saved this recovery code somewhere safe
+      </label>
+      <button type="button" class="btn btn-primary lock-submit" id="recoveryCodeContinueBtn" disabled>Continue to Haven</button>
+    </div>
+
+    <form id="unlockForm" class="lock-form" autocomplete="off" hidden>
+      <p class="lock-sub">Enter your passphrase to unlock your tasks.</p>
+      <div class="field">
+        <label for="unlockPassphrase">Passphrase</label>
+        <input type="password" id="unlockPassphrase" autocomplete="current-password" required>
+      </div>
+      <p class="lock-error" id="unlockError" role="alert"></p>
+      <button type="submit" class="btn btn-primary lock-submit">Unlock</button>
+      <button type="button" class="lock-link" id="forgotPassphraseBtn">Forgot your passphrase?</button>
+    </form>
+
+    <form id="recoveryForm" class="lock-form" autocomplete="off" hidden>
+      <p class="lock-sub">Enter your recovery code to regain access and set a new passphrase.</p>
+      <div class="field">
+        <label for="recoveryCodeInput">Recovery code</label>
+        <input type="text" id="recoveryCodeInput" autocomplete="off" spellcheck="false" required>
+      </div>
+      <p class="lock-error" id="recoveryError" role="alert"></p>
+      <button type="submit" class="btn btn-primary lock-submit">Continue</button>
+      <button type="button" class="lock-link" id="backToUnlockBtn">Back to passphrase</button>
+    </form>
+
+    <form id="resetPassphraseForm" class="lock-form" autocomplete="off" hidden>
+      <p class="lock-sub">Recovery code accepted. Set a new passphrase — your existing tasks
+        stay exactly as they are, only the passphrase changes.</p>
+      <div class="field">
+        <label for="resetPassphrase">New passphrase</label>
+        <input type="password" id="resetPassphrase" autocomplete="new-password" minlength="10" required>
+      </div>
+      <div class="field">
+        <label for="resetPassphraseConfirm">Confirm new passphrase</label>
+        <input type="password" id="resetPassphraseConfirm" autocomplete="new-password" minlength="10" required>
+      </div>
+      <p class="lock-error" id="resetError" role="alert"></p>
+      <button type="submit" class="btn btn-primary lock-submit">Set new passphrase and unlock</button>
+    </form>
+  </div>
+</div>
+
+<div class="rail" id="rail" hidden>
+  <a href="index.html" class="rail-logo" aria-label="Haven home">H</a>
+  <nav class="rail-nav" role="tablist" aria-label="View">
+    <button type="button" class="rail-btn is-active" id="viewBoardBtn" role="tab" aria-selected="true" aria-label="Board view" title="Board">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="2.5" width="6" height="15" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect><rect x="11.5" y="2.5" width="6" height="9" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect></svg>
+    </button>
+    <button type="button" class="rail-btn" id="viewListBtn" role="tab" aria-selected="false" aria-label="List view" title="List">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="3" cy="5" r="1.3" fill="currentColor"></circle>
+        <line x1="7" y1="5" x2="17.5" y2="5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+        <circle cx="3" cy="10" r="1.3" fill="currentColor"></circle>
+        <line x1="7" y1="10" x2="17.5" y2="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+        <circle cx="3" cy="15" r="1.3" fill="currentColor"></circle>
+        <line x1="7" y1="15" x2="17.5" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+      </svg>
+    </button>
+    <button type="button" class="rail-btn" id="viewRevealBtn" role="tab" aria-selected="false" aria-label="How your data is protected" title="How your data is protected">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M10 2.5l6 2.2v4.6c0 4-2.6 6.8-6 8.2-3.4-1.4-6-4.2-6-8.2V4.7l6-2.2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+        <path d="M7.2 10l2 2 3.6-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </button>
+  </nav>
+
+  <button type="button" class="rail-btn" id="lockBtn" aria-label="Lock" title="Lock">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <rect x="4.5" y="9" width="11" height="8" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect>
+      <path d="M6.5 9V6a3.5 3.5 0 0 1 7 0v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+    </svg>
+  </button>
+
+  <button type="button" class="rail-btn theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle color theme" title="Toggle theme">
+    <svg class="icon-sun" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="1.6"></circle>
+      <g stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <line x1="10" y1="1.5" x2="10" y2="3.5"></line>
+        <line x1="10" y1="16.5" x2="10" y2="18.5"></line>
+        <line x1="1.5" y1="10" x2="3.5" y2="10"></line>
+        <line x1="16.5" y1="10" x2="18.5" y2="10"></line>
+        <line x1="4.2" y1="4.2" x2="5.6" y2="5.6"></line>
+        <line x1="14.4" y1="14.4" x2="15.8" y2="15.8"></line>
+        <line x1="4.2" y1="15.8" x2="5.6" y2="14.4"></line>
+        <line x1="14.4" y1="5.6" x2="15.8" y2="4.2"></line>
+      </g>
+    </svg>
+    <svg class="icon-moon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M17 12.3A7 7 0 1 1 7.7 3a5.6 5.6 0 0 0 9.3 9.3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+    </svg>
+  </button>
+</div>
+
+<div class="main-wrap" id="mainWrap" hidden>
+<div class="app-shell">
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Tasks</h1>
+      <p class="page-subtitle" id="pageSubtitle">&nbsp;</p>
+    </div>
+
+    <div class="header-actions">
+      <label class="search-field">
+        <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+          <circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+          <line x1="13.2" y1="13.2" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+        </svg>
+        <input type="text" id="searchInput" placeholder="Search tasks…" autocomplete="off">
+        <kbd class="search-kbd">/</kbd>
+      </label>
+
+      <button type="button" class="btn btn-ghost btn-cmdk" id="openCmdkBtn" aria-label="Open command menu">
+        <span>Menu</span>
+        <kbd class="search-kbd">⌘K</kbd>
+      </button>
+    </div>
+  </header>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <main class="content">
+    <form id="quickAddForm" class="quick-add" autocomplete="off">
+      <button type="button" class="quick-add-icon" id="openAddModalBtn" aria-label="Add a task with full details">+</button>
+      <input type="text" id="quickAddInput" name="title" placeholder="Add a task and press Enter…" maxlength="200" required>
+      <select id="quickAddPriority" name="priority" aria-label="Priority" class="quick-add-priority">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+      </select>
+      <input type="date" id="quickAddDueDate" name="dueDate" aria-label="Due date" class="quick-add-date">
+    </form>
+
+    <div id="boardView" class="board" role="list">
+      <section class="board-col" data-status="todo">
+        <div class="board-col-head">
+          <h2><span class="dot dot-todo" aria-hidden="true"></span>To Do</h2>
+          <span class="count" id="count-todo">0</span>
+        </div>
+        <div class="board-col-body" data-dropzone="todo" id="col-todo"></div>
+      </section>
+
+      <section class="board-col" data-status="in-progress">
+        <div class="board-col-head">
+          <h2><span class="dot dot-in-progress" aria-hidden="true"></span>In Progress</h2>
+          <span class="count" id="count-in-progress">0</span>
+        </div>
+        <div class="board-col-body" data-dropzone="in-progress" id="col-in-progress"></div>
+      </section>
+
+      <section class="board-col" data-status="done">
+        <div class="board-col-head">
+          <h2><span class="dot dot-done" aria-hidden="true"></span>Done</h2>
+          <span class="count" id="count-done">0</span>
+        </div>
+        <div class="board-col-body" data-dropzone="done" id="col-done"></div>
+      </section>
+    </div>
+
+    <div id="listView" class="list-view" hidden>
+      <div class="list-head">
+        <span class="list-head-title">Task</span>
+        <span class="list-head-status">Status</span>
+        <span class="list-head-priority">Priority</span>
+        <span class="list-head-due">Due</span>
+        <span class="list-head-actions"></span>
+      </div>
+      <div id="listBody" class="list-body"></div>
+    </div>
+
+    <div id="revealView" class="reveal-view" hidden>
+      <section class="reveal-section">
+        <h2>Watch encryption happen</h2>
+        <p class="reveal-intro">Type a task title below. Nothing here is saved — this runs the
+          exact same encryption function every real task on your board goes through, live, so you
+          can see it with your own eyes instead of taking our word for it.</p>
+        <input type="text" id="revealDemoInput" class="reveal-demo-input" placeholder="Type a task title…" autocomplete="off">
+        <div class="reveal-columns">
+          <div class="reveal-col">
+            <h3>What's in your browser's memory</h3>
+            <pre id="revealPlaintext" class="reveal-pre"></pre>
+          </div>
+          <div class="reveal-col">
+            <h3>What a server would ever see</h3>
+            <pre id="revealCiphertext" class="reveal-pre"></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="reveal-section">
+        <h2>How your data is protected</h2>
+        <p class="reveal-intro">Every task is encrypted on this device with AES-256-GCM before it
+          ever touches storage. The key that does that encryption is derived from your passphrase
+          and never leaves your browser — it's never sent anywhere, not to us, not to a server,
+          not to anyone. IndexedDB, this browser's local database, holds only what you see below:
+          an ID, a random IV, ciphertext, and a timestamp. If sync is ever turned on, that's also
+          the only thing that would ever be sent — the exact same ciphertext already sitting here.</p>
+        <button type="button" class="btn btn-ghost" id="dumpDbBtn">Dump my local database</button>
+        <pre id="dbDumpOutput" class="reveal-pre reveal-pre-wide"></pre>
+      </section>
+    </div>
+
+    <div id="emptyState" class="empty-state" hidden>
+      <p class="empty-state-title">Nothing here yet</p>
+      <p class="empty-state-sub">Type a task above and press <kbd>Enter</kbd> to get started.</p>
+    </div>
+
+    <div id="noResultsState" class="empty-state" hidden>
+      <p class="empty-state-title">No matching tasks</p>
+      <p class="empty-state-sub">Try a different search term.</p>
+    </div>
+  </main>
+</div>
+</div>
+
+<div class="modal-overlay" id="editModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <h2 id="editModalTitle">Edit task</h2>
+    <form id="editForm">
+      <input type="hidden" id="editId">
+
+      <div class="field">
+        <label for="editTitle">Title</label>
+        <input type="text" id="editTitle" maxlength="200" required>
+      </div>
+
+      <div class="field">
+        <label for="editNotes">Notes</label>
+        <textarea id="editNotes" rows="3" maxlength="2000"></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="editStatus">Status</label>
+          <select id="editStatus">
+            <option value="todo">To Do</option>
+            <option value="in-progress">In Progress</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="editPriority">Priority</label>
+          <select id="editPriority">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="editDueDate">Due date</label>
+          <input type="date" id="editDueDate">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
+        <div class="modal-actions-right">
+          <button type="button" class="btn btn-ghost" id="editCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="addModal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
+    <h2 id="addModalTitle">Add task</h2>
+    <form id="addTaskForm">
+      <div class="field">
+        <label for="addTitle">Title</label>
+        <input type="text" id="addTitle" maxlength="200" required>
+      </div>
+
+      <div class="field">
+        <label for="addNotes">Notes</label>
+        <textarea id="addNotes" rows="3" maxlength="2000"></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="addStatus">Status</label>
+          <select id="addStatus">
+            <option value="todo">To Do</option>
+            <option value="in-progress">In Progress</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="addPriority">Priority</label>
+          <select id="addPriority">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="addDueDate">Due date</label>
+          <input type="date" id="addDueDate">
+        </div>
+      </div>
+
+      <p class="reveal-intro add-reveal-intro">Watch this get encrypted as you type — the exact
+        same function every task on your board goes through, running live on what you're actually
+        about to create.</p>
+      <div class="reveal-columns">
+        <div class="reveal-col">
+          <h3>What's in your browser's memory</h3>
+          <pre id="addRevealPlaintext" class="reveal-pre reveal-pre-compact"></pre>
+        </div>
+        <div class="reveal-col">
+          <h3>What a server would ever see</h3>
+          <pre id="addRevealCiphertext" class="reveal-pre reveal-pre-compact"></pre>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="addCancelBtn">Cancel</button>
+        <div class="modal-actions-right">
+          <button type="submit" class="btn btn-primary">Add task</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay cmdk-overlay" id="cmdkModal" hidden>
+  <div class="cmdk" role="dialog" aria-modal="true" aria-label="Command menu">
+    <div class="cmdk-input-wrap">
+      <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+        <line x1="13.2" y1="13.2" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+      </svg>
+      <input type="text" id="cmdkInput" class="cmdk-input" placeholder="Type a command…" autocomplete="off">
+    </div>
+    <div id="cmdkList" class="cmdk-list" role="listbox"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="syncModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
+    <h2 id="syncModalTitle">Sync (optional)</h2>
+
+    <div id="syncSetupSection">
+      <p class="lock-sub">Sync keeps tasks in step across your devices through a server that only
+        ever stores ciphertext — same guarantee as this device, nothing new to trust. Leave the
+        token blank to start a fresh, empty bucket, or paste one from a device you've already set
+        up to join it.</p>
+      <div class="field">
+        <label for="syncServerUrl">Sync server URL</label>
+        <input type="text" id="syncServerUrl" placeholder="https://your-sync-server.example.com" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="syncTokenInput">Sync token</label>
+        <input type="text" id="syncTokenInput" placeholder="Leave blank to create a new one" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="syncJoinFields" hidden>
+        <p class="lock-hint">Joining an existing bucket needs the recovery code from the device
+          that started it — that's what lets this device decrypt the same tasks, not the token
+          alone. Your passphrase on this device doesn't change; confirming it just re-locks the
+          shared key under it.</p>
+        <div class="field">
+          <label for="syncJoinRecoveryCode">Recovery code (from the other device)</label>
+          <input type="text" id="syncJoinRecoveryCode" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="syncJoinPassphrase">Confirm your current passphrase</label>
+          <input type="password" id="syncJoinPassphrase" autocomplete="current-password">
+        </div>
+      </div>
+      <p class="lock-error" id="syncSetupError" role="alert"></p>
+      <button type="button" class="btn btn-primary" id="enableSyncBtn">Enable sync</button>
+    </div>
+
+    <div id="syncActiveSection" hidden>
+      <p class="lock-sub">Sync is on. This token is a bearer capability for your ciphertext bucket
+        — anyone who has it can read and write it, so treat it like a password. Enter this same
+        server and token on another device, along with your recovery code, to sync between them —
+        your recovery code now unlocks this synced task list on any joined device, not just this
+        one, so it's worth treating with the same care.</p>
+      <div class="field">
+        <label>Server</label>
+        <div class="recovery-code-box" id="syncServerDisplay"></div>
+      </div>
+      <div class="field">
+        <label>Sync token</label>
+        <div class="recovery-code-box" id="syncTokenDisplay"></div>
+      </div>
+      <button type="button" class="btn btn-ghost recovery-copy-btn" id="copySyncTokenBtn">Copy token</button>
+      <p class="lock-error" id="syncStatus" role="status"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="disableSyncBtn">Disable sync</button>
+        <button type="button" class="btn btn-primary" id="syncNowBtn">Sync now</button>
+      </div>
+    </div>
+
+    <div class="modal-actions-right sync-close-row">
+      <button type="button" class="btn btn-ghost" id="closeSyncModalBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<a id="exportLink" hidden></a>
+
+<script src="js/app.js?v=20260803l" type="module"></script>
+</body>
+</html>

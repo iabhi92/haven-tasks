@@ -7,10 +7,9 @@ encrypted client-side (AES-256-GCM, key derived from your passphrase via PBKDF2-
 600,000 iterations) before it ever touches storage or the network. Optional sync moves only
 ciphertext through a small self-hostable server.
 
-**Live:** [haven-tasks.haven-deploy.workers.dev/landing.html](https://haven-tasks.haven-deploy.workers.dev/landing.html)
-(pitch) · [/index.html](https://haven-tasks.haven-deploy.workers.dev/index.html) (app). Optional
-sync server: `https://haven-sync.onrender.com` (free-tier — see its README for what that means for
-durability).
+**Live:** [taskhavens.com](https://taskhavens.com) (pitch) ·
+[taskhavens.com/app.html](https://taskhavens.com/app.html) (app). Optional sync server:
+`https://haven-sync.onrender.com` (free-tier — see its README for what that means for durability).
 
 ## Run it locally
 
@@ -22,7 +21,7 @@ npx serve .
 python3 -m http.server 8000
 ```
 
-Then open the printed URL — `index.html` for the app, `landing.html` for the marketing page.
+Then open the printed URL — `index.html` for the marketing page, `app.html` for the app.
 
 To also run the optional sync server locally:
 
@@ -49,7 +48,7 @@ sensitive — it says plainly what is and isn't defended against.
 
 ## Deploying
 
-The frontend (`index.html`, `landing.html`, `css/`, `js/`, `vendor/`) is fully static — deploy it
+The frontend (`index.html`, `app.html`, `css/`, `js/`, `vendor/`) is fully static — deploy it
 anywhere that serves static files over HTTPS. Use a host that honors the `_headers` file at the
 repo root (Netlify, Cloudflare Pages/Workers static assets) so the real CSP/clickjacking headers
 apply — a host that ignores `_headers` (e.g. GitHub Pages) falls back to the `<meta>` CSP only,

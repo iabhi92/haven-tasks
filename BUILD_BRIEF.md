@@ -104,10 +104,11 @@ the UX is not smooth, the security is irrelevant because no one stays.
   deploy-target-dependent, not silently claimed as fixed everywhere. Also added
   `Content-Security-Policy`/`X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy` headers to
   the Flask sync server's responses (previously only CORS headers were set).
-- **Phase 8 — Ship. ✅ Done.** `landing.html` + `css/landing.css` + `js/landing.js` — pitch, "Open
+- **Phase 8 — Ship. ✅ Done.** `index.html` (marketing/landing page, moved here from `landing.html`
+  so the custom domain's root serves it) + `css/landing.css` + `js/landing.js` — pitch, "Open
   Haven" CTA, and a live encryption demo reusing the real `crypto.js` (non-persisted, same idea as
-  the app's own reveal page). Frontend deployed to Cloudflare Workers static assets at
-  https://haven-tasks.haven-deploy.workers.dev, verified end-to-end in a real browser: setup,
+  the app's own reveal page). The actual app moved to `app.html`. Frontend deployed to Cloudflare
+  Workers static assets, live at https://taskhavens.com, verified end-to-end in a real browser: setup,
   unlock, add-task-with-live-reveal, and — the actual point of Phase 7's `_headers` fix — the app
   now genuinely refuses to be framed in production (confirmed by actually trying to iframe it from
   another origin; it's blocked, unlike on the plain local dev server). Sync server deployed

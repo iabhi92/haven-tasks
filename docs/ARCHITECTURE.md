@@ -225,7 +225,8 @@ Show real bytes only. No simulated hacker aesthetic.
 ## 7. Module layout (frontend, no build step)
 
 ```
-index.html          // shell + CSP meta; loads app.js as type="module"
+index.html          // marketing/landing page (Phase 8) — serves the custom domain's root for SEO
+app.html             // the actual app shell + CSP meta; loads app.js as type="module"
 /js
   app.js            // bootstrap, state, event wiring, lock/unlock, reveal panel (done, Phases 3+5)
   crypto.js         // KDF, wrap/unwrap, encrypt/decrypt, recovery — pure, unit-tested (done, Phase 2)

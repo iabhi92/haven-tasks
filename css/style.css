@@ -265,7 +265,10 @@ body { display: flex; }
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
 }
+.rail-logo:hover { opacity: 0.85; }
 .rail-nav {
   display: flex;
   flex-direction: column;

@@ -4,6 +4,10 @@
 > app in a real browser and a real sync server, not just read from the source. Every item below
 > was executed on 2026-08-03 against the code at this commit; scripts are throwaway and not
 > checked into the repo, but the exact steps are described so any of this can be re-run.
+>
+> Note: at the time these checks ran, the app shell was `index.html`. It was later renamed to
+> `app.html` (Phase 8, when `index.html` became the marketing page so the custom domain's root
+> serves it) — every finding below still applies unchanged to `app.html`, only the filename moved.
 
 ## Results
 
