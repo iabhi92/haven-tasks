@@ -252,6 +252,7 @@ export function renderSubtaskList(containerId, subtasks, { onToggle, onRemove })
 export function openEditModal(task) {
   document.getElementById("editId").value = task.id;
   document.getElementById("editTitle").value = task.title;
+  document.getElementById("editProject").value = task.project || "Inbox";
   document.getElementById("editNotes").value = task.notes || "";
   document.getElementById("editStatus").value = task.status;
   document.getElementById("editPriority").value = task.priority;
@@ -269,6 +270,7 @@ export function readEditForm() {
   return {
     id: document.getElementById("editId").value,
     title: document.getElementById("editTitle").value.trim(),
+    project: document.getElementById("editProject").value.trim() || "Inbox",
     notes: document.getElementById("editNotes").value.trim(),
     status: document.getElementById("editStatus").value,
     priority: document.getElementById("editPriority").value,
@@ -290,6 +292,7 @@ export function closeAddModal() {
 export function readAddForm() {
   return {
     title: document.getElementById("addTitle").value.trim(),
+    project: document.getElementById("addProject").value.trim() || "Inbox",
     notes: document.getElementById("addNotes").value.trim(),
     status: document.getElementById("addStatus").value,
     priority: document.getElementById("addPriority").value,

@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804d">
+<link rel="stylesheet" href="css/style.css?v=20260804e">
 </head>
 <body>
 
@@ -152,7 +152,15 @@
 <div class="app-shell">
   <header class="page-header">
     <div>
-      <h1 class="page-title">Tasks</h1>
+      <div class="project-switcher-row">
+        <select id="projectSwitcher" class="project-switcher" aria-label="Current project"></select>
+        <button type="button" class="project-add-btn" id="addProjectBtn" aria-label="New project">+</button>
+      </div>
+      <div class="project-add-row" id="projectAddRow" hidden>
+        <input type="text" id="projectAddInput" placeholder="Project name" maxlength="60">
+        <button type="button" class="btn btn-primary btn-sm" id="projectAddConfirmBtn">Add</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="projectAddCancelBtn">Cancel</button>
+      </div>
       <p class="page-subtitle" id="pageSubtitle">&nbsp;</p>
     </div>
 
@@ -295,6 +303,8 @@
 </div>
 </div>
 
+<datalist id="projectOptions"></datalist>
+
 <div class="modal-overlay" id="editModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
     <h2 id="editModalTitle">Edit task</h2>
@@ -304,6 +314,11 @@
       <div class="field">
         <label for="editTitle">Title</label>
         <input type="text" id="editTitle" maxlength="200" required>
+      </div>
+
+      <div class="field">
+        <label for="editProject">Project</label>
+        <input type="text" id="editProject" list="projectOptions" placeholder="Inbox" maxlength="60">
       </div>
 
       <div class="field">
@@ -368,6 +383,11 @@
       <div class="field">
         <label for="addTitle">Title</label>
         <input type="text" id="addTitle" maxlength="200" required>
+      </div>
+
+      <div class="field">
+        <label for="addProject">Project</label>
+        <input type="text" id="addProject" list="projectOptions" placeholder="Inbox" maxlength="60">
       </div>
 
       <div class="field">
@@ -516,6 +536,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260804d" type="module"></script>
+<script src="js/app.js?v=20260804e" type="module"></script>
 </body>
 </html>

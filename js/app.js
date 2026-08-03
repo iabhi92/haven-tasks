@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804d";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804e";
 import {
   renderBoard,
   renderList,
@@ -28,7 +28,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804d";
+} from "./ui.js?v=20260804e";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -44,14 +44,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260804d";
+} from "./crypto.js?v=20260804e";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260804d";
+} from "./sync.js?v=20260804e";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -64,6 +64,18 @@ let tagFilter = "";
 let sortMode = "manual";
 let draggedId = null;
 let dek = null; // the in-memory DEK CryptoKey — null whenever locked
+
+// Projects are a lightweight client-side grouping — a plain string field on
+// each task (default "Inbox"), same encrypted envelope as everything else.
+// Not a separate key/vault per project (that's "compartmentalised vaults" in
+// docs/FEATURES.md, a much bigger crypto change) — this is just a filter, the
+// same pattern as tags. Because of that, a project only "exists" once at
+// least one task belongs to it: there's nowhere to durably store an empty
+// project without either a new encrypted store (schema/sync changes) or
+// stashing the name in plaintext localStorage (which would leak a project
+// name outside the encryption boundary — not acceptable here). An honest,
+// documented limitation, not an oversight.
+let activeProject = "Inbox";
 
 const SYNC_SERVER_KEY = "haven-sync-server";
 const SYNC_TOKEN_KEY = "haven-sync-token";
@@ -158,9 +170,14 @@ function matchesSmartView(task, smartViewValue) {
   return true;
 }
 
+function projectOf(task) {
+  return task.project || "Inbox";
+}
+
 function visibleTasks() {
   return tasks.filter(
     (t) =>
+      projectOf(t) === activeProject &&
       matchesSearch(t, searchQuery) &&
       matchesSmartView(t, smartView) &&
       (!priorityFilter || t.priority === priorityFilter) &&
@@ -215,6 +232,36 @@ function syncTagFilterOptions() {
   if (select.value !== current) tagFilter = select.value;
 }
 
+function allProjects() {
+  const set = new Set(["Inbox", activeProject]); // activeProject stays listed even with 0 tasks yet
+  for (const t of tasks) set.add(projectOf(t));
+  return [...set].sort((a, b) => (a === "Inbox" ? -1 : b === "Inbox" ? 1 : a.localeCompare(b)));
+}
+
+// Keeps the project switcher <select> and the add/edit modals' project
+// <datalist> in sync with whatever projects currently exist.
+function syncProjectUI() {
+  const projects = allProjects();
+
+  const switcher = document.getElementById("projectSwitcher");
+  switcher.textContent = "";
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    switcher.appendChild(opt);
+  }
+  switcher.value = activeProject;
+
+  const datalist = document.getElementById("projectOptions");
+  datalist.textContent = "";
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p;
+    datalist.appendChild(opt);
+  }
+}
+
 function render() {
   const visible = visibleTasks();
   const hasAnyTasks = tasks.length > 0;
@@ -255,6 +302,7 @@ function render() {
   renderBoard(groupByStatus(sortedVisible), handlers);
   renderList(sorted, handlers);
   syncTagFilterOptions();
+  syncProjectUI();
 }
 
 function nextOrder(status) {
@@ -287,11 +335,12 @@ async function loadAndDecryptTasks() {
   return decrypted;
 }
 
-async function addTask({ title, notes, status, priority, dueDate, tags, subtasks }) {
+async function addTask({ title, project, notes, status, priority, dueDate, tags, subtasks }) {
   const resolvedStatus = status || "todo";
   const task = {
     id: uuid(),
     title: title.trim(),
+    project: (project || activeProject || "Inbox").trim() || "Inbox",
     notes: (notes || "").trim(),
     status: resolvedStatus,
     priority: priority || "medium",
@@ -677,6 +726,49 @@ function wireFilterBar() {
   });
 }
 
+function wireProjectSwitcher() {
+  const switcher = document.getElementById("projectSwitcher");
+  const addBtn = document.getElementById("addProjectBtn");
+  const addRow = document.getElementById("projectAddRow");
+  const addInput = document.getElementById("projectAddInput");
+  const confirmBtn = document.getElementById("projectAddConfirmBtn");
+  const cancelBtn = document.getElementById("projectAddCancelBtn");
+
+  switcher.addEventListener("change", () => {
+    activeProject = switcher.value;
+    // Reset filters that were scoped to the previous project's data — a
+    // priority/tag/smart-view filter carried over could silently show an
+    // empty board in the new project and look like a bug.
+    smartView = "all";
+    priorityFilter = "";
+    tagFilter = "";
+    document.querySelectorAll("[data-smart-view]").forEach((b) => b.classList.toggle("is-active", b.dataset.smartView === "all"));
+    document.getElementById("priorityFilter").value = "";
+    document.getElementById("tagFilter").value = "";
+    render();
+  });
+
+  addBtn.addEventListener("click", () => {
+    addRow.hidden = false;
+    addInput.value = "";
+    addInput.focus();
+  });
+
+  const confirmAdd = () => {
+    const name = addInput.value.trim();
+    if (!name) return;
+    activeProject = name;
+    addRow.hidden = true;
+    render();
+  };
+  confirmBtn.addEventListener("click", confirmAdd);
+  addInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); confirmAdd(); }
+    if (e.key === "Escape") { addRow.hidden = true; }
+  });
+  cancelBtn.addEventListener("click", () => { addRow.hidden = true; });
+}
+
 function wireViewToggle() {
   const boardBtn = document.getElementById("viewBoardBtn");
   const listBtn = document.getElementById("viewListBtn");
@@ -786,10 +878,11 @@ function renderEditSubtasks() {
 
 async function updateAddReveal() {
   const token = ++addRevealToken;
-  const { title, notes, status, priority, dueDate, tags } = readAddForm();
+  const { title, project, notes, status, priority, dueDate, tags } = readAddForm();
   const demoTask = {
     id: "demo-preview",
     title,
+    project,
     notes,
     status: status || "todo",
     priority: priority || "medium",
@@ -820,10 +913,11 @@ function wireAddModal() {
     addSubtasksDraft = [];
     renderAddSubtasks();
     openAddModal();
+    document.getElementById("addProject").value = activeProject;
     if (dek) updateAddReveal();
   });
 
-  for (const id of ["addTitle", "addNotes", "addStatus", "addPriority", "addDueDate", "addTags"]) {
+  for (const id of ["addTitle", "addProject", "addNotes", "addStatus", "addPriority", "addDueDate", "addTags"]) {
     document.getElementById(id).addEventListener("input", () => {
       if (dek) updateAddReveal();
     });
@@ -1253,6 +1347,7 @@ async function boot() {
   wireQuickAdd();
   wireSearch();
   wireFilterBar();
+  wireProjectSwitcher();
   wireViewToggle();
   wireEditModal();
   wireAddModal();

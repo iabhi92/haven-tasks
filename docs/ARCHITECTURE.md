@@ -137,14 +137,19 @@ Encrypt per task record (not one big blob). Rationale: enables incremental sync 
 resolution. Cost: leaks task count, individual sizes, and update timing — documented in the
 threat model.
 
-Plaintext task shape (this is the Phase 1 shape already in use — see `js/store.js`; `tags` and
-`subtasks` were added post-launch, both plain arrays, same envelope, no separate encrypted
-entity):
+Plaintext task shape (this is the Phase 1 shape already in use — see `js/store.js`; `tags`,
+`subtasks`, and `project` were added post-launch, same envelope, no separate encrypted entity.
+`project` is a plain string, not a foreign key into any other store — "projects" are purely
+derived from whatever distinct values exist across tasks, the same pattern as tags. This is a
+deliberately lighter mechanism than a real multi-vault/multi-key architecture; see
+`docs/FEATURES.md`'s "Compartmentalised vaults" entry for what the heavier version would look
+like, and its status note for why the lighter version was chosen here):
 
 ```json
 {
   "id": "<uuid v4, client-generated>",
   "title": "Buy Mum a birthday gift",
+  "project": "Personal",
   "notes": "",
   "status": "todo",
   "priority": "high",
