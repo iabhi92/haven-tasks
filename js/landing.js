@@ -3,7 +3,7 @@
 // typed here is ever stored or sent anywhere; it exists only to show real
 // ciphertext bytes for a real plaintext, per the same idea as the app's own
 // reveal page.
-import { generateDek, encryptTask } from "./crypto.js?v=20260804b";
+import { generateDek, encryptTask } from "./crypto.js?v=20260804c";
 
 const input = document.getElementById("landingDemoInput");
 const plaintextEl = document.getElementById("landingPlaintext");
@@ -61,7 +61,8 @@ for (const el of document.querySelectorAll(".reveal-up")) {
 // properties updated from a mousemove listener, no animation library.
 const hero = document.querySelector(".landing-hero");
 const blobs = document.querySelectorAll(".landing-blob");
-if (hero && blobs.length && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (hero && blobs.length && !reducedMotion) {
   hero.addEventListener("mousemove", (e) => {
     const rect = hero.getBoundingClientRect();
     const px = (e.clientX - rect.left) / rect.width - 0.5;
@@ -71,5 +72,24 @@ if (hero && blobs.length && !window.matchMedia("(prefers-reduced-motion: reduce)
       blob.style.setProperty("--mx", `${px * depth}px`);
       blob.style.setProperty("--my", `${py * depth}px`);
     });
+  });
+}
+
+// Same idea for the hero showcase card's floating spheres, at a larger
+// depth range since the card is the visual focal point.
+const showcase = document.getElementById("heroShowcase");
+const spheres = document.querySelectorAll(".hero-sphere");
+if (showcase && spheres.length && !reducedMotion) {
+  showcase.addEventListener("mousemove", (e) => {
+    const rect = showcase.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    spheres.forEach((sphere, i) => {
+      const depth = 10 + (i % 3) * 6;
+      sphere.style.transform = `translate(${px * depth}px, ${py * depth}px)`;
+    });
+  });
+  showcase.addEventListener("mouseleave", () => {
+    spheres.forEach((sphere) => { sphere.style.transform = ""; });
   });
 }

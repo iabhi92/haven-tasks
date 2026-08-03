@@ -34,6 +34,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ## Project docs
 
 - [`BUILD_BRIEF.md`](BUILD_BRIEF.md) — product definition and phased build plan. Read this first.
+- [`docs/FEATURES.md`](docs/FEATURES.md) — the full north-star feature roadmap, built in layers.
+  v1 is Layer 1; this is where the product goes after that.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — crypto design, data model, sync protocol.
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — adversaries, defenses, honest limitations.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — self-attack writeup: what was actually attacked, what
