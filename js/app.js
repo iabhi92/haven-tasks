@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803l";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804a";
 import {
   renderBoard,
   renderList,
@@ -27,7 +27,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260803l";
+} from "./ui.js?v=20260804a";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -43,14 +43,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260803l";
+} from "./crypto.js?v=20260804a";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260803l";
+} from "./sync.js?v=20260804a";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -124,7 +124,8 @@ function matchesSearch(task, query) {
   const q = query.toLowerCase();
   return (
     task.title.toLowerCase().includes(q) ||
-    (task.notes || "").toLowerCase().includes(q)
+    (task.notes || "").toLowerCase().includes(q) ||
+    (task.tags || []).some((tag) => tag.toLowerCase().includes(q))
   );
 }
 
@@ -197,7 +198,7 @@ async function loadAndDecryptTasks() {
   return decrypted;
 }
 
-async function addTask({ title, notes, status, priority, dueDate }) {
+async function addTask({ title, notes, status, priority, dueDate, tags }) {
   const resolvedStatus = status || "todo";
   const task = {
     id: uuid(),
@@ -206,6 +207,7 @@ async function addTask({ title, notes, status, priority, dueDate }) {
     status: resolvedStatus,
     priority: priority || "medium",
     dueDate: dueDate || null,
+    tags: tags || [],
     order: nextOrder(resolvedStatus),
     createdAt: now(),
     updatedAt: now(),
@@ -627,7 +629,7 @@ let addRevealToken = 0;
 
 async function updateAddReveal() {
   const token = ++addRevealToken;
-  const { title, notes, status, priority, dueDate } = readAddForm();
+  const { title, notes, status, priority, dueDate, tags } = readAddForm();
   const demoTask = {
     id: "demo-preview",
     title,
@@ -635,6 +637,7 @@ async function updateAddReveal() {
     status: status || "todo",
     priority: priority || "medium",
     dueDate: dueDate || null,
+    tags: tags || [],
     order: 0,
     createdAt: now(),
     updatedAt: now(),
@@ -660,7 +663,7 @@ function wireAddModal() {
     if (dek) updateAddReveal();
   });
 
-  for (const id of ["addTitle", "addNotes", "addStatus", "addPriority", "addDueDate"]) {
+  for (const id of ["addTitle", "addNotes", "addStatus", "addPriority", "addDueDate", "addTags"]) {
     document.getElementById(id).addEventListener("input", () => {
       if (dek) updateAddReveal();
     });

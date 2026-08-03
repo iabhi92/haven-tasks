@@ -30,6 +30,15 @@ function priorityBadge(priority) {
   return badge;
 }
 
+function tagChips(tags) {
+  if (!tags || tags.length === 0) return null;
+  const wrap = el("div", "task-tags");
+  for (const tag of tags) {
+    wrap.appendChild(el("span", "tag-chip", tag));
+  }
+  return wrap;
+}
+
 function dueBadge(dueDate) {
   const info = dueBadgeInfo(dueDate);
   if (!info) return null;
@@ -54,6 +63,9 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd }) {
   if (due) meta.appendChild(due);
   card.appendChild(meta);
 
+  const tags = tagChips(task.tags);
+  if (tags) card.appendChild(tags);
+
   card.addEventListener("click", () => onOpen(task));
   card.addEventListener("keydown", (e) => {
     if (e.key === "Enter") onOpen(task);
@@ -76,7 +88,11 @@ export function createListRow(task, { onOpen, onDelete }) {
   const row = el("div", "list-row" + (task.status === "done" ? " is-done" : ""));
   row.dataset.id = task.id;
 
-  row.appendChild(el("span", "list-row-title", task.title));
+  const titleCell = el("span", "list-row-title-cell");
+  titleCell.appendChild(el("span", "list-row-title", task.title));
+  const tags = tagChips(task.tags);
+  if (tags) titleCell.appendChild(tags);
+  row.appendChild(titleCell);
 
   const status = el("span", `badge badge-status-${task.status}`, STATUS_LABEL[task.status] || task.status);
   row.appendChild(status);
@@ -179,6 +195,20 @@ export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
   setView(view);
 }
 
+// Tags are stored as a plain string[] on the task object (same encrypted envelope,
+// no separate tag entity) — freeform, deduped, order-preserved, empty strings dropped.
+function parseTagsInput(value) {
+  const seen = new Set();
+  const tags = [];
+  for (const raw of value.split(",")) {
+    const tag = raw.trim();
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+  return tags;
+}
+
 export function openEditModal(task) {
   document.getElementById("editId").value = task.id;
   document.getElementById("editTitle").value = task.title;
@@ -186,6 +216,7 @@ export function openEditModal(task) {
   document.getElementById("editStatus").value = task.status;
   document.getElementById("editPriority").value = task.priority;
   document.getElementById("editDueDate").value = task.dueDate || "";
+  document.getElementById("editTags").value = (task.tags || []).join(", ");
   document.getElementById("editModal").hidden = false;
   document.getElementById("editTitle").focus();
 }
@@ -202,6 +233,7 @@ export function readEditForm() {
     status: document.getElementById("editStatus").value,
     priority: document.getElementById("editPriority").value,
     dueDate: document.getElementById("editDueDate").value || null,
+    tags: parseTagsInput(document.getElementById("editTags").value),
   };
 }
 
@@ -222,6 +254,7 @@ export function readAddForm() {
     status: document.getElementById("addStatus").value,
     priority: document.getElementById("addPriority").value,
     dueDate: document.getElementById("addDueDate").value || null,
+    tags: parseTagsInput(document.getElementById("addTags").value),
   };
 }
 

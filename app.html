@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260803l">
+<link rel="stylesheet" href="css/style.css?v=20260804a">
 </head>
 <body>
 
@@ -310,6 +310,11 @@
         </div>
       </div>
 
+      <div class="field">
+        <label for="editTags">Tags</label>
+        <input type="text" id="editTags" placeholder="work, urgent, school" maxlength="200">
+      </div>
+
       <div class="modal-actions">
         <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
         <div class="modal-actions-right">
@@ -358,6 +363,11 @@
           <label for="addDueDate">Due date</label>
           <input type="date" id="addDueDate">
         </div>
+      </div>
+
+      <div class="field">
+        <label for="addTags">Tags</label>
+        <input type="text" id="addTags" placeholder="work, urgent, school" maxlength="200">
       </div>
 
       <p class="reveal-intro add-reveal-intro">Watch this get encrypted as you type — the exact
@@ -462,6 +472,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260803l" type="module"></script>
+<script src="js/app.js?v=20260804a" type="module"></script>
 </body>
 </html>

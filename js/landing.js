@@ -3,7 +3,7 @@
 // typed here is ever stored or sent anywhere; it exists only to show real
 // ciphertext bytes for a real plaintext, per the same idea as the app's own
 // reveal page.
-import { generateDek, encryptTask } from "./crypto.js?v=20260803a";
+import { generateDek, encryptTask } from "./crypto.js?v=20260804a";
 
 const input = document.getElementById("landingDemoInput");
 const plaintextEl = document.getElementById("landingPlaintext");
@@ -38,3 +38,21 @@ async function update(title) {
 
 input.addEventListener("input", () => update(input.value));
 update("Try typing your own task title above");
+
+// Scroll-reveal: fade+slide each .reveal-up element in once it enters the
+// viewport. Plain IntersectionObserver, no animation library — matches the
+// zero-dependency policy the rest of the app follows.
+const revealObserver = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("is-visible");
+        revealObserver.unobserve(entry.target);
+      }
+    }
+  },
+  { threshold: 0.15 }
+);
+for (const el of document.querySelectorAll(".reveal-up")) {
+  revealObserver.observe(el);
+}

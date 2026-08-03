@@ -38,14 +38,17 @@
 }
 </script>
 
-<link rel="stylesheet" href="css/style.css?v=20260803l">
-<link rel="stylesheet" href="css/landing.css?v=20260803a">
+<link rel="stylesheet" href="css/style.css?v=20260804a">
+<link rel="stylesheet" href="css/landing.css?v=20260804a">
 </head>
 <body class="landing-body">
 
 <header class="landing-nav">
   <div class="landing-nav-inner">
-    <span class="landing-wordmark">Haven</span>
+    <a href="index.html" class="landing-brand" aria-label="Haven home">
+      <span class="rail-logo" aria-hidden="true">H</span>
+      <span class="landing-wordmark">Haven</span>
+    </a>
     <nav class="landing-nav-links">
       <a href="#features">Features</a>
       <a href="#privacy">Privacy</a>
@@ -57,65 +60,76 @@
 <main class="landing-main">
 
   <section class="landing-hero">
-    <p class="landing-eyebrow">Free forever. No account needed.</p>
-    <h1>The task manager for everything you need to get done.</h1>
-    <p class="landing-sub">
-      Boards, lists, due dates, priorities, search, drag-and-drop — everything you'd expect from a
-      real task manager. Use it for school, work, or just your own to-do list. And your tasks stay
-      private, automatically, without you having to think about it.
+    <div class="landing-blob landing-blob-1" aria-hidden="true"></div>
+    <div class="landing-blob landing-blob-2" aria-hidden="true"></div>
+    <div class="landing-blob landing-blob-3" aria-hidden="true"></div>
+    <p class="landing-eyebrow reveal-up">Free task manager. No signup.</p>
+    <h1 class="reveal-up">Track your tasks. Keep them to yourself.</h1>
+    <p class="landing-sub reveal-up">
+      Haven is a task manager with boards, lists, due dates, priorities, tags, and search — the
+      stuff you'd expect from any to-do app. The difference is what happens after you hit save:
+      everything you write gets encrypted on your own device first, so nobody else can read it.
+      Not other users, not a database admin, not us.
     </p>
-    <div class="landing-cta-row">
+    <div class="landing-cta-row reveal-up">
       <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
       <a href="#features" class="btn btn-ghost btn-lg">See what's inside</a>
     </div>
-    <p class="landing-hero-note">No signup. No credit card. Works right in your browser.</p>
+    <p class="landing-hero-note reveal-up">No signup. No credit card. Works right in your browser.</p>
   </section>
 
   <section id="features" class="landing-proof">
-    <h2 class="landing-section-heading">Everything a task manager should do</h2>
+    <h2 class="landing-section-heading reveal-up">A real task manager, not a one-trick demo</h2>
     <div class="landing-proof-grid">
-      <div class="landing-proof-card">
+      <div class="landing-proof-card reveal-up">
+        <div class="feat-icon feat-icon-1" aria-hidden="true"></div>
         <h3>Board and list views</h3>
-        <p>Organize your tasks as a kanban board or a simple list — switch anytime, whatever fits
-          how you're thinking that day.</p>
+        <p>Some days a kanban board makes sense. Other days you just want a plain list. Haven gives
+          you both, and switching between them takes one click.</p>
       </div>
-      <div class="landing-proof-card">
+      <div class="landing-proof-card reveal-up">
+        <div class="feat-icon feat-icon-2" aria-hidden="true"></div>
         <h3>Drag and drop</h3>
-        <p>Move a task from To Do to In Progress to Done with a drag. No menus, no clicking through
-          screens.</p>
+        <p>Drag a task from To Do to Done. That's the whole interaction — no dropdown, no separate
+          screen to update its status.</p>
       </div>
-      <div class="landing-proof-card">
+      <div class="landing-proof-card reveal-up">
+        <div class="feat-icon feat-icon-3" aria-hidden="true"></div>
         <h3>Due dates and priorities</h3>
-        <p>Flag what's urgent, set a deadline, and know at a glance what needs your attention
-          first.</p>
+        <p>Set a due date, mark something high priority, and it's obvious at a glance what actually
+          needs your attention today.</p>
       </div>
-      <div class="landing-proof-card">
+      <div class="landing-proof-card reveal-up">
+        <div class="feat-icon feat-icon-4" aria-hidden="true"></div>
         <h3>Search and quick commands</h3>
-        <p>Find any task in a second, or use the command menu to jump anywhere without touching
-          your mouse.</p>
+        <p>Type to search, or hit a key to pull up a command bar and jump anywhere in the app
+          without touching your mouse.</p>
       </div>
-      <div class="landing-proof-card">
+      <div class="landing-proof-card reveal-up">
+        <div class="feat-icon feat-icon-5" aria-hidden="true"></div>
         <h3>Works offline</h3>
-        <p>No internet? No problem. Haven runs right in your browser and saves everything on your
-          own device.</p>
+        <p>No wifi on the train? Doesn't matter. Haven runs entirely in your browser and keeps
+          working with no connection at all.</p>
       </div>
-      <div class="landing-proof-card">
+      <div class="landing-proof-card reveal-up">
+        <div class="feat-icon feat-icon-6" aria-hidden="true"></div>
         <h3>Sync across devices</h3>
-        <p>Want your tasks on your phone and your laptop? Turn on sync and use Haven anywhere —
-          still private, same as always.</p>
+        <p>Turn on sync if you want your tasks on your phone too. It's optional, and it's still
+          private on every device.</p>
       </div>
     </div>
   </section>
 
   <section id="privacy" class="landing-reveal-section">
-    <h2>Your tasks are yours. Really.</h2>
-    <p class="landing-sub">
-      Most apps can read everything you write, even if it's marked private. Haven can't. The moment
-      you type a task, it gets locked on your own device before it's ever saved anywhere — so even
-      we, the people who built this, can't read what you write. Try it below: type something and
-      watch what actually gets saved.
+    <h2 class="reveal-up">The part most task apps skip</h2>
+    <p class="landing-sub reveal-up">
+      Most "private" apps just mean nobody outside the company can see your data. The company
+      still can. Haven works differently: your tasks are scrambled on your own device before
+      they're ever saved, using the same kind of encryption banks use for financial data. We built
+      it, and we still can't read what you write — not because we promise not to, but because we
+      don't have a way to. Type something below and see it happen for yourself.
     </p>
-    <div class="landing-reveal-demo">
+    <div class="landing-reveal-demo reveal-up">
       <div class="reveal-columns">
         <div>
           <p class="add-reveal-intro">What you type</p>
@@ -135,12 +149,20 @@
         maxlength="200"
       >
     </div>
-    <p class="landing-privacy-note">
+    <p class="landing-privacy-note reveal-up">
       If you're curious how this actually works under the hood, we wrote it all down —
       <a href="docs/THREAT_MODEL.md" target="_blank" rel="noopener">what we protect against</a> and
       <a href="docs/SECURITY.md" target="_blank" rel="noopener">how we tested it ourselves</a>, no
       hand-waving.
     </p>
+  </section>
+
+  <section class="landing-cta-band reveal-up">
+    <div class="landing-cta-band-glow landing-cta-band-glow-1" aria-hidden="true"></div>
+    <div class="landing-cta-band-glow landing-cta-band-glow-2" aria-hidden="true"></div>
+    <h2>Give Haven a try.</h2>
+    <p>It takes about a minute to set up, and there's nothing to sign up for.</p>
+    <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
   </section>
 
 </main>
@@ -155,6 +177,6 @@
   </p>
 </footer>
 
-<script src="js/landing.js?v=20260803a" type="module"></script>
+<script src="js/landing.js?v=20260804a" type="module"></script>
 </body>
 </html>
