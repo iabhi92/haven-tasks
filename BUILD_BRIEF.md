@@ -90,8 +90,20 @@ the UX is not smooth, the security is irrelevant because no one stays.
   recovery code, or passphrase) ever appeared in network traffic, wrong recovery code and wrong
   local passphrase both fail closed, and a bidirectional edit + deletion actually round-tripped
   between "devices" correctly.
-- **Phase 7 — Hardening + self-attack.** Server-enforced CSP, innerHTML audit, vendored deps with
-  SRI, `docs/SECURITY.md` self-attack writeup.
+- **Phase 7 — Hardening + self-attack. ✅ Done.** `docs/SECURITY.md` — the full self-attack
+  checklist from `THREAT_MODEL.md`, actually run against a live app and server (XSS injection,
+  CSP-bypass attempts, IV-reuse check, tamper detection, network/storage plaintext leak checks,
+  wrong-passphrase behavior, dependency audit), not just read from the source. innerHTML audit:
+  clean, `js/ui.js` was already textContent-only. Dependency audit: zero CDN dependencies, only a
+  same-origin vendored font — SRI doesn't apply to same-origin resources, documented as such
+  rather than added performatively. Real gap found and fixed, not hidden: `frame-ancestors` in the
+  `<meta>` CSP tag is silently ignored by browsers (confirmed by actually framing the app — it
+  loaded), so clickjacking protection didn't actually work on the plain dev server. Fixed by
+  adding `_headers` (Netlify/Cloudflare Pages convention) carrying the real CSP + `X-Frame-Options`
+  as HTTP headers, effective once Phase 8 deploys to a host that honors it — noted as
+  deploy-target-dependent, not silently claimed as fixed everywhere. Also added
+  `Content-Security-Policy`/`X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy` headers to
+  the Flask sync server's responses (previously only CORS headers were set).
 - **Phase 8 — Ship.** Static deploy, landing page, optional sync server deployed separately.
 
 ## Definition of done (v1)

@@ -113,23 +113,25 @@
    rather than crash) and stay invisible in IndexedDB indefinitely. The UI warns about this
    explicitly before a join proceeds, but there's no migration/merge path in v1.
 
-## Self-attack checklist (becomes `docs/SECURITY.md` in Phase 7)
+## Self-attack checklist — ✅ run for real in Phase 7, see `docs/SECURITY.md`
 
-- [ ] **XSS via task content** — put `<img src=x onerror=alert(1)>` and `<script>` in a task
+- [x] **XSS via task content** — put `<img src=x onerror=alert(1)>` and `<script>` in a task
       title/notes. Confirm inert via `textContent` + CSP.
-- [ ] **CSP bypass** — try to load an external script; confirm CSP blocks it.
-- [ ] **IDOR on sync** — can sync token A read or overwrite token B's bucket?
-- [ ] **IV reuse** — encrypt the same task many times; confirm every IV differs.
-- [ ] **Key-in-memory exposure** — confirm the DEK is dropped on lock/refresh and never persisted.
-- [ ] **Plaintext leak to storage** — inspect IndexedDB; confirm zero readable task content.
-- [ ] **Plaintext leak to network** — inspect every sync request; confirm only ciphertext.
-- [ ] **Tamper detection** — flip a byte of stored ciphertext; confirm decryption rejects it.
-- [ ] **Wrong-passphrase behaviour** — confirm it fails closed.
-- [ ] **Recovery-code entropy** — confirm 256 bits via `crypto.getRandomValues`, not `Math.random`.
-- [ ] **Deletion is real** — confirm a deleted task's ciphertext is actually removed server-side.
-- [ ] **Dependency audit** — confirm every dependency is vendored, pinned, integrity-checked.
-- [ ] **Clickjacking** — confirm the app refuses to be framed.
-- [ ] **Timing on unlock** — note whether unlock failure timing leaks anything meaningful.
+- [x] **CSP bypass** — try to load an external script; confirm CSP blocks it.
+- [x] **IDOR on sync** — can sync token A read or overwrite token B's bucket?
+- [x] **IV reuse** — encrypt the same task many times; confirm every IV differs.
+- [x] **Key-in-memory exposure** — confirm the DEK is dropped on lock/refresh and never persisted.
+- [x] **Plaintext leak to storage** — inspect IndexedDB; confirm zero readable task content.
+- [x] **Plaintext leak to network** — inspect every sync request; confirm only ciphertext.
+- [x] **Tamper detection** — flip a byte of stored ciphertext; confirm decryption rejects it.
+- [x] **Wrong-passphrase behaviour** — confirm it fails closed.
+- [x] **Recovery-code entropy** — confirm 256 bits via `crypto.getRandomValues`, not `Math.random`.
+- [x] **Deletion is real** — confirm a deleted task's ciphertext is actually removed server-side.
+- [x] **Dependency audit** — confirm every dependency is vendored, pinned, integrity-checked.
+- [x] **Clickjacking** — confirm the app refuses to be framed. **Found broken on the dev server**
+      (meta-only `frame-ancestors` is ignored by browsers) — fixed via a real `_headers` file, but
+      only effective once deployed behind a host that honors it. See `docs/SECURITY.md`.
+- [x] **Timing on unlock** — note whether unlock failure timing leaks anything meaningful.
 
 ## How to read this document (for a reviewer)
 

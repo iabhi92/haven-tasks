@@ -22,6 +22,13 @@ def create_app(db_path=None):
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        # This is a JSON API with no HTML/script responses of its own, so the
+        # tightest possible baseline applies regardless of what the frontend's
+        # own CSP says — defense in depth if this API is ever hit directly.
+        response.headers["Content-Security-Policy"] = "default-src 'none'"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     return app

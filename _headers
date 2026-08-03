@@ -1,0 +1,12 @@
+# Recognized by Netlify and Cloudflare Pages (and adaptable to nginx/Apache/other
+# static hosts — see docs/SECURITY.md). This is the real, server-enforced CSP;
+# the <meta> tag in index.html is a same-policy fallback for hosts that ignore
+# this file, but a meta tag alone can't enforce frame-ancestors (browsers ignore
+# it there) and only takes effect after the HTML starts parsing. Keep both in
+# sync by hand — there's no build step to generate one from the other.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=()

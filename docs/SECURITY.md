@@ -1,0 +1,125 @@
+# SECURITY.md — Haven
+
+> The self-attack checklist from `docs/THREAT_MODEL.md`, actually run — against a real running
+> app in a real browser and a real sync server, not just read from the source. Every item below
+> was executed on 2026-08-03 against the code at this commit; scripts are throwaway and not
+> checked into the repo, but the exact steps are described so any of this can be re-run.
+
+## Results
+
+- [x] **XSS via task content** — Injected `<script>alert(1)</script>`, `<img src=x
+      onerror=alert(1)>`, `<svg onload=alert(1)>`, and a `javascript:` URL as task titles via both
+      the quick-add bar and the Add Task modal. No dialog ever fired. DOM inspection confirmed the
+      payloads land as HTML-escaped text (`&lt;img src=x onerror=alert(1)&gt;`) inside a `<h3>`,
+      never as live markup — `js/ui.js` renders exclusively via `textContent`, as designed.
+- [x] **CSP bypass** — Injected `<script src="https://evil.example.com/payload.js">` and an
+      inline `<script>window.__inlineRan = true</script>` into `<head>` at runtime. Both were
+      blocked; the console logged real `Content-Security-Policy` violation reports for each. The
+      inline script never executed (`window.__inlineRan` stayed `undefined`).
+- [x] **IDOR on sync** — Covered by `server/tests/test_sync.py::test_cross_token_isolation` and
+      `test_keyring_bootstrap_cross_token_isolation`, re-run clean at commit time. Token B's push
+      cannot read or overwrite token A's bucket.
+- [x] **IV reuse** — Encrypted the identical task object 20 times in a row with `encryptTask()`.
+      All 20 IVs were unique (`crypto.getRandomValues(new Uint8Array(12))` per call, never a
+      caller-supplied or derived IV — see `js/crypto.js`).
+- [x] **Key-in-memory exposure** — The DEK lives only in a module-scope `let dek` in `js/app.js`,
+      as a non-extractable `CryptoKey`. Locking (`#lockBtn`) sets `dek = null`; a fresh
+      `localStorage`/`sessionStorage` dump immediately after lock was empty in both. Nothing about
+      the DEK is ever written to storage — only its *wrapped* form (via the passphrase- and
+      recovery-derived KEKs) persists in IndexedDB's `keyring` store.
+- [x] **Plaintext leak to storage** — Added tasks with sensitive titles/notes, then read
+      IndexedDB directly (bypassing the app's own code) via `indexedDB.open("haven")`. Stored
+      records contain exactly `{id, iv, ciphertext, updatedAt}` — no plaintext field, and the
+      payload text never appears anywhere in the raw dump.
+- [x] **Plaintext leak to network** — Added a task with an identifying secret title, enabled
+      sync against the local server, and captured every request/response body Playwright saw on
+      port 5050. The secret string and the passphrase never appeared in any request or response
+      body across all 6 exchanges (push, pull, keyring push, keyring pull, and their responses).
+- [x] **Tamper detection** — Flipped one byte of a real ciphertext and attempted decryption with
+      the correct DEK. `decryptTask()` threw — AES-GCM's authentication tag rejects any
+      modification rather than returning corrupted plaintext.
+- [x] **Wrong-passphrase behaviour** — A deliberately wrong passphrase produces "Wrong
+      passphrase.", clears the input, and leaves the app locked (`#mainWrap` stays hidden). The
+      correct passphrase still works immediately afterward — no lockout, no corrupted state.
+      Timing note: `deriveKek()` (the 600,000-iteration PBKDF2 step) always runs to completion
+      before the cheap AES-GCM unwrap is attempted, on both the correct- and wrong-passphrase
+      paths — so failure timing is dominated by the same fixed KDF cost either way, not a fast
+      early-exit that would let an attacker distinguish "wrong passphrase" from "wrong KEK" via
+      response time.
+- [x] **Recovery-code entropy** — `generateRecoveryCode()` draws 32 bytes (256 bits) from
+      `crypto.getRandomValues`, never `Math.random`. Same for `generateSyncToken()` (also 32
+      bytes / 256 bits). Confirmed by reading `js/crypto.js` and `js/sync.js` directly — no other
+      random-value call sites exist in either file.
+- [x] **Deletion is real** — Covered by
+      `server/tests/test_sync.py::test_deletion_scrubs_ciphertext_not_just_flags_it`, re-run clean.
+      `storage.py`'s `upsert_records` sets `iv`/`ciphertext` to `NULL` the moment a record is
+      marked deleted — the tombstone row keeps only `id`/`updated_at`/`deleted`.
+- [x] **Dependency audit** — Zero `<script src>` or `<link>` tags point outside this origin.
+      The only vendored asset is a self-hosted webfont (`vendor/fonts/special-elite/`, sourced per
+      `SOURCE.md`, loaded via same-origin `@font-face`). `vendor/hash-wasm/` is an intentionally
+      empty placeholder (see `docs/ARCHITECTURE.md`'s directory layout) for a future Argon2id
+      migration — nothing is loaded from it today. Because every resource is same-origin, Subresource
+      Integrity doesn't apply in the way it would to a CDN dependency — SRI protects against a
+      *third-party host* serving tampered content, which isn't the delivery model here. The actual
+      trust dependency is "whoever serves this origin serves the real files," which is exactly
+      A1/A5 in `docs/THREAT_MODEL.md` (frontend-hosting trust) and isn't something SRI would fix.
+- [x] **Clickjacking** — **Found a real gap, not a clean pass.** Framed `index.html` inside an
+      attacker-controlled page served over `python -m http.server` (i.e. today's dev setup, with
+      no custom response headers). The frame **loaded successfully** — `frame-ancestors 'none'`
+      in the `<meta>` CSP tag is silently ignored by browsers when delivered via `<meta>` instead
+      of a real HTTP header (this is the same warning visible in every DevTools console session:
+      *"The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a
+      `<meta>` element."*). **Fix applied this phase:** added `_headers` (repo root), the
+      Netlify/Cloudflare Pages header-file convention, carrying the same CSP plus
+      `X-Frame-Options: DENY` as real HTTP headers. This closes the gap **once Phase 8 deploys to
+      a host that honors `_headers`** (or an equivalent nginx/Apache `add_header` config) — it
+      does **not** close it on a bare `python -m http.server` or any static host that ignores
+      header files. This is now the load-bearing reason `_headers` exists; the `<meta>` tag alone
+      was never sufficient for this specific directive, only for the directives browsers do honor
+      via `<meta>` (`script-src`, `object-src`, `base-uri`, `connect-src`).
+- [x] **Timing on unlock** — See "Wrong-passphrase behaviour" above; same finding, not a separate
+      test.
+
+## Server hardening applied this phase
+
+`server/app.py`'s `after_request` hook now sets, on every response (previously only CORS
+headers were present):
+
+```
+Content-Security-Policy: default-src 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+```
+
+This is a JSON API with no HTML of its own, so `default-src 'none'` is the correct baseline —
+defense in depth in case the API is ever hit directly in a browser context (e.g. a user pastes an
+API URL into a tab).
+
+## Honest residual gaps (not fixed this phase, stated plainly)
+
+1. **No rate limiting on the sync server.** `/sync/push`, `/sync/pull`, and `/sync/keyring` accept
+   unlimited requests per token or IP. Token brute-forcing itself is infeasible (256-bit tokens),
+   but nothing stops request-volume abuse (cost/availability impact on whoever hosts the server) —
+   out of scope for v1, worth revisiting before any multi-tenant public hosting.
+2. **Token/bucket lookups are not constant-time.** `_extract_token` + the SQLite `WHERE token = ?`
+   lookup in `storage.py` aren't hardened against timing side-channels. Given the token space
+   (256 bits) and that timing differences would be sub-millisecond and drowned out by normal
+   network jitter, this isn't considered practically exploitable, but it's not proven safe either
+   — noted rather than hidden.
+3. **Clickjacking protection is deploy-target-dependent**, per the finding above — it is not a
+   property of the code alone.
+4. Every honest limitation already listed in `docs/THREAT_MODEL.md`'s "Explicit non-goals" section
+   still applies unchanged (PBKDF2 vs Argon2id, metadata visibility, single-user v1, etc.) — this
+   document doesn't repeat them, it only adds what Phase 7's self-attack pass specifically found.
+
+## How to re-run this
+
+- Frontend checks: serve the repo root (`python3 -m http.server 8123`), drive it with Playwright
+  against `http://127.0.0.1:8123/index.html` using the app's real DOM ids (`#quickAddInput`,
+  `#addTaskForm`, `#unlockPassphrase`, etc.) — no test IDs or mocks needed, the checks above all
+  used the real UI and the real `js/crypto.js`.
+- Backend checks: `cd server && .venv/bin/python -m pytest -q`.
+- Framing check specifically needs a *second* origin/page (not just a second tab) attempting to
+  `<iframe>` the app — a same-page check doesn't exercise the browser's frame-ancestors enforcement
+  path at all.
