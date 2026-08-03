@@ -205,6 +205,26 @@ export function readEditForm() {
   };
 }
 
+export function openAddModal() {
+  document.getElementById("addTaskForm").reset();
+  document.getElementById("addModal").hidden = false;
+  document.getElementById("addTitle").focus();
+}
+
+export function closeAddModal() {
+  document.getElementById("addModal").hidden = true;
+}
+
+export function readAddForm() {
+  return {
+    title: document.getElementById("addTitle").value.trim(),
+    notes: document.getElementById("addNotes").value.trim(),
+    status: document.getElementById("addStatus").value,
+    priority: document.getElementById("addPriority").value,
+    dueDate: document.getElementById("addDueDate").value || null,
+  };
+}
+
 // ---------- lock screen ----------
 
 const LOCK_PANEL_IDS = ["setupForm", "recoveryCodeScreen", "unlockForm", "recoveryForm", "resetPassphraseForm"];

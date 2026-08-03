@@ -455,9 +455,19 @@ body { display: flex; }
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .quick-add-icon {
+  border: none;
+  background: transparent;
+  padding: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-faint);
   font-size: 16px;
   font-weight: 300;
+  line-height: 1;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.quick-add-icon:hover {
+  background: var(--surface-sunken);
+  color: var(--accent);
 }
 .quick-add input[type="text"] {
   flex: 1;
@@ -713,6 +723,8 @@ body { display: flex; }
   word-break: break-all;
 }
 .reveal-pre-wide { margin-top: 14px; max-height: 420px; }
+.reveal-pre-compact { min-height: 100px; max-height: 180px; font-size: 11px; }
+.add-reveal-intro { margin-top: 4px; }
 
 /* ---------- list view ---------- */
 /* List view: one continuous notebook page rather than a data table — same
@@ -824,6 +836,7 @@ body { display: flex; }
   margin: 0 0 16px;
   font-size: 16px;
 }
+.modal-wide { max-width: 620px; }
 
 .field { margin-bottom: 14px; }
 .field label {

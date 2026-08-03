@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803k";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803l";
 import {
   renderBoard,
   renderList,
@@ -7,6 +7,9 @@ import {
   openEditModal,
   closeEditModal,
   readEditForm,
+  openAddModal,
+  closeAddModal,
+  readAddForm,
   getDragAfterElement,
   renderStats,
   setPageSubtitle,
@@ -24,7 +27,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260803k";
+} from "./ui.js?v=20260803l";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -40,14 +43,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260803k";
+} from "./crypto.js?v=20260803l";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260803k";
+} from "./sync.js?v=20260803l";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -194,15 +197,16 @@ async function loadAndDecryptTasks() {
   return decrypted;
 }
 
-async function addTask({ title, priority, dueDate }) {
+async function addTask({ title, notes, status, priority, dueDate }) {
+  const resolvedStatus = status || "todo";
   const task = {
     id: uuid(),
     title: title.trim(),
-    notes: "",
-    status: "todo",
+    notes: (notes || "").trim(),
+    status: resolvedStatus,
     priority: priority || "medium",
     dueDate: dueDate || null,
-    order: nextOrder("todo"),
+    order: nextOrder(resolvedStatus),
     createdAt: now(),
     updatedAt: now(),
   };
@@ -548,6 +552,7 @@ function wireSearch() {
     }
     if (e.key === "Escape") {
       closeEditModal();
+      closeAddModal();
       closeCmdk();
     }
   });
@@ -615,6 +620,64 @@ function wireRevealView() {
     // just surfaced inside the app itself instead of making the user go find it.
     const records = await getAllTasks();
     document.getElementById("dbDumpOutput").textContent = JSON.stringify(records, null, 2);
+  });
+}
+
+let addRevealToken = 0;
+
+async function updateAddReveal() {
+  const token = ++addRevealToken;
+  const { title, notes, status, priority, dueDate } = readAddForm();
+  const demoTask = {
+    id: "demo-preview",
+    title,
+    notes,
+    status: status || "todo",
+    priority: priority || "medium",
+    dueDate: dueDate || null,
+    order: 0,
+    createdAt: now(),
+    updatedAt: now(),
+  };
+  const record = await encryptTask(demoTask, dek);
+  if (token !== addRevealToken) return; // a newer keystroke already superseded this one
+
+  document.getElementById("addRevealPlaintext").textContent = JSON.stringify(demoTask, null, 2);
+  document.getElementById("addRevealCiphertext").textContent = JSON.stringify(
+    { id: demoTask.id, iv: record.iv, ciphertext: record.ciphertext, updatedAt: demoTask.updatedAt },
+    null,
+    2
+  );
+}
+
+function wireAddModal() {
+  const overlay = document.getElementById("addModal");
+  const form = document.getElementById("addTaskForm");
+  const cancelBtn = document.getElementById("addCancelBtn");
+
+  document.getElementById("openAddModalBtn").addEventListener("click", () => {
+    openAddModal();
+    if (dek) updateAddReveal();
+  });
+
+  for (const id of ["addTitle", "addNotes", "addStatus", "addPriority", "addDueDate"]) {
+    document.getElementById(id).addEventListener("input", () => {
+      if (dek) updateAddReveal();
+    });
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const values = readAddForm();
+    if (!values.title) return;
+    addTask(values);
+    closeAddModal();
+  });
+
+  cancelBtn.addEventListener("click", () => closeAddModal());
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeAddModal();
   });
 }
 
@@ -995,6 +1058,7 @@ async function boot() {
   wireSearch();
   wireViewToggle();
   wireEditModal();
+  wireAddModal();
   wireDragAndDrop();
   wireCommandPalette();
   wireRevealView();
