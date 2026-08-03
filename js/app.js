@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804f";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804g";
 import {
   renderBoard,
   renderList,
@@ -28,7 +28,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804f";
+} from "./ui.js?v=20260804g";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -44,14 +44,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260804f";
+} from "./crypto.js?v=20260804g";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260804f";
+} from "./sync.js?v=20260804g";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -357,6 +357,16 @@ async function addTask({ title, project, notes, status, priority, dueDate, tags,
   await persistTask(task);
 }
 
+// "YYYY-MM-DD" from a Date using local calendar fields, not toISOString()
+// (UTC) — the exact bug that made the filter tests look broken on a UTC+10
+// machine until it was the test's date math, not the app's, that was wrong.
+function formatLocalDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 // Adds calendar days/weeks/months to a "YYYY-MM-DD" string using local-date
 // arithmetic (Date's own month/day rollover), not UTC — same reasoning as
 // dueDiffDays() above: this must agree with what the user sees on screen.
@@ -366,10 +376,7 @@ function addToDueDate(dueDate, freq) {
   if (freq === "daily") base.setDate(base.getDate() + 1);
   else if (freq === "weekly") base.setDate(base.getDate() + 7);
   else if (freq === "monthly") base.setMonth(base.getMonth() + 1);
-  const y = base.getFullYear();
-  const m = String(base.getMonth() + 1).padStart(2, "0");
-  const d = String(base.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return formatLocalDate(base);
 }
 
 // Called right after a task's status becomes "done". If it's a recurring
@@ -706,6 +713,71 @@ function applyDropOrder(status, orderedIds) {
   });
 }
 
+const WEEKDAY_NAMES = {
+  sun: 0, sunday: 0,
+  mon: 1, monday: 1,
+  tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3,
+  thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5,
+  sat: 6, saturday: 6,
+};
+
+// Parses a quick-add title like "call dentist fri #health" into structured
+// fields, client-side only (never leaves the browser, same as everything
+// else typed into this app). Deliberately scoped: bare weekday names,
+// "today"/"tomorrow", and #tags. No time-of-day parsing ("3pm") because the
+// task schema has no due-time field to put it in — a parsed time would have
+// to be silently discarded, and silently discarding what someone typed is
+// worse than just leaving "3pm" as plain text in the title. No "next <day>"
+// either: the semantics of "next friday" genuinely differ between apps
+// (this week's vs. the following week's), and a wrong guess there is worse
+// than not parsing it — left as a bare weekday still works fine, it just
+// won't skip ahead a week.
+function parseQuickAdd(input) {
+  let title = input;
+  const tags = [];
+
+  title = title.replace(/#([a-zA-Z0-9_-]+)/g, (_, tag) => {
+    tags.push(tag);
+    return "";
+  });
+
+  let dueDate = null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  title = title.replace(/\b(today|tomorrow|tmrw)\b/i, (match) => {
+    const d = new Date(today);
+    if (/tomorrow|tmrw/i.test(match)) d.setDate(d.getDate() + 1);
+    dueDate = formatLocalDate(d);
+    return "";
+  });
+
+  if (!dueDate) {
+    // Global regex + a "stop after the first real match" flag: .replace()
+    // without /g only ever tests the first word in the string and gives up
+    // even if that word isn't a weekday, so a non-global regex here would
+    // silently never reach "fri" in "call dentist fri" — every word has to
+    // actually be checked.
+    let matched = false;
+    title = title.replace(/\b([a-zA-Z]+)\b/g, (match, word) => {
+      if (matched) return match;
+      const target = WEEKDAY_NAMES[word.toLowerCase()];
+      if (target === undefined) return match;
+      matched = true;
+      const daysAhead = (target - today.getDay() + 7) % 7;
+      const d = new Date(today);
+      d.setDate(d.getDate() + daysAhead);
+      dueDate = formatLocalDate(d);
+      return "";
+    });
+  }
+
+  title = title.replace(/\s+/g, " ").trim();
+  return { title, dueDate, tags };
+}
+
 function wireQuickAdd() {
   const form = document.getElementById("quickAddForm");
   const input = document.getElementById("quickAddInput");
@@ -714,9 +786,18 @@ function wireQuickAdd() {
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const title = input.value.trim();
-    if (!title) return;
-    addTask({ title, priority: priority.value, dueDate: dueDate.value });
+    const raw = input.value.trim();
+    if (!raw) return;
+    // The explicit due-date picker wins if the user set it directly — NLP
+    // parsing only fills in what wasn't already stated some other way.
+    const parsed = parseQuickAdd(raw);
+    const title = parsed.title || raw;
+    addTask({
+      title,
+      priority: priority.value,
+      dueDate: dueDate.value || parsed.dueDate,
+      tags: parsed.tags,
+    });
     input.value = "";
     dueDate.value = "";
     priority.value = "medium";

@@ -76,7 +76,7 @@ data."*
 - [x] Search (client-side, decrypt-in-memory) — Med
 - [x] Fast keyboard entry (type + Enter) + command palette — Med
 - [x] Recurring tasks with recurrence rules — Med
-- [ ] Natural-language quick-add, parsed client-side ("call dentist fri 3pm #health") — Med
+- [x] Natural-language quick-add, parsed client-side ("call dentist fri 3pm #health") — Med
 - [ ] Bulk actions, undo — Low
 
 ### Privacy core (the reason it exists)

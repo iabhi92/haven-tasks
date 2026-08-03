@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804f">
+<link rel="stylesheet" href="css/style.css?v=20260804g">
 </head>
 <body>
 
@@ -186,7 +186,7 @@
   <main class="content">
     <form id="quickAddForm" class="quick-add" autocomplete="off">
       <button type="button" class="quick-add-icon" id="openAddModalBtn" aria-label="Add a task with full details">+</button>
-      <input type="text" id="quickAddInput" name="title" placeholder="Add a task and press Enter…" maxlength="200" required>
+      <input type="text" id="quickAddInput" name="title" placeholder="Add a task — try &quot;call dentist fri #health&quot;…" maxlength="200" required>
       <select id="quickAddPriority" name="priority" aria-label="Priority" class="quick-add-priority">
         <option value="low">Low</option>
         <option value="medium" selected>Medium</option>
@@ -556,6 +556,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260804f" type="module"></script>
+<script src="js/app.js?v=20260804g" type="module"></script>
 </body>
 </html>
