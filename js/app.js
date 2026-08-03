@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803f";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803g";
 import {
   renderBoard,
   renderList,
@@ -19,7 +19,7 @@ import {
   showLockScreen,
   setSetupError,
   setUnlockError,
-} from "./ui.js?v=20260803f";
+} from "./ui.js?v=20260803g";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -33,7 +33,7 @@ import {
   decryptTask,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260803f";
+} from "./crypto.js?v=20260803g";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -474,6 +474,12 @@ function wireLockScreen() {
     const rawDekBytes = await unwrapDek(wrappedDek, wrapIv, kek);
     dek = await importDek(rawDekBytes);
 
+    // The raw passphrase has no reason to keep existing anywhere once it's done its
+    // one job (deriving the KEK, above) — clear it from the DOM rather than leave it
+    // sitting in a hidden input's .value for the rest of the session.
+    document.getElementById("setupPassphrase").value = "";
+    document.getElementById("setupPassphraseConfirm").value = "";
+
     await afterUnlock();
   });
 
@@ -495,6 +501,10 @@ function wireLockScreen() {
       passphraseInput.focus();
       return;
     }
+
+    // Same reasoning as the setup path — the passphrase's job is done once it's
+    // derived the KEK above, so it shouldn't keep sitting in the DOM.
+    passphraseInput.value = "";
 
     await afterUnlock();
   });
