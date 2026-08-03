@@ -41,6 +41,12 @@ function subtaskProgressBadge(subtasks) {
   return badge;
 }
 
+function recurrenceBadge(recurrence) {
+  if (!recurrence) return null;
+  const label = recurrence.charAt(0).toUpperCase() + recurrence.slice(1);
+  return el("span", "task-recurrence", `↻ ${label}`);
+}
+
 function tagChips(tags) {
   if (!tags || tags.length === 0) return null;
   const wrap = el("div", "task-tags");
@@ -74,6 +80,8 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd }) {
   if (due) meta.appendChild(due);
   const progress = subtaskProgressBadge(task.subtasks);
   if (progress) meta.appendChild(progress);
+  const recurrence = recurrenceBadge(task.recurrence);
+  if (recurrence) meta.appendChild(recurrence);
   card.appendChild(meta);
 
   const tags = tagChips(task.tags);
@@ -106,6 +114,8 @@ export function createListRow(task, { onOpen, onDelete }) {
   titleRow.appendChild(el("span", "list-row-title", task.title));
   const progress = subtaskProgressBadge(task.subtasks);
   if (progress) titleRow.appendChild(progress);
+  const recurrence = recurrenceBadge(task.recurrence);
+  if (recurrence) titleRow.appendChild(recurrence);
   titleCell.appendChild(titleRow);
   const tags = tagChips(task.tags);
   if (tags) titleCell.appendChild(tags);
@@ -258,6 +268,7 @@ export function openEditModal(task) {
   document.getElementById("editPriority").value = task.priority;
   document.getElementById("editDueDate").value = task.dueDate || "";
   document.getElementById("editTags").value = (task.tags || []).join(", ");
+  document.getElementById("editRecurrence").value = task.recurrence || "";
   document.getElementById("editModal").hidden = false;
   document.getElementById("editTitle").focus();
 }
@@ -276,6 +287,7 @@ export function readEditForm() {
     priority: document.getElementById("editPriority").value,
     dueDate: document.getElementById("editDueDate").value || null,
     tags: parseTagsInput(document.getElementById("editTags").value),
+    recurrence: document.getElementById("editRecurrence").value || null,
   };
 }
 
@@ -298,6 +310,7 @@ export function readAddForm() {
     priority: document.getElementById("addPriority").value,
     dueDate: document.getElementById("addDueDate").value || null,
     tags: parseTagsInput(document.getElementById("addTags").value),
+    recurrence: document.getElementById("addRecurrence").value || null,
   };
 }
 

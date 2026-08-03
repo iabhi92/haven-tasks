@@ -138,12 +138,15 @@ resolution. Cost: leaks task count, individual sizes, and update timing — docu
 threat model.
 
 Plaintext task shape (this is the Phase 1 shape already in use — see `js/store.js`; `tags`,
-`subtasks`, and `project` were added post-launch, same envelope, no separate encrypted entity.
-`project` is a plain string, not a foreign key into any other store — "projects" are purely
-derived from whatever distinct values exist across tasks, the same pattern as tags. This is a
-deliberately lighter mechanism than a real multi-vault/multi-key architecture; see
-`docs/FEATURES.md`'s "Compartmentalised vaults" entry for what the heavier version would look
-like, and its status note for why the lighter version was chosen here):
+`subtasks`, `project`, and `recurrence` were added post-launch, same envelope, no separate
+encrypted entity. `project` is a plain string, not a foreign key into any other store —
+"projects" are purely derived from whatever distinct values exist across tasks, the same pattern
+as tags. This is a deliberately lighter mechanism than a real multi-vault/multi-key architecture;
+see `docs/FEATURES.md`'s "Compartmentalised vaults" entry for what the heavier version would look
+like, and its status note for why the lighter version was chosen here. `recurrence` is one of
+`null`/`"daily"`/`"weekly"`/`"monthly"` — marking a recurring task done spawns a fresh task (new
+id, status reset to `"todo"`, `dueDate` advanced by the rule) rather than mutating the completed
+one, so completed occurrences stay in the completed column instead of disappearing):
 
 ```json
 {
@@ -159,6 +162,7 @@ like, and its status note for why the lighter version was chosen here):
     { "id": "<uuid v4>", "title": "Pick a shop", "done": true },
     { "id": "<uuid v4>", "title": "Wrap it", "done": false }
   ],
+  "recurrence": null,
   "order": 3,
   "createdAt": 1723800000000,
   "updatedAt": 1723800000000

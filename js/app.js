@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804e";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804f";
 import {
   renderBoard,
   renderList,
@@ -28,7 +28,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804e";
+} from "./ui.js?v=20260804f";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -44,14 +44,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260804e";
+} from "./crypto.js?v=20260804f";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260804e";
+} from "./sync.js?v=20260804f";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -335,7 +335,7 @@ async function loadAndDecryptTasks() {
   return decrypted;
 }
 
-async function addTask({ title, project, notes, status, priority, dueDate, tags, subtasks }) {
+async function addTask({ title, project, notes, status, priority, dueDate, tags, subtasks, recurrence }) {
   const resolvedStatus = status || "todo";
   const task = {
     id: uuid(),
@@ -347,6 +347,7 @@ async function addTask({ title, project, notes, status, priority, dueDate, tags,
     dueDate: dueDate || null,
     tags: tags || [],
     subtasks: subtasks || [],
+    recurrence: recurrence || null,
     order: nextOrder(resolvedStatus),
     createdAt: now(),
     updatedAt: now(),
@@ -356,12 +357,58 @@ async function addTask({ title, project, notes, status, priority, dueDate, tags,
   await persistTask(task);
 }
 
+// Adds calendar days/weeks/months to a "YYYY-MM-DD" string using local-date
+// arithmetic (Date's own month/day rollover), not UTC — same reasoning as
+// dueDiffDays() above: this must agree with what the user sees on screen.
+function addToDueDate(dueDate, freq) {
+  const base = dueDate ? new Date(dueDate + "T00:00:00") : new Date();
+  if (!dueDate) base.setHours(0, 0, 0, 0);
+  if (freq === "daily") base.setDate(base.getDate() + 1);
+  else if (freq === "weekly") base.setDate(base.getDate() + 7);
+  else if (freq === "monthly") base.setMonth(base.getMonth() + 1);
+  const y = base.getFullYear();
+  const m = String(base.getMonth() + 1).padStart(2, "0");
+  const d = String(base.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Called right after a task's status becomes "done". If it's a recurring
+// task, spawns the next occurrence as a fresh task (new id, status back to
+// "todo", due date advanced by the recurrence rule, subtasks reset to
+// undone) rather than mutating this one — the completed occurrence stays
+// completed and visible in Done, exactly like Todoist/Asana-style recurrence.
+async function maybeSpawnNextOccurrence(task) {
+  if (!task.recurrence) return;
+  const next = {
+    id: uuid(),
+    title: task.title,
+    project: task.project || "Inbox",
+    notes: task.notes || "",
+    status: "todo",
+    priority: task.priority,
+    dueDate: addToDueDate(task.dueDate, task.recurrence),
+    tags: [...(task.tags || [])],
+    subtasks: (task.subtasks || []).map((s) => ({ ...s, done: false })),
+    recurrence: task.recurrence,
+    order: nextOrder("todo"),
+    createdAt: now(),
+    updatedAt: now(),
+  };
+  tasks.push(next);
+  await persistTask(next);
+}
+
 async function updateTask(partial) {
   const task = tasks.find((t) => t.id === partial.id);
   if (!task) return;
+  const becameDone = partial.status === "done" && task.status !== "done";
   Object.assign(task, partial, { updatedAt: now() });
   render();
   await persistTask(task);
+  if (becameDone) {
+    await maybeSpawnNextOccurrence(task);
+    render(); // the spawned occurrence needs to appear without a manual refresh
+  }
 }
 
 async function removeTask(id) {
@@ -878,7 +925,7 @@ function renderEditSubtasks() {
 
 async function updateAddReveal() {
   const token = ++addRevealToken;
-  const { title, project, notes, status, priority, dueDate, tags } = readAddForm();
+  const { title, project, notes, status, priority, dueDate, tags, recurrence } = readAddForm();
   const demoTask = {
     id: "demo-preview",
     title,
@@ -889,6 +936,7 @@ async function updateAddReveal() {
     dueDate: dueDate || null,
     tags: tags || [],
     subtasks: addSubtasksDraft,
+    recurrence: recurrence || null,
     order: 0,
     createdAt: now(),
     updatedAt: now(),
@@ -917,7 +965,7 @@ function wireAddModal() {
     if (dek) updateAddReveal();
   });
 
-  for (const id of ["addTitle", "addProject", "addNotes", "addStatus", "addPriority", "addDueDate", "addTags"]) {
+  for (const id of ["addTitle", "addProject", "addNotes", "addStatus", "addPriority", "addDueDate", "addRecurrence", "addTags"]) {
     document.getElementById(id).addEventListener("input", () => {
       if (dek) updateAddReveal();
     });
@@ -1032,12 +1080,17 @@ function wireDragAndDrop() {
       const orderedIds = [...col.querySelectorAll(".task-card")].map((c) => c.dataset.id);
       const sourceTask = tasks.find((t) => t.id === draggedId);
       const sourceStatus = sourceTask ? sourceTask.status : status;
+      const becameDone = status === "done" && sourceStatus !== "done";
 
       applyDropOrder(status, orderedIds);
       render();
 
       await persistReorder(status);
       if (sourceStatus !== status) await persistReorder(sourceStatus);
+      if (becameDone && sourceTask) {
+        await maybeSpawnNextOccurrence(sourceTask);
+        render();
+      }
     });
   }
 }

@@ -16,6 +16,52 @@ security reviewer.
 - Anything marked Research is genuinely hard (thesis-scale). Design the data model to allow it,
   but do not attempt it early.
 
+## Customer value (why any of this matters to someone who isn't a security reviewer)
+
+Everything below this line is engineering ambition. This section is the other half: what a real
+person gets out of it, since that's what decides whether the product gets used at all.
+
+**For the everyday user** — the crypto is invisible to them; what they feel is the benefit, and
+that's what should be sold, not the mechanism. No account, start in two seconds. Works on a plane.
+Free, no subscription, no ads. Can't sell your data because it can't be read. Real export, no
+lock-in — take your data and leave anytime, which most free apps quietly make hard. The everyday
+customer doesn't want "AES-GCM," they want a fast, private, no-nonsense place for their tasks that
+isn't trying to monetize them.
+
+**For the customer who has an actual reason to care about privacy** — this is the real paying
+market: therapists tracking client-related tasks, lawyers under privilege, journalists protecting
+sources, doctors, HR handling sensitive cases, founders on confidential deals, activists. For them
+the value is concrete: provably confidential task management, so using it doesn't create a
+professional or legal exposure the way a normal SaaS to-do app would. The benefit isn't
+"encryption," it's "you can use this without breaching a duty of confidentiality."
+
+**Customer-facing features worth building for them specifically** (not reviewer-bait — actual
+utility; most already appear above under their own layer, cross-referenced here by customer
+benefit rather than technical mechanism):
+
+- Shared team/family boards that stay private — sold as "share a grocery list or a case file
+  without a vendor reading it," not as a crypto feature. (Layer 4 collaboration work.)
+- Fragment-key share links — "send someone a task or list via a link, no account needed on their
+  end." Real convenience, not just a demo. (Layer 2 "OMG feature.")
+- Templates — sprint boards, client-onboarding checklists, moving-house lists; not starting from
+  blank. (Ecosystem & polish.)
+- Calendar/CalDAV sync — fits into a life the customer already has instead of being another silo.
+  (Ecosystem & polish.)
+- A humane recovery flow — customers are afraid "encrypted" means "I'll lose everything one day."
+  Already partly addressed (recovery code, Layer 1); the honest reassurance that removes this fear
+  is itself a customer feature, not a crypto one.
+- Import from other task apps — the real barrier to switching is the data already living
+  elsewhere; killing that barrier is a customer feature. (Layer 1 gap, tracked below.)
+
+**The honest strategic point:** a recruiter reading this doc wants hard crypto; a customer wants
+speed, trust, no lock-in, and no reason to be scared of losing their data. The mature move —
+right for both — is building the security so it disappears. The customer should feel a fast,
+pleasant, private app and never once need to understand a threat model.
+
+**One-sentence throughline**, usable anywhere the product needs a pitch: *"A task app that's fast,
+free, and actually yours — no account, works offline, and no company can read, sell, or lose your
+data."*
+
 ## Layer 1 — The shippable core (build this first)
 
 ### Core task management (table stakes — makes it a good app)
@@ -29,7 +75,7 @@ security reviewer.
 - [x] Sort, filter, and saved smart views (Today / Upcoming / Overdue) — Med
 - [x] Search (client-side, decrypt-in-memory) — Med
 - [x] Fast keyboard entry (type + Enter) + command palette — Med
-- [ ] Recurring tasks with recurrence rules — Med
+- [x] Recurring tasks with recurrence rules — Med
 - [ ] Natural-language quick-add, parsed client-side ("call dentist fri 3pm #health") — Med
 - [ ] Bulk actions, undo — Low
 
@@ -122,6 +168,60 @@ security reviewer.
 - [ ] Plugin / extension API — High
 - [ ] Themes, full i18n — Low
 - [ ] Accessibility: full screen-reader + keyboard support — Med (do NOT skip)
+
+## Layer 5 — Research frontier (design horizon, not a build queue)
+
+Everything here is genuinely thesis-scale. Listed so the data model and threat model can stay
+compatible with them, not because any are queued. None of these change the product's position
+until Layer 1 is running — that's not a caveat to skim past, it's the actual ordering rule.
+
+### Hiding access patterns (the deep version of metadata resistance)
+
+- [ ] Oblivious sync / ORAM — the server can't tell which task you're reading or writing, only
+      that you did something. Padding hides sizes; ORAM hides access patterns. Research
+- [ ] Private Information Retrieval (PIR) — fetch a specific blob from the server without the
+      server learning which one you fetched. Research
+- [ ] Sealed-sender sharing — hide who shared with whom from the server, not just the contents
+      (Signal does this for messages); makes the social graph invisible. Research
+
+### Search and compute over ciphertext (where encryption fights hardest)
+
+- [ ] Dynamic searchable encryption with forward privacy (DSSE) — encrypted search that doesn't
+      leak information when a new task is added; the naive version leaks on every update, forward
+      privacy is the hard fix. Research
+- [ ] Multi-party computation for shared analytics — a team sees aggregate stats computed across
+      members' encrypted boards without anyone seeing anyone else's tasks. Research
+- [ ] Zero-knowledge proofs of task state — prove "all my P0s are done" without revealing what
+      they are. zk-SNARKs. Research
+
+### Making sharing actually safe (these plug real holes in the collaboration story)
+
+- [ ] ⭐ Key transparency / auditable key directory — verify a shared-with recipient's real public
+      key wasn't swapped by the server (a MITM on the sharing feature). Without this, E2EE sharing
+      is only as trustworthy as the key server — the missing piece under Layer 4's "Revocation."
+      Reference: CONIKS / Key Transparency. High · Signal: very high
+- [ ] Threshold encryption for shared boards — require k-of-n members to approve or decrypt, so no
+      single member or the server can act alone. High
+
+### Time and self-healing (the elegant crypto)
+
+- [ ] ⭐ Forward secrecy + post-compromise security via ratcheting — a Double-Ratchet-style scheme
+      applied to task history, so a leaked device key doesn't expose past tasks and security
+      self-heals going forward. Research · Signal: very high
+- [ ] Cryptographically deniable encryption — beyond the duress vault: make it mathematically
+      unprovable that a given ciphertext decrypts to anything at all. Research
+
+### Auth that leaks nothing
+
+- [ ] PAKE / OPAQUE for sync auth — authenticate to the optional sync server without it ever
+      seeing anything password-derived, so even the login leaks zero. The rigorous version of "no
+      account to breach." High
+
+**If forced to pick two:** key transparency (makes a future sharing feature genuinely secure
+instead of trust-the-server secure) and forward secrecy via ratcheting (upgrades "encrypted" to
+"encrypted and self-healing"). Those are the two a serious cryptographer would zero in on — noted
+here so a future pass through this layer isn't starting from zero, not as a commitment to build
+either soon.
 
 ## Signature features (⭐ — the priority once Layer 1 ships)
 

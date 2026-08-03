@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804e">
+<link rel="stylesheet" href="css/style.css?v=20260804f">
 </head>
 <body>
 
@@ -349,6 +349,16 @@
           <label for="editDueDate">Due date</label>
           <input type="date" id="editDueDate">
         </div>
+
+        <div class="field">
+          <label for="editRecurrence">Repeat</label>
+          <select id="editRecurrence">
+            <option value="">Doesn't repeat</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
       </div>
 
       <div class="field">
@@ -417,6 +427,16 @@
         <div class="field">
           <label for="addDueDate">Due date</label>
           <input type="date" id="addDueDate">
+        </div>
+
+        <div class="field">
+          <label for="addRecurrence">Repeat</label>
+          <select id="addRecurrence">
+            <option value="">Doesn't repeat</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
         </div>
       </div>
 
@@ -536,6 +556,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260804e" type="module"></script>
+<script src="js/app.js?v=20260804f" type="module"></script>
 </body>
 </html>
