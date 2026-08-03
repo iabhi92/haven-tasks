@@ -3,7 +3,7 @@
 // typed here is ever stored or sent anywhere; it exists only to show real
 // ciphertext bytes for a real plaintext, per the same idea as the app's own
 // reveal page.
-import { generateDek, encryptTask } from "./crypto.js?v=20260804a";
+import { generateDek, encryptTask } from "./crypto.js?v=20260804b";
 
 const input = document.getElementById("landingDemoInput");
 const plaintextEl = document.getElementById("landingPlaintext");
@@ -55,4 +55,21 @@ const revealObserver = new IntersectionObserver(
 );
 for (const el of document.querySelectorAll(".reveal-up")) {
   revealObserver.observe(el);
+}
+
+// Subtle mouse-parallax on the hero's floating blobs — pure CSS custom
+// properties updated from a mousemove listener, no animation library.
+const hero = document.querySelector(".landing-hero");
+const blobs = document.querySelectorAll(".landing-blob");
+if (hero && blobs.length && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  hero.addEventListener("mousemove", (e) => {
+    const rect = hero.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    blobs.forEach((blob, i) => {
+      const depth = 14 + i * 6;
+      blob.style.setProperty("--mx", `${px * depth}px`);
+      blob.style.setProperty("--my", `${py * depth}px`);
+    });
+  });
 }

@@ -30,6 +30,17 @@ function priorityBadge(priority) {
   return badge;
 }
 
+function subtaskProgressBadge(subtasks) {
+  if (!subtasks || subtasks.length === 0) return null;
+  const done = subtasks.filter((s) => s.done).length;
+  const badge = el("span", "task-subtask-progress");
+  const icon = el("span", "", "☑");
+  const count = el("span", "", `${done}/${subtasks.length}`);
+  badge.appendChild(icon);
+  badge.appendChild(count);
+  return badge;
+}
+
 function tagChips(tags) {
   if (!tags || tags.length === 0) return null;
   const wrap = el("div", "task-tags");
@@ -61,6 +72,8 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd }) {
   meta.appendChild(priorityBadge(task.priority));
   const due = dueBadge(task.dueDate);
   if (due) meta.appendChild(due);
+  const progress = subtaskProgressBadge(task.subtasks);
+  if (progress) meta.appendChild(progress);
   card.appendChild(meta);
 
   const tags = tagChips(task.tags);
@@ -89,7 +102,11 @@ export function createListRow(task, { onOpen, onDelete }) {
   row.dataset.id = task.id;
 
   const titleCell = el("span", "list-row-title-cell");
-  titleCell.appendChild(el("span", "list-row-title", task.title));
+  const titleRow = el("span", "list-row-title-row");
+  titleRow.appendChild(el("span", "list-row-title", task.title));
+  const progress = subtaskProgressBadge(task.subtasks);
+  if (progress) titleRow.appendChild(progress);
+  titleCell.appendChild(titleRow);
   const tags = tagChips(task.tags);
   if (tags) titleCell.appendChild(tags);
   row.appendChild(titleCell);
@@ -207,6 +224,29 @@ function parseTagsInput(value) {
     tags.push(tag);
   }
   return tags;
+}
+
+// Subtasks are managed as live draft state in app.js (not a simple form field
+// read on submit), since add/remove/toggle need to update the modal immediately.
+// This is the pure render step: draw whatever list app.js currently holds.
+export function renderSubtaskList(containerId, subtasks, { onToggle, onRemove }) {
+  const container = document.getElementById(containerId);
+  container.textContent = "";
+  for (const subtask of subtasks) {
+    const row = el("div", "subtask-row" + (subtask.done ? " is-done" : ""));
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = subtask.done;
+    checkbox.addEventListener("change", () => onToggle(subtask.id));
+    row.appendChild(checkbox);
+    row.appendChild(el("span", "subtask-row-title", subtask.title));
+    const removeBtn = el("button", "subtask-row-remove", "×");
+    removeBtn.type = "button";
+    removeBtn.setAttribute("aria-label", `Remove subtask: ${subtask.title}`);
+    removeBtn.addEventListener("click", () => onRemove(subtask.id));
+    row.appendChild(removeBtn);
+    container.appendChild(row);
+  }
 }
 
 export function openEditModal(task) {

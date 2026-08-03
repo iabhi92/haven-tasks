@@ -797,6 +797,12 @@ body { display: flex; }
   gap: 4px;
   min-width: 0;
 }
+.list-row-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .list-row-title {
   font-family: "Special Elite", var(--font);
   font-size: 14.5px;
@@ -850,6 +856,8 @@ body { display: flex; }
 .modal {
   width: 100%;
   max-width: 460px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   background: var(--surface-glass);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -896,6 +904,61 @@ body { display: flex; }
   gap: 10px;
 }
 
+.subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+.subtask-row:hover { background: var(--surface-sunken); }
+.subtask-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+.subtask-row-title {
+  flex: 1;
+  font-size: 13px;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.subtask-row.is-done .subtask-row-title {
+  text-decoration: line-through;
+  color: var(--text-faint);
+}
+.subtask-row-remove {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  flex: 0 0 auto;
+}
+.subtask-row-remove:hover { color: var(--danger); background: var(--danger-soft); }
+.subtask-add-row {
+  display: flex;
+  gap: 8px;
+}
+.subtask-add-row input { flex: 1; }
+
+.task-subtask-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
 .modal-actions {
   display: flex;
   justify-content: space-between;
@@ -919,6 +982,7 @@ body { display: flex; }
 .btn-ghost:hover { background: var(--border); }
 .btn-danger { background: transparent; color: var(--danger); }
 .btn-danger:hover { background: var(--danger-soft); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
 
 /* ---------- command palette ---------- */
 .cmdk-overlay {

@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804a";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804b";
 import {
   renderBoard,
   renderList,
@@ -10,6 +10,7 @@ import {
   openAddModal,
   closeAddModal,
   readAddForm,
+  renderSubtaskList,
   getDragAfterElement,
   renderStats,
   setPageSubtitle,
@@ -27,7 +28,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804a";
+} from "./ui.js?v=20260804b";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -43,14 +44,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260804a";
+} from "./crypto.js?v=20260804b";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260804a";
+} from "./sync.js?v=20260804b";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -152,7 +153,11 @@ function render() {
   // may just be hidden behind the empty state, not absent, and stale nodes left over
   // from before the last item was removed should never linger in the DOM.
   const handlers = {
-    onOpen: (task) => openEditModal(task),
+    onOpen: (task) => {
+      editSubtasksDraft = (task.subtasks || []).map((s) => ({ ...s }));
+      renderEditSubtasks();
+      openEditModal(task);
+    },
     onDelete: (task) => removeTask(task.id),
     onDragStart: (task) => { draggedId = task.id; },
     onDragEnd: () => { draggedId = null; },
@@ -198,7 +203,7 @@ async function loadAndDecryptTasks() {
   return decrypted;
 }
 
-async function addTask({ title, notes, status, priority, dueDate, tags }) {
+async function addTask({ title, notes, status, priority, dueDate, tags, subtasks }) {
   const resolvedStatus = status || "todo";
   const task = {
     id: uuid(),
@@ -208,6 +213,7 @@ async function addTask({ title, notes, status, priority, dueDate, tags }) {
     priority: priority || "medium",
     dueDate: dueDate || null,
     tags: tags || [],
+    subtasks: subtasks || [],
     order: nextOrder(resolvedStatus),
     createdAt: now(),
     updatedAt: now(),
@@ -627,6 +633,46 @@ function wireRevealView() {
 
 let addRevealToken = 0;
 
+// Subtasks are edited as a live draft (add/toggle/remove all update the modal
+// immediately), unlike the rest of the form which is only read on submit — so
+// they live here as module state rather than inside readAddForm()/readEditForm().
+let addSubtasksDraft = [];
+let editSubtasksDraft = [];
+
+function subtaskId() {
+  return uuid();
+}
+
+function renderAddSubtasks() {
+  renderSubtaskList("addSubtaskList", addSubtasksDraft, {
+    onToggle: (id) => {
+      const s = addSubtasksDraft.find((x) => x.id === id);
+      if (s) s.done = !s.done;
+      renderAddSubtasks();
+      if (dek) updateAddReveal();
+    },
+    onRemove: (id) => {
+      addSubtasksDraft = addSubtasksDraft.filter((x) => x.id !== id);
+      renderAddSubtasks();
+      if (dek) updateAddReveal();
+    },
+  });
+}
+
+function renderEditSubtasks() {
+  renderSubtaskList("editSubtaskList", editSubtasksDraft, {
+    onToggle: (id) => {
+      const s = editSubtasksDraft.find((x) => x.id === id);
+      if (s) s.done = !s.done;
+      renderEditSubtasks();
+    },
+    onRemove: (id) => {
+      editSubtasksDraft = editSubtasksDraft.filter((x) => x.id !== id);
+      renderEditSubtasks();
+    },
+  });
+}
+
 async function updateAddReveal() {
   const token = ++addRevealToken;
   const { title, notes, status, priority, dueDate, tags } = readAddForm();
@@ -638,6 +684,7 @@ async function updateAddReveal() {
     priority: priority || "medium",
     dueDate: dueDate || null,
     tags: tags || [],
+    subtasks: addSubtasksDraft,
     order: 0,
     createdAt: now(),
     updatedAt: now(),
@@ -659,6 +706,8 @@ function wireAddModal() {
   const cancelBtn = document.getElementById("addCancelBtn");
 
   document.getElementById("openAddModalBtn").addEventListener("click", () => {
+    addSubtasksDraft = [];
+    renderAddSubtasks();
     openAddModal();
     if (dek) updateAddReveal();
   });
@@ -669,11 +718,28 @@ function wireAddModal() {
     });
   }
 
+  const addSubtaskInput = document.getElementById("addSubtaskInput");
+  const addSubtask = () => {
+    const title = addSubtaskInput.value.trim();
+    if (!title) return;
+    addSubtasksDraft.push({ id: subtaskId(), title, done: false });
+    addSubtaskInput.value = "";
+    renderAddSubtasks();
+    if (dek) updateAddReveal();
+  };
+  document.getElementById("addSubtaskAddBtn").addEventListener("click", addSubtask);
+  addSubtaskInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addSubtask();
+    }
+  });
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const values = readAddForm();
     if (!values.title) return;
-    addTask(values);
+    addTask({ ...values, subtasks: addSubtasksDraft });
     closeAddModal();
   });
 
@@ -690,11 +756,27 @@ function wireEditModal() {
   const cancelBtn = document.getElementById("editCancelBtn");
   const deleteBtn = document.getElementById("editDeleteBtn");
 
+  const editSubtaskInput = document.getElementById("editSubtaskInput");
+  const addEditSubtask = () => {
+    const title = editSubtaskInput.value.trim();
+    if (!title) return;
+    editSubtasksDraft.push({ id: subtaskId(), title, done: false });
+    editSubtaskInput.value = "";
+    renderEditSubtasks();
+  };
+  document.getElementById("editSubtaskAddBtn").addEventListener("click", addEditSubtask);
+  editSubtaskInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addEditSubtask();
+    }
+  });
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const values = readEditForm();
     if (!values.title) return;
-    updateTask(values);
+    updateTask({ ...values, subtasks: editSubtasksDraft });
     closeEditModal();
   });
 

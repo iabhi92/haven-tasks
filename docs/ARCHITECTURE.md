@@ -137,8 +137,9 @@ Encrypt per task record (not one big blob). Rationale: enables incremental sync 
 resolution. Cost: leaks task count, individual sizes, and update timing — documented in the
 threat model.
 
-Plaintext task shape (this is the Phase 1 shape already in use — see `js/store.js`; `tags` was
-added post-launch as a plain `string[]`, same envelope, no separate encrypted entity):
+Plaintext task shape (this is the Phase 1 shape already in use — see `js/store.js`; `tags` and
+`subtasks` were added post-launch, both plain arrays, same envelope, no separate encrypted
+entity):
 
 ```json
 {
@@ -149,6 +150,10 @@ added post-launch as a plain `string[]`, same envelope, no separate encrypted en
   "priority": "high",
   "dueDate": "2026-08-20",
   "tags": ["family", "shopping"],
+  "subtasks": [
+    { "id": "<uuid v4>", "title": "Pick a shop", "done": true },
+    { "id": "<uuid v4>", "title": "Wrap it", "done": false }
+  ],
   "order": 3,
   "createdAt": 1723800000000,
   "updatedAt": 1723800000000
