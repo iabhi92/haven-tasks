@@ -109,6 +109,11 @@ export function renderBoard(tasksByStatus, handlers) {
     col.textContent = "";
     const tasks = tasksByStatus[status] || [];
     countEl.textContent = String(tasks.length);
+    if (tasks.length === 0) {
+      // Columns no longer have a background box, so an empty one needs a visible
+      // anchor — otherwise there's nothing marking it as a drop target at rest.
+      col.appendChild(el("div", "board-col-empty", "No tasks"));
+    }
     for (const task of tasks) {
       col.appendChild(createTaskCard(task, handlers));
     }

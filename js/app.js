@@ -22,6 +22,37 @@ let view = "board";
 let searchQuery = "";
 let draggedId = null;
 
+const THEME_KEY = "haven-theme";
+
+function effectiveTheme() {
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function wireThemeToggle() {
+  const btn = document.getElementById("themeToggleBtn");
+
+  const apply = (theme) => {
+    document.documentElement.setAttribute("data-theme", theme);
+    btn.classList.toggle("is-dark", theme === "dark");
+  };
+
+  apply(effectiveTheme());
+
+  btn.addEventListener("click", () => {
+    const next = effectiveTheme() === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    apply(next);
+  });
+
+  // Only matters while no explicit choice is stored — once the user picks a
+  // theme, that choice sticks regardless of OS setting until they pick again.
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (!localStorage.getItem(THEME_KEY)) apply(effectiveTheme());
+  });
+}
+
 function uuid() {
   return crypto.randomUUID();
 }
@@ -365,4 +396,5 @@ async function boot() {
   document.getElementById("quickAddInput").focus();
 }
 
+wireThemeToggle();
 boot();
