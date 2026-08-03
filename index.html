@@ -11,11 +11,46 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260803e">
+<link rel="stylesheet" href="css/style.css?v=20260803f">
 </head>
 <body>
 
-<div class="rail">
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-logo" aria-hidden="true">H</div>
+    <h1 class="lock-title">Haven</h1>
+
+    <form id="setupForm" class="lock-form" autocomplete="off" hidden>
+      <p class="lock-sub">Set a passphrase. This encrypts everything on this device — we never
+        see it, and there is no "forgot passphrase" link, because that would mean someone else
+        could read your tasks too.</p>
+      <div class="field">
+        <label for="setupPassphrase">Passphrase</label>
+        <input type="password" id="setupPassphrase" autocomplete="new-password" minlength="10" required>
+      </div>
+      <div class="field">
+        <label for="setupPassphraseConfirm">Confirm passphrase</label>
+        <input type="password" id="setupPassphraseConfirm" autocomplete="new-password" minlength="10" required>
+      </div>
+      <p class="lock-hint">At least 10 characters. Longer and less guessable beats complex —
+        four random words work well.</p>
+      <p class="lock-error" id="setupError" role="alert"></p>
+      <button type="submit" class="btn btn-primary lock-submit">Create and unlock</button>
+    </form>
+
+    <form id="unlockForm" class="lock-form" autocomplete="off" hidden>
+      <p class="lock-sub">Enter your passphrase to unlock your tasks.</p>
+      <div class="field">
+        <label for="unlockPassphrase">Passphrase</label>
+        <input type="password" id="unlockPassphrase" autocomplete="current-password" required>
+      </div>
+      <p class="lock-error" id="unlockError" role="alert"></p>
+      <button type="submit" class="btn btn-primary lock-submit">Unlock</button>
+    </form>
+  </div>
+</div>
+
+<div class="rail" id="rail" hidden>
   <div class="rail-logo" aria-hidden="true">H</div>
   <nav class="rail-nav" role="tablist" aria-label="View">
     <button type="button" class="rail-btn is-active" id="viewBoardBtn" role="tab" aria-selected="true" aria-label="Board view" title="Board">
@@ -32,6 +67,13 @@
       </svg>
     </button>
   </nav>
+
+  <button type="button" class="rail-btn" id="lockBtn" aria-label="Lock" title="Lock">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <rect x="4.5" y="9" width="11" height="8" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect>
+      <path d="M6.5 9V6a3.5 3.5 0 0 1 7 0v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+    </svg>
+  </button>
 
   <button type="button" class="rail-btn theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle color theme" title="Toggle theme">
     <svg class="icon-sun" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -53,7 +95,7 @@
   </button>
 </div>
 
-<div class="main-wrap">
+<div class="main-wrap" id="mainWrap" hidden>
 <div class="app-shell">
   <header class="page-header">
     <div>
@@ -209,6 +251,6 @@
 
 <a id="exportLink" hidden></a>
 
-<script src="js/app.js?v=20260803e" type="module"></script>
+<script src="js/app.js?v=20260803f" type="module"></script>
 </body>
 </html>

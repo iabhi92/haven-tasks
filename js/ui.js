@@ -195,6 +195,40 @@ export function readEditForm() {
   };
 }
 
+// ---------- lock screen ----------
+
+export function showSetupScreen() {
+  document.getElementById("setupForm").hidden = false;
+  document.getElementById("unlockForm").hidden = true;
+  document.getElementById("setupPassphrase").focus();
+}
+
+export function showUnlockScreen() {
+  document.getElementById("unlockForm").hidden = false;
+  document.getElementById("setupForm").hidden = true;
+  document.getElementById("unlockPassphrase").focus();
+}
+
+export function showApp() {
+  document.getElementById("lockScreen").hidden = true;
+  document.getElementById("rail").hidden = false;
+  document.getElementById("mainWrap").hidden = false;
+}
+
+export function showLockScreen() {
+  document.getElementById("rail").hidden = true;
+  document.getElementById("mainWrap").hidden = true;
+  document.getElementById("lockScreen").hidden = false;
+}
+
+export function setSetupError(message) {
+  document.getElementById("setupError").textContent = message || "";
+}
+
+export function setUnlockError(message) {
+  document.getElementById("unlockError").textContent = message || "";
+}
+
 // ---------- stat pills ----------
 
 const SVG_NS = "http://www.w3.org/2000/svg";

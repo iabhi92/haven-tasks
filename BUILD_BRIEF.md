@@ -54,8 +54,13 @@ the UX is not smooth, the security is irrelevant because no one stays.
   PBKDF2-SHA256 (the documented fallback), not Argon2id — see `docs/ARCHITECTURE.md`'s
   key-derivation section for why and the migration path. **Not yet wired into the app** — that's
   Phase 3.
-- **Phase 3 — Encrypt the storage layer.** Lock/unlock flow, encrypt-before-store,
-  decrypt-on-load, DEK in memory only. Gate: DevTools IndexedDB shows ciphertext only.
+- **Phase 3 — Encrypt the storage layer. ✅ Done.** Lock/unlock flow, encrypt-before-store,
+  decrypt-on-load, DEK in memory only, explicit Lock action in the rail. Gate verified in an
+  automated DevTools-equivalent check (raw IndexedDB dump inspected directly): every task record
+  is `{id, iv, ciphertext, updatedAt}` — no title, notes, status, priority, or due date anywhere
+  outside the ciphertext. **No recovery code yet** — that's Phase 4, deliberately not pulled
+  forward; losing the passphrase right now means the data is unrecoverable, matching the honest
+  v1-in-progress state, not a hidden gap.
 - **Phase 4 — Recovery + onboarding.** Passphrase + recovery code at first run, DEK wrapped twice.
 - **Phase 5 — "You vs The Server" reveal.** Live plaintext/ciphertext split panel + "dump my local
   database" page.

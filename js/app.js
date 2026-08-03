@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask } from "./store.js?v=20260803e";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260803f";
 import {
   renderBoard,
   renderList,
@@ -13,7 +13,27 @@ import {
   openCmdk,
   closeCmdk,
   renderCmdkItems,
-} from "./ui.js?v=20260803e";
+  showSetupScreen,
+  showUnlockScreen,
+  showApp,
+  showLockScreen,
+  setSetupError,
+  setUnlockError,
+} from "./ui.js?v=20260803f";
+import {
+  PBKDF2_ITERATIONS,
+  KDF_NAME,
+  generateSalt,
+  deriveKek,
+  generateDek,
+  wrapDek,
+  unwrapDek,
+  importDek,
+  encryptTask,
+  decryptTask,
+  bufToBase64,
+  base64ToBuf,
+} from "./crypto.js?v=20260803f";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -21,6 +41,7 @@ let tasks = [];
 let view = "board";
 let searchQuery = "";
 let draggedId = null;
+let dek = null; // the in-memory DEK CryptoKey — null whenever locked
 
 const THEME_KEY = "haven-theme";
 
@@ -122,6 +143,30 @@ function nextOrder(status) {
   return Math.max(...inStatus.map((t) => t.order)) + 1;
 }
 
+// Encrypt-before-store: store.js only ever sees {id, iv, ciphertext, updatedAt} —
+// id and updatedAt stay cleartext metadata (per docs/ARCHITECTURE.md §3), everything
+// else about the task lives only inside the ciphertext.
+async function persistTask(task) {
+  const { iv, ciphertext } = await encryptTask(task, dek);
+  await putTask({ id: task.id, iv, ciphertext, updatedAt: task.updatedAt });
+}
+
+// Decrypt-on-load: a record that fails to decrypt under the current DEK (corrupted,
+// or somehow from a different keyring) is unrecoverable — skip it rather than let one
+// bad record crash loading every other task.
+async function loadAndDecryptTasks() {
+  const records = await getAllTasks();
+  const decrypted = [];
+  for (const record of records) {
+    try {
+      decrypted.push(await decryptTask(record, dek));
+    } catch (err) {
+      console.error("Skipping a task record that failed to decrypt:", record.id, err);
+    }
+  }
+  return decrypted;
+}
+
 async function addTask({ title, priority, dueDate }) {
   const task = {
     id: uuid(),
@@ -136,7 +181,7 @@ async function addTask({ title, priority, dueDate }) {
   };
   tasks.push(task);
   render();
-  await putTask(task);
+  await persistTask(task);
 }
 
 async function updateTask(partial) {
@@ -144,7 +189,7 @@ async function updateTask(partial) {
   if (!task) return;
   Object.assign(task, partial, { updatedAt: now() });
   render();
-  await putTask(task);
+  await persistTask(task);
 }
 
 async function removeTask(id) {
@@ -166,7 +211,7 @@ function exportTasks() {
 
 async function persistReorder(status) {
   const inStatus = tasks.filter((t) => t.status === status).sort((a, b) => a.order - b.order);
-  await Promise.all(inStatus.map((t) => putTask(t)));
+  await Promise.all(inStatus.map((t) => persistTask(t)));
 }
 
 function applyDropOrder(status, orderedIds) {
@@ -384,16 +429,103 @@ function wireCommandPalette() {
   });
 }
 
+async function afterUnlock() {
+  tasks = await loadAndDecryptTasks();
+  render();
+  showApp();
+  document.getElementById("quickAddInput").focus();
+}
+
+function wireLockScreen() {
+  const setupForm = document.getElementById("setupForm");
+  const unlockForm = document.getElementById("unlockForm");
+
+  setupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const passphrase = document.getElementById("setupPassphrase").value;
+    const confirmPassphrase = document.getElementById("setupPassphraseConfirm").value;
+    setSetupError("");
+
+    if (passphrase.length < 10) {
+      setSetupError("Passphrase must be at least 10 characters.");
+      return;
+    }
+    if (passphrase !== confirmPassphrase) {
+      setSetupError("Passphrases don't match.");
+      return;
+    }
+
+    const salt = generateSalt();
+    const kek = await deriveKek(passphrase, salt);
+    const newDek = await generateDek();
+    const { wrappedDek, wrapIv } = await wrapDek(newDek, kek);
+
+    await putKeyring({
+      kdf: KDF_NAME,
+      kdfParams: { iterations: PBKDF2_ITERATIONS },
+      salt: bufToBase64(salt),
+      wrappedDek,
+      wrapIv,
+      version: 1,
+    });
+
+    // Unwrap immediately rather than reusing newDek directly — self-verifies the
+    // wrap/unwrap round trip at setup time instead of trusting it silently.
+    const rawDekBytes = await unwrapDek(wrappedDek, wrapIv, kek);
+    dek = await importDek(rawDekBytes);
+
+    await afterUnlock();
+  });
+
+  unlockForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const passphraseInput = document.getElementById("unlockPassphrase");
+    setUnlockError("");
+
+    const keyring = await getKeyring();
+    const kek = await deriveKek(passphraseInput.value, base64ToBuf(keyring.salt));
+
+    try {
+      const rawDekBytes = await unwrapDek(keyring.wrappedDek, keyring.wrapIv, kek);
+      dek = await importDek(rawDekBytes);
+    } catch {
+      // AES-GCM auth-tag failure on a wrong KEK — fails closed, never a garbage DEK.
+      setUnlockError("Wrong passphrase.");
+      passphraseInput.value = "";
+      passphraseInput.focus();
+      return;
+    }
+
+    await afterUnlock();
+  });
+}
+
+function wireLockButton() {
+  document.getElementById("lockBtn").addEventListener("click", () => {
+    dek = null;
+    tasks = [];
+    document.getElementById("unlockPassphrase").value = "";
+    setUnlockError("");
+    showLockScreen();
+    showUnlockScreen();
+  });
+}
+
 async function boot() {
-  tasks = await getAllTasks();
+  const keyring = await getKeyring();
+  if (keyring) {
+    showUnlockScreen();
+  } else {
+    showSetupScreen();
+  }
+  wireLockScreen();
+  wireLockButton();
   wireQuickAdd();
   wireSearch();
   wireViewToggle();
   wireEditModal();
   wireDragAndDrop();
   wireCommandPalette();
-  render();
-  document.getElementById("quickAddInput").focus();
 }
 
 wireThemeToggle();

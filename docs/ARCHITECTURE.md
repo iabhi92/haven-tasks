@@ -4,11 +4,16 @@ This is the source of truth for anything security-critical. Do not improvise key
 Every primitive below is a standard, reviewed construction composed correctly — we are NOT
 inventing crypto.
 
-**Status: Phase 2 complete.** `js/crypto.js` implements key derivation, DEK generation,
-wrap/unwrap, task encrypt/decrypt, and recovery-code generation exactly as specified below, and
-`js/crypto.test.mjs` proves all six vectors in §8 pass — in Node and in the real browser under the
-app's CSP. It is not yet wired into `store.js`/`app.js` (that's Phase 3) — deliberately: Phase 2's
-own gate is passing these vectors in isolation before anything imports the module.
+**Status: Phase 3 complete.** `js/crypto.js` (Phase 2) is wired into `app.js`/`store.js`: a real
+lock/unlock flow, encrypt-before-store on every write, decrypt-on-load on unlock, DEK held only in
+an in-memory module variable, explicit Lock action. Verified by direct inspection of the raw
+IndexedDB contents — every task record is `{id, iv, ciphertext, updatedAt}`, nothing else.
+
+**Recovery is not implemented yet (that's Phase 4).** The stored keyring record currently has only
+`{kdf, kdfParams, salt, wrappedDek, wrapIv, version}` — no `saltRecovery`/`wrappedDekRecovery`/
+`wrapIvRecovery` fields. Losing the passphrase right now means the data is genuinely unrecoverable.
+This is the honest state of an in-progress build, not a hidden gap — Phase 4 adds the recovery-code
+wrap on top of this same record shape.
 
 ## 1. Key hierarchy
 
@@ -182,10 +187,10 @@ Show real bytes only. No simulated hacker aesthetic.
 ```
 index.html          // shell + CSP meta; loads app.js as type="module"
 /js
-  app.js            // bootstrap, state, event wiring (Phase 1); lock/unlock state machine (Phase 3+)
+  app.js            // bootstrap, state, event wiring, lock/unlock state machine (done, Phase 3)
   crypto.js         // KDF, wrap/unwrap, encrypt/decrypt, recovery — pure, unit-tested (done, Phase 2)
   crypto.test.mjs   // the six vectors in §8 below — run with `node js/crypto.test.mjs`
-  store.js          // IndexedDB read/write of task records (plaintext in Phase 1, ciphertext from Phase 3)
+  store.js          // IndexedDB read/write — task records (ciphertext) + keyring (done, Phase 3)
   ui.js             // rendering (textContent only for task content), board/list, DnD
   sync.js           // optional: push/pull against the Flask blob store (Phase 6)
   reveal.js         // "You vs The Server" panel + protection page (Phase 5)

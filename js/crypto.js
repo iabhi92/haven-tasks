@@ -12,14 +12,15 @@
 export const PBKDF2_ITERATIONS = 600000;
 export const KDF_NAME = "pbkdf2-sha256";
 
-function bufToBase64(buf) {
+// Exported: app.js needs these too, for encoding the salt into the keyring record.
+export function bufToBase64(buf) {
   const bytes = new Uint8Array(buf);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
 
-function base64ToBuf(b64) {
+export function base64ToBuf(b64) {
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
