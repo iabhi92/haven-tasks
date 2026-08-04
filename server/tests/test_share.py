@@ -73,3 +73,88 @@ def test_share_response_never_leaks_a_key(client):
     resp = client.get(f"/share/{share_id}")
     body = resp.get_json()
     assert set(body.keys()) == {"iv", "ciphertext"}
+
+
+# ---------- capability links: custom TTL, max views, revocation ----------
+
+def test_custom_ttl_is_honored(client, monkeypatch):
+    real_time = routes.time.time
+    monkeypatch.setattr(routes.time, "time", lambda: real_time())
+
+    resp = client.post("/share", json={"iv": "a", "ciphertext": "b", "ttlSeconds": 120})
+    share_id = resp.get_json()["id"]
+
+    monkeypatch.setattr(routes.time, "time", lambda: real_time() + 60)
+    assert client.get(f"/share/{share_id}").status_code == 200
+
+    monkeypatch.setattr(routes.time, "time", lambda: real_time() + 121)
+    assert client.get(f"/share/{share_id}").status_code == 404
+
+
+def test_ttl_out_of_range_rejected(client):
+    resp = client.post("/share", json={"iv": "a", "ciphertext": "b", "ttlSeconds": 10})
+    assert resp.status_code == 400
+    resp = client.post("/share", json={"iv": "a", "ciphertext": "b", "ttlSeconds": routes.MAX_SHARE_TTL_SECONDS + 1})
+    assert resp.status_code == 400
+    resp = client.post("/share", json={"iv": "a", "ciphertext": "b", "ttlSeconds": "not-a-number"})
+    assert resp.status_code == 400
+    resp = client.post("/share", json={"iv": "a", "ciphertext": "b", "ttlSeconds": True})
+    assert resp.status_code == 400
+
+
+def test_max_views_out_of_range_rejected(client):
+    resp = client.post("/share", json={"iv": "a", "ciphertext": "b", "maxViews": 0})
+    assert resp.status_code == 400
+    resp = client.post("/share", json={"iv": "a", "ciphertext": "b", "maxViews": routes.MAX_SHARE_MAX_VIEWS + 1})
+    assert resp.status_code == 400
+
+
+def test_burn_after_reading_expires_after_one_view(client):
+    resp = create_share(client, iv="once", ciphertext="only")
+    share_id = resp.get_json()["id"]
+    # this share had no maxViews set, so re-fetching it repeatedly must keep working —
+    # sanity check before testing the maxViews=1 case below.
+    assert client.get(f"/share/{share_id}").status_code == 200
+    assert client.get(f"/share/{share_id}").status_code == 200
+
+    resp = client.post("/share", json={"iv": "burn", "ciphertext": "afterreading", "maxViews": 1})
+    burn_id = resp.get_json()["id"]
+    first = client.get(f"/share/{burn_id}")
+    assert first.status_code == 200
+    assert first.get_json() == {"iv": "burn", "ciphertext": "afterreading"}
+
+    second = client.get(f"/share/{burn_id}")
+    assert second.status_code == 404
+
+
+def test_max_views_n_allows_exactly_n_views(client):
+    resp = client.post("/share", json={"iv": "a", "ciphertext": "b", "maxViews": 3})
+    share_id = resp.get_json()["id"]
+    assert client.get(f"/share/{share_id}").status_code == 200
+    assert client.get(f"/share/{share_id}").status_code == 200
+    assert client.get(f"/share/{share_id}").status_code == 200
+    assert client.get(f"/share/{share_id}").status_code == 404
+
+
+def test_revoke_makes_share_immediately_unavailable(client):
+    resp = create_share(client, iv="secret", ciphertext="stuff")
+    share_id = resp.get_json()["id"]
+    assert client.get(f"/share/{share_id}").status_code == 200
+
+    resp = client.delete(f"/share/{share_id}")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"ok": True}
+
+    assert client.get(f"/share/{share_id}").status_code == 404
+
+
+def test_revoke_unknown_share_returns_404(client):
+    resp = client.delete("/share/does-not-exist")
+    assert resp.status_code == 404
+
+
+def test_revoke_is_idempotent_second_call_404s(client):
+    resp = create_share(client)
+    share_id = resp.get_json()["id"]
+    assert client.delete(f"/share/{share_id}").status_code == 200
+    assert client.delete(f"/share/{share_id}").status_code == 404

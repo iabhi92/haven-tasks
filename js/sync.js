@@ -55,21 +55,39 @@ export async function pullKeyringBootstrap(serverUrl, token) {
 // Deliberately no Authorization header — /share is unauthenticated by design
 // (see docs/ARCHITECTURE.md "Fragment-key share links"). The relay only ever
 // sees {iv, ciphertext} encrypted under a fresh key that never leaves the
-// browser except in the recipient's own URL fragment.
-export async function pushShare(serverUrl, iv, ciphertext) {
+// browser except in the recipient's own URL fragment. ttlSeconds/maxViews are
+// the "capability links" controls (docs/ARCHITECTURE.md "Capability links") —
+// both optional, server clamps and defaults them.
+export async function pushShare(serverUrl, iv, ciphertext, { ttlSeconds, maxViews } = {}) {
+  const body = { iv, ciphertext };
+  if (ttlSeconds != null) body.ttlSeconds = ttlSeconds;
+  if (maxViews != null) body.maxViews = maxViews;
   const res = await fetch(`${serverUrl.replace(/\/$/, "")}/share`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ iv, ciphertext }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Creating share failed: ${res.status}`);
   return res.json();
 }
 
-// Returns null if the share is missing or has expired.
+// Returns null if the share is missing, expired, or already used up
+// (burn-after-reading). Note: a successful call consumes one view.
 export async function pullShare(serverUrl, shareId) {
   const res = await fetch(`${serverUrl.replace(/\/$/, "")}/share/${encodeURIComponent(shareId)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Fetching share failed: ${res.status}`);
   return res.json();
+}
+
+// Revocation — see server/storage.py's delete_share docstring for why no
+// auth beyond the id itself is required. Returns true if a share was
+// actually deleted, false if it was already gone.
+export async function deleteShare(serverUrl, shareId) {
+  const res = await fetch(`${serverUrl.replace(/\/$/, "")}/share/${encodeURIComponent(shareId)}`, {
+    method: "DELETE",
+  });
+  if (res.status === 404) return false;
+  if (!res.ok) throw new Error(`Revoking share failed: ${res.status}`);
+  return true;
 }

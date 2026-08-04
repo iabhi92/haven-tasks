@@ -21,7 +21,7 @@ def create_app(db_path=None):
         # anything an attacker couldn't already do by calling the API directly.
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
         # This is a JSON API with no HTML/script responses of its own, so the
         # tightest possible baseline applies regardless of what the frontend's
         # own CSP says — defense in depth if this API is ever hit directly.

@@ -10,6 +10,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from storage import (
     create_share,
+    delete_share,
     get_keyring_bootstrap,
     get_records_since,
     get_share,
@@ -23,9 +24,19 @@ MAX_RECORDS_PER_PUSH = 500
 
 # Shares are anonymous (no bearer token) by design — the random id is the
 # only credential. These caps keep that from becoming free anonymous
-# storage: small payloads only, and gone again within a week.
+# storage: small payloads only, and gone again within a bounded time.
 MAX_SHARE_FIELD_LEN = 20_000
-SHARE_TTL_SECONDS = 7 * 24 * 60 * 60
+SHARE_TTL_SECONDS = 7 * 24 * 60 * 60  # default when ttlSeconds is omitted
+
+# Capability links (docs/ARCHITECTURE.md): sender can choose a shorter or
+# longer lifetime than the default, and/or a view-count limit for
+# burn-after-reading. Both are clamped server-side so the client's choice
+# can't be used to create either a near-permanent share or a storage-abuse
+# vector of many-thousands-of-views rows.
+MIN_SHARE_TTL_SECONDS = 60
+MAX_SHARE_TTL_SECONDS = 30 * 24 * 60 * 60
+MIN_SHARE_MAX_VIEWS = 1
+MAX_SHARE_MAX_VIEWS = 1000
 
 
 def _extract_token():
@@ -145,11 +156,28 @@ def create_share_route():
     if len(iv) > MAX_SHARE_FIELD_LEN or len(ciphertext) > MAX_SHARE_FIELD_LEN:
         return jsonify({"error": "iv/ciphertext too large"}), 400
 
+    ttl_seconds = body.get("ttlSeconds", SHARE_TTL_SECONDS)
+    if not isinstance(ttl_seconds, int) or isinstance(ttl_seconds, bool):
+        return jsonify({"error": "ttlSeconds must be an integer number of seconds"}), 400
+    if not (MIN_SHARE_TTL_SECONDS <= ttl_seconds <= MAX_SHARE_TTL_SECONDS):
+        return jsonify({
+            "error": f"ttlSeconds must be between {MIN_SHARE_TTL_SECONDS} and {MAX_SHARE_TTL_SECONDS}"
+        }), 400
+
+    max_views = body.get("maxViews")
+    if max_views is not None:
+        if not isinstance(max_views, int) or isinstance(max_views, bool):
+            return jsonify({"error": "maxViews must be an integer or omitted"}), 400
+        if not (MIN_SHARE_MAX_VIEWS <= max_views <= MAX_SHARE_MAX_VIEWS):
+            return jsonify({
+                "error": f"maxViews must be between {MIN_SHARE_MAX_VIEWS} and {MAX_SHARE_MAX_VIEWS}"
+            }), 400
+
     share_id = secrets.token_urlsafe(24)
     now = int(time.time() * 1000)
-    expires_at = now + SHARE_TTL_SECONDS * 1000
+    expires_at = now + ttl_seconds * 1000
 
-    create_share(current_app.config["SYNC_DB_PATH"], share_id, iv, ciphertext, now, expires_at)
+    create_share(current_app.config["SYNC_DB_PATH"], share_id, iv, ciphertext, now, expires_at, max_views)
     return jsonify({"id": share_id, "expiresAt": expires_at})
 
 
@@ -160,3 +188,13 @@ def get_share_route(share_id):
     if share is None:
         return jsonify({"error": "share not found or expired"}), 404
     return jsonify(share)
+
+
+@bp.route("/share/<share_id>", methods=["DELETE"])
+def delete_share_route(share_id):
+    """Revocation. See delete_share's docstring for why no auth is required
+    here beyond already knowing the id."""
+    deleted = delete_share(current_app.config["SYNC_DB_PATH"], share_id)
+    if not deleted:
+        return jsonify({"error": "share not found"}), 404
+    return jsonify({"ok": True})

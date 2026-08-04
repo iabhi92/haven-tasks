@@ -109,7 +109,9 @@ data."*
       fragment (never sent to the server); recipient decrypts locally, the relaying server sees
       only ciphertext — Med · Signal: very high. Shipped: `shared.html`/`js/shared.js`,
       `POST /share`/`GET /share/<id>` in `server/routes.py`, see docs/ARCHITECTURE.md §5b.
-- [ ] Capability links — scoped, expiring share links — Med
+- [x] Capability links — scoped, expiring share links — Med. Shipped: configurable expiry
+      (1h/1d/7d/30d), optional burn-after-reading (view-count limit), and sender-side revocation,
+      all as extensions to the fragment-key share links above — see docs/ARCHITECTURE.md §5b.
 
 ### Recovery, done distinctively (E2EE's #1 killer — solving it uniquely is a real edge)
 

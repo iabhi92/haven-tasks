@@ -4,8 +4,8 @@
 // docs/ARCHITECTURE.md "Fragment-key share links"), fetches the ciphertext,
 // decrypts in-page, and renders it. Nothing here is ever persisted.
 
-import { importDek, decryptTask, base64UrlToBuf } from "./crypto.js?v=20260804j";
-import { pullShare } from "./sync.js?v=20260804j";
+import { importDek, decryptTask, base64UrlToBuf } from "./crypto.js?v=20260804k";
+import { pullShare } from "./sync.js?v=20260804k";
 
 const STATUS_LABEL = { todo: "To Do", "in-progress": "In Progress", done: "Done" };
 const PRIORITY_LABEL = { low: "Low", medium: "Medium", high: "High" };
@@ -96,7 +96,7 @@ async function main() {
   }
 
   if (!share) {
-    showError("This link has expired or no longer exists. Share links last 7 days.");
+    showError("This link has expired, was revoked, or has already been viewed the maximum number of times it allowed.");
     return;
   }
 

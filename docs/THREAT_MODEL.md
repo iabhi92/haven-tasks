@@ -68,13 +68,19 @@
     docs/ARCHITECTURE.md §5b). Verified in the self-attack checklist below.
   - The share uses a freshly generated key, not the vault's DEK — obtaining it exposes exactly one
     task snapshot, nothing else in the vault, and nothing about how to derive the DEK.
-  - Links expire after 7 days (server-enforced), bounding how long a leaked link stays live.
+  - Links expire after a sender-chosen period (1 hour to 30 days, default 7 days,
+    server-clamped), bounding how long a leaked link stays live.
   - Only a fixed field snapshot is shared (`title`, `notes`, `status`, `priority`, `dueDate`,
     `tags`, `subtasks`) — not the task `id`, `project`, or timestamps.
+  - **Revocation exists** (capability links, docs/ARCHITECTURE.md §5b) — the sender can delete a
+    share immediately via `DELETE /share/<id>`, and optionally cap it to a fixed number of views
+    (burn-after-reading) at creation time. This closes most of what used to be an open "no
+    revocation" gap; see the residual risk below for what it doesn't close.
 - **Residual risk, stated plainly:**
-  - **No revocation.** Once created, a link works for anyone who has it until it expires — there
-    is no "unshare" button. A user who pastes a link somewhere public, or whose browser history is
-    exposed, cannot undo that.
+  - **Revocation isn't retroactive.** If a recipient already loaded and read the link before the
+    sender revokes it, revocation stops *future* access, not the access that already happened —
+    there's no way to un-view something once it's been decrypted client-side. This is inherent to
+    any share-a-secret design, not specific to this implementation.
   - **Fragment leakage outside the browser's own transmission behavior.** Browsers don't send
     fragments over the network, but the *full URL including the fragment* can still end up in
     browser history, an OS clipboard manager, a screen-recording, or a chat app that a user pastes
@@ -167,6 +173,12 @@
       fragment key or plaintext. See `server/tests/test_share.py`.
 - [x] **Share-link tamper detection** — flip a character in the fragment key; confirm the viewer
       fails closed with an error, never partially decrypts or renders content.
+- [x] **Burn-after-reading is enforced atomically** — a `maxViews=1` share allows exactly one
+      successful view; the second attempt 404s. See
+      `server/tests/test_share.py::test_burn_after_reading_expires_after_one_view`.
+- [x] **Revocation actually revokes** — `DELETE /share/<id>` makes an immediately-following `GET`
+      404, including a link that worked seconds earlier. See
+      `server/tests/test_share.py::test_revoke_makes_share_immediately_unavailable`.
 
 ## How to read this document (for a reviewer)
 

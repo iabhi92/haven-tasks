@@ -244,16 +244,40 @@ relay server can't read. The trick is which part of the URL carries the key.
   page. `server`/`id` are non-secret routing info and can safely sit in the query string, same as
   how a sync server URL is already treated as non-sensitive local config.
 - **Endpoints (deliberately unauthenticated — see `server/routes.py`):**
-  - `POST /share` — body: `{iv, ciphertext}`. Server generates the id itself
-    (`secrets.token_urlsafe(24)`, so it always has full entropy regardless of client behavior).
-    Returns `{id, expiresAt}`. Caps `iv`/`ciphertext` at 20,000 chars each to keep this from
-    becoming free anonymous storage.
-  - `GET /share/<id>` — returns `{iv, ciphertext}`, or 404 if missing or past `expiresAt`.
-  - No bearer token: the random id *is* the capability, same entropy class as a sync token or
-    recovery code. This is intentional, not an oversight — the whole point is a recipient needs
-    nothing but the link.
-- **Expiry:** 7 days, enforced server-side (`server/storage.py`'s `get_share`); expired rows are
-  swept lazily rather than on a schedule.
+  - `POST /share` — body: `{iv, ciphertext, ttlSeconds?, maxViews?}`. Server generates the id
+    itself (`secrets.token_urlsafe(24)`, so it always has full entropy regardless of client
+    behavior). Returns `{id, expiresAt}`. Caps `iv`/`ciphertext` at 20,000 chars each to keep this
+    from becoming free anonymous storage.
+  - `GET /share/<id>` — returns `{iv, ciphertext}`, or 404 if missing, expired, revoked, or
+    already viewed `maxViews` times. **Consumes one view** as a side effect (see below).
+  - `DELETE /share/<id>` — revokes a share immediately. No auth beyond the id itself; see
+    "Capability links" below for why that's not a weaker check than the GET already has.
+  - No bearer token on any of the three: the random id *is* the capability, same entropy class as
+    a sync token or recovery code. This is intentional, not an oversight — the whole point is a
+    recipient needs nothing but the link.
+- **Expiry:** 7 days by default, enforced server-side (`server/storage.py`'s `get_share`); expired
+  rows are swept lazily rather than on a schedule.
+
+### Capability links (extends the above)
+
+Three controls the sender can set at share-creation time, addressing the "no revocation" gap
+originally called out in docs/THREAT_MODEL.md's A4b:
+
+- **Configurable expiry** — `ttlSeconds` in the `POST /share` body, offered in the UI as 1 hour /
+  1 day / 7 days / 30 days. Server clamps to `[60, 2592000]` regardless of what's sent, so a
+  tampered client request can't mint a near-permanent or negative-lifetime share.
+- **Burn-after-reading (`maxViews`)** — an optional view-count cap, offered in the UI as
+  unlimited / 1 / 5 / 20. Enforced by `get_share()` as a single atomic
+  `UPDATE ... WHERE views_used < max_views RETURNING ...` — the check-and-increment happens in one
+  SQL statement specifically so two near-simultaneous requests against a `maxViews=1` share can't
+  both read the row as "unused" and both see the plaintext (a classic TOCTOU bug in the more
+  obvious SELECT-then-UPDATE version).
+- **Revocation (`DELETE /share/<id>`)** — the sender's copy of the link contains the same `id` a
+  recipient's copy does, so the sender is already able to construct any request a recipient could.
+  Letting them delete the row early grants no capability beyond what having the link already
+  implied; it's symmetric with the GET, not a separate trust tier. The "Share this task" modal
+  keeps the created share's `{id, server}` (never the key) specifically so its "Revoke link" button
+  can call this without re-deriving anything.
 - **Which server relays it:** the share flow reuses the user's configured sync server if they have
   one (`getSyncConfig()`), else falls back to the project's own hosted relay
   (`https://haven-sync.onrender.com`) — sharing a single task shouldn't require setting up sync

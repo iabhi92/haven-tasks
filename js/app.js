@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804j";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804k";
 import {
   renderBoard,
   renderList,
@@ -30,7 +30,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804j";
+} from "./ui.js?v=20260804k";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -47,7 +47,7 @@ import {
   bufToBase64,
   base64ToBuf,
   bufToBase64Url,
-} from "./crypto.js?v=20260804j";
+} from "./crypto.js?v=20260804k";
 import {
   generateSyncToken,
   pushRecords,
@@ -55,7 +55,8 @@ import {
   pushKeyringBootstrap,
   pullKeyringBootstrap,
   pushShare,
-} from "./sync.js?v=20260804j";
+  deleteShare,
+} from "./sync.js?v=20260804k";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -88,6 +89,11 @@ let selectedIds = new Set();
 // `tasks` on click) so the share reflects what was on screen when "Share
 // link…" was pressed, same as the edit form itself does.
 let shareModalTask = null;
+
+// {id, server} of the share currently shown in shareAfterSection — needed by
+// the revoke button, which only has the id/server, not the decryption key
+// (that part never leaves the URL fragment, so revoking never needs it).
+let shareModalCreated = null;
 
 const SYNC_SERVER_KEY = "haven-sync-server";
 const SYNC_TOKEN_KEY = "haven-sync-token";
@@ -1328,7 +1334,7 @@ function shareServerUrl() {
   return (config && config.server) || DEFAULT_SHARE_SERVER;
 }
 
-async function createShareLink(task) {
+async function createShareLink(task, { ttlSeconds, maxViews } = {}) {
   const shareDek = await generateDek();
   const snapshot = {};
   for (const field of SHARE_FIELDS) snapshot[field] = task[field];
@@ -1336,34 +1342,44 @@ async function createShareLink(task) {
   const { iv, ciphertext } = await encryptTask(snapshot, shareDek);
   const rawKey = await crypto.subtle.exportKey("raw", shareDek);
   const server = shareServerUrl();
-  const { id } = await pushShare(server, iv, ciphertext);
+  const { id } = await pushShare(server, iv, ciphertext, { ttlSeconds, maxViews });
 
   const url = new URL("shared.html", location.href);
   url.searchParams.set("server", server);
   url.searchParams.set("id", id);
   url.hash = bufToBase64Url(rawKey);
-  return url.toString();
+  return { url: url.toString(), id, server };
 }
 
 function openShareModal(task) {
   shareModalTask = task;
+  shareModalCreated = null;
   document.getElementById("shareError").textContent = "";
+  document.getElementById("shareRevokeStatus").textContent = "";
+  document.getElementById("shareRevokeStatus").classList.remove("is-ok");
+  document.getElementById("shareExpiry").value = "604800";
+  document.getElementById("shareMaxViews").value = "";
   document.getElementById("shareBeforeSection").hidden = false;
   document.getElementById("shareAfterSection").hidden = true;
   document.getElementById("shareLinkOutput").value = "";
+  document.getElementById("shareRevokeBtn").disabled = false;
+  document.getElementById("shareRevokeBtn").textContent = "Revoke link";
   document.getElementById("shareModal").hidden = false;
 }
 
 function closeShareModal() {
   document.getElementById("shareModal").hidden = true;
   shareModalTask = null;
+  shareModalCreated = null;
 }
 
 function wireShareModal() {
   const overlay = document.getElementById("shareModal");
   const createBtn = document.getElementById("shareCreateBtn");
   const copyBtn = document.getElementById("shareCopyBtn");
+  const revokeBtn = document.getElementById("shareRevokeBtn");
   const errorEl = document.getElementById("shareError");
+  const revokeStatusEl = document.getElementById("shareRevokeStatus");
   const output = document.getElementById("shareLinkOutput");
 
   document.getElementById("shareCancelBtn").addEventListener("click", () => closeShareModal());
@@ -1378,7 +1394,12 @@ function wireShareModal() {
     createBtn.disabled = true;
     createBtn.textContent = "Creating…";
     try {
-      output.value = await createShareLink(shareModalTask);
+      const ttlSeconds = Number(document.getElementById("shareExpiry").value);
+      const maxViewsRaw = document.getElementById("shareMaxViews").value;
+      const maxViews = maxViewsRaw ? Number(maxViewsRaw) : undefined;
+      const created = await createShareLink(shareModalTask, { ttlSeconds, maxViews });
+      shareModalCreated = created;
+      output.value = created.url;
       document.getElementById("shareBeforeSection").hidden = true;
       document.getElementById("shareAfterSection").hidden = false;
     } catch (err) {
@@ -1399,6 +1420,23 @@ function wireShareModal() {
     } catch {
       // Clipboard API can be unavailable; the input is already selected
       // above as a manual copy fallback.
+    }
+  });
+
+  revokeBtn.addEventListener("click", async () => {
+    if (!shareModalCreated) return;
+    revokeBtn.disabled = true;
+    revokeBtn.textContent = "Revoking…";
+    revokeStatusEl.classList.remove("is-ok");
+    try {
+      await deleteShare(shareModalCreated.server, shareModalCreated.id);
+      revokeStatusEl.textContent = "Revoked — this link no longer works for anyone who has it.";
+      revokeStatusEl.classList.add("is-ok");
+      copyBtn.disabled = true;
+    } catch (err) {
+      revokeStatusEl.textContent = "Couldn't revoke the link — check your connection and try again.";
+      revokeBtn.disabled = false;
+      revokeBtn.textContent = "Revoke link";
     }
   });
 }

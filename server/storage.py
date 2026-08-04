@@ -37,13 +37,17 @@ CREATE TABLE IF NOT EXISTS keyring_bootstrap (
 -- entropy as a recovery code, and the decryption key never reaches this
 -- table or this server at all — it lives only in the recipient's URL
 -- fragment. expires_at enforces the share's lifetime; rows past it are
--- treated as absent and reaped opportunistically.
+-- treated as absent and reaped opportunistically. max_views/views_used
+-- implement optional burn-after-reading (docs/ARCHITECTURE.md "Capability
+-- links"): max_views NULL means unlimited views until expiry.
 CREATE TABLE IF NOT EXISTS shares (
     id TEXT PRIMARY KEY,
     iv TEXT NOT NULL,
     ciphertext TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL
+    expires_at INTEGER NOT NULL,
+    max_views INTEGER,
+    views_used INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -59,9 +63,21 @@ def get_connection(db_path):
         conn.close()
 
 
+def _add_column_if_missing(conn, table, column, coldef):
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}")
+
+
 def init_db(db_path):
     with get_connection(db_path) as conn:
         conn.executescript(SCHEMA)
+        # Migration for databases created before capability links (max_views/
+        # views_used) existed — CREATE TABLE IF NOT EXISTS above is a no-op
+        # against an already-existing `shares` table, so new columns need an
+        # explicit, idempotent ALTER TABLE here instead.
+        _add_column_if_missing(conn, "shares", "max_views", "INTEGER")
+        _add_column_if_missing(conn, "shares", "views_used", "INTEGER NOT NULL DEFAULT 0")
 
 
 def upsert_records(db_path, token, records):
@@ -122,27 +138,48 @@ def get_keyring_bootstrap(db_path, token):
         }
 
 
-def create_share(db_path, share_id, iv, ciphertext, created_at, expires_at):
+def create_share(db_path, share_id, iv, ciphertext, created_at, expires_at, max_views=None):
     """Store one opaque share. share_id must already be caller-generated with
-    enough entropy to be unguessable (it's the only access control here)."""
+    enough entropy to be unguessable (it's the only access control here).
+    max_views=None means unlimited views until expires_at."""
     with get_connection(db_path) as conn:
         conn.execute(
-            "INSERT INTO shares (id, iv, ciphertext, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
-            (share_id, iv, ciphertext, created_at, expires_at),
+            "INSERT INTO shares (id, iv, ciphertext, created_at, expires_at, max_views) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (share_id, iv, ciphertext, created_at, expires_at, max_views),
         )
 
 
 def get_share(db_path, share_id, now):
-    """Returns the share if it exists and hasn't expired, else None. Doesn't
-    delete expired rows itself — see delete_expired_shares for the sweep."""
+    """Fetch-and-consume-a-view in one atomic statement: a view only counts if
+    the share still exists, hasn't expired, and hasn't hit max_views yet. This
+    has to be a single UPDATE...RETURNING (not a separate SELECT then UPDATE)
+    so two near-simultaneous requests against a max_views=1 burn-after-reading
+    share can't both read the row as "not yet used" and both see the
+    plaintext — the WHERE clause is re-checked atomically per row by SQLite.
+    Returns None if missing, expired, or already exhausted."""
     with get_connection(db_path) as conn:
         row = conn.execute(
-            "SELECT iv, ciphertext, expires_at FROM shares WHERE id = ?",
-            (share_id,),
+            """
+            UPDATE shares SET views_used = views_used + 1
+            WHERE id = ? AND expires_at > ? AND (max_views IS NULL OR views_used < max_views)
+            RETURNING iv, ciphertext
+            """,
+            (share_id, now),
         ).fetchone()
-        if row is None or row["expires_at"] <= now:
+        if row is None:
             return None
         return {"iv": row["iv"], "ciphertext": row["ciphertext"]}
+
+
+def delete_share(db_path, share_id):
+    """Revocation: the id is the only credential this system has, so whoever
+    holds it (sender or recipient) is already trusted to the same degree a
+    GET would trust them — deleting it early is not a stronger capability
+    than reading it. Returns True if a row was actually deleted."""
+    with get_connection(db_path) as conn:
+        cur = conn.execute("DELETE FROM shares WHERE id = ?", (share_id,))
+        return cur.rowcount > 0
 
 
 def delete_expired_shares(db_path, now):

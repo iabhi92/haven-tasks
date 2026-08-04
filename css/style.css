@@ -1331,6 +1331,13 @@ body { display: flex; }
 }
 #shareError:empty { display: none; }
 #shareLinkOutput { font-size: 12px; }
+#shareRevokeStatus {
+  color: var(--danger);
+  min-height: 0;
+  margin-top: 10px;
+}
+#shareRevokeStatus:empty { display: none; }
+#shareRevokeStatus.is-ok { color: var(--success); }
 
 .lock-link {
   display: block;

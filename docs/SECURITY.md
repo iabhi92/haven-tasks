@@ -112,7 +112,32 @@ throwaway, same convention as everything else in this file).
       client-side and showed a clear error without attempting a request that could 404 confusingly.
 - [x] **Server-side entropy/expiry** — `server/tests/test_share.py` covers id uniqueness across
       requests, the 20,000-char size cap per field, and that an artificially time-traveled clock
-      (`monkeypatch` on `time.time`) makes a share 404 once past its 7-day `expiresAt`.
+      (`monkeypatch` on `time.time`) makes a share 404 once past its default 7-day `expiresAt`.
+
+## Capability links (expiry choice, burn-after-reading, revocation) — verified 2026-08-04
+
+- [x] **Burn-after-reading survives a real browser round-trip** — Created a share with
+      `maxViews=1` through the actual "Share this task" UI (not just the API directly). Loaded the
+      resulting link in one fresh Playwright context — succeeded, task rendered. Loaded the exact
+      same link in a second fresh context — failed with a clear "already been viewed" error, never
+      served the content twice.
+- [x] **Revoke works from the UI, not just the API** — Created a share, confirmed it loads in a
+      fresh context, clicked "Revoke link" in the still-open share modal, confirmed the UI shows
+      "Revoked" and disables the copy button, then confirmed the same link now 404s for a brand
+      new viewer.
+- [x] **Custom TTL is honored, not just accepted** — Requested `ttlSeconds: 120`, confirmed the
+      share is fetchable at +60s and gone at +121s using a mocked clock (`server/tests/test_share.py`
+      — real elapsed-time tests would make the suite slow and flaky, so this uses the same
+      `monkeypatch` pattern as the existing expiry test rather than `time.sleep`).
+- [x] **Out-of-range values rejected server-side, not just hidden from the UI** — Direct `fetch()`
+      to `POST /share` with `ttlSeconds: 999999999` (bypassing the UI's `<select>`, which only ever
+      offers valid choices) returns 400. Confirms the client-side dropdown isn't the only thing
+      standing between a user and an absurd value — the server re-validates independently.
+- [x] **Migration is safe against the already-deployed production schema** — Hand-built a SQLite
+      file with the pre-capability-links `shares` table shape (no `max_views`/`views_used`
+      columns, matching what's live on Render right now), ran the new `init_db()` against it, and
+      confirmed both the migration adds the columns idempotently and a pre-existing row (created
+      before this feature existed) is still readable afterward with unlimited-views semantics.
 
 ## Server hardening applied this phase
 
