@@ -105,9 +105,10 @@ data."*
 
 ### The OMG feature (cheap, flashy, honest)
 
-- [ ] ⭐ Fragment-key share links — share a task via URL with the decryption key in the `#`
+- [x] ⭐ Fragment-key share links — share a task via URL with the decryption key in the `#`
       fragment (never sent to the server); recipient decrypts locally, the relaying server sees
-      only ciphertext — Med · Signal: very high
+      only ciphertext — Med · Signal: very high. Shipped: `shared.html`/`js/shared.js`,
+      `POST /share`/`GET /share/<id>` in `server/routes.py`, see docs/ARCHITECTURE.md §5b.
 - [ ] Capability links — scoped, expiring share links — Med
 
 ### Recovery, done distinctively (E2EE's #1 killer — solving it uniquely is a real edge)

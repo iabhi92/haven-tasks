@@ -1272,6 +1272,66 @@ body { display: flex; }
 .lock-error.is-ok { color: var(--success); }
 .sync-close-row { margin-top: 16px; }
 
+/* ---------- shared.html (fragment-key share link viewer) ---------- */
+.lock-card-wide { max-width: 560px; text-align: left; }
+.lock-card-wide .lock-logo { margin: 0 0 14px; }
+.lock-card-wide .lock-title { text-align: left; }
+.share-view-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 16px;
+}
+.share-view-title {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  word-break: break-word;
+}
+.share-view-notes {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+.share-view-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  margin: 0 0 8px;
+}
+.share-view-footer {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.share-view-loading,
+.share-view-error {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 12px 0;
+}
+.share-view-error { color: var(--danger); }
+.share-view-footer-note { margin-bottom: 12px; }
+
+.modal-help {
+  margin: -6px 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+#shareError {
+  color: var(--danger);
+  min-height: 0;
+}
+#shareError:empty { display: none; }
+#shareLinkOutput { font-size: 12px; }
+
 .lock-link {
   display: block;
   width: 100%;

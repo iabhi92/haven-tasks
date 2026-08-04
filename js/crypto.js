@@ -31,6 +31,18 @@ export function generateSalt() {
   return crypto.getRandomValues(new Uint8Array(16));
 }
 
+// URL-safe variants — used for the share-link fragment key (docs/ARCHITECTURE.md
+// "Fragment-key share links"), where raw base64's +/= would need escaping.
+export function bufToBase64Url(buf) {
+  return bufToBase64(buf).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export function base64UrlToBuf(b64url) {
+  const padded = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  const padLen = (4 - (padded.length % 4)) % 4;
+  return base64ToBuf(padded + "=".repeat(padLen));
+}
+
 // ---------- key derivation ----------
 
 // Derives a KEK (AES-256-GCM CryptoKey, non-extractable) from a passphrase or

@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804i">
+<link rel="stylesheet" href="css/style.css?v=20260804j">
 </head>
 <body>
 
@@ -398,12 +398,41 @@
 
       <div class="modal-actions">
         <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
+        <button type="button" class="btn btn-ghost" id="editShareBtn">Share link&hellip;</button>
         <div class="modal-actions-right">
           <button type="button" class="btn btn-ghost" id="editCancelBtn">Cancel</button>
           <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="shareModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
+    <h2 id="shareModalTitle">Share this task</h2>
+    <p class="modal-help">
+      A one-time link that lets anyone with it view this task, without an account. It's encrypted
+      with a fresh key that only ever lives in the link itself — the server relaying it never sees
+      that key, so it can't read the task either. The link stops working after 7 days.
+    </p>
+    <div id="shareBeforeSection">
+      <p class="modal-help" id="shareError" role="alert"></p>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-ghost" id="shareCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="shareCreateBtn">Create link</button>
+      </div>
+    </div>
+    <div id="shareAfterSection" hidden>
+      <div class="field">
+        <label for="shareLinkOutput">Share link</label>
+        <input type="text" id="shareLinkOutput" readonly>
+      </div>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-ghost" id="shareCopyBtn">Copy link</button>
+        <button type="button" class="btn btn-primary" id="shareDoneBtn">Done</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -578,6 +607,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json" hidden>
 
-<script src="js/app.js?v=20260804i" type="module"></script>
+<script src="js/app.js?v=20260804j" type="module"></script>
 </body>
 </html>

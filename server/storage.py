@@ -29,6 +29,21 @@ CREATE TABLE IF NOT EXISTS keyring_bootstrap (
     wrap_iv_recovery TEXT NOT NULL,
     salt_recovery TEXT NOT NULL,
     updated_at INTEGER NOT NULL
+);
+
+-- A share is opaque ciphertext keyed only by an unguessable random id (see
+-- docs/ARCHITECTURE.md "Fragment-key share links"). There is no bearer token
+-- here on purpose: the id itself is the capability, generated with the same
+-- entropy as a recovery code, and the decryption key never reaches this
+-- table or this server at all — it lives only in the recipient's URL
+-- fragment. expires_at enforces the share's lifetime; rows past it are
+-- treated as absent and reaped opportunistically.
+CREATE TABLE IF NOT EXISTS shares (
+    id TEXT PRIMARY KEY,
+    iv TEXT NOT NULL,
+    ciphertext TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
 )
 """
 
@@ -105,6 +120,34 @@ def get_keyring_bootstrap(db_path, token):
             "wrapIvRecovery": row["wrap_iv_recovery"],
             "saltRecovery": row["salt_recovery"],
         }
+
+
+def create_share(db_path, share_id, iv, ciphertext, created_at, expires_at):
+    """Store one opaque share. share_id must already be caller-generated with
+    enough entropy to be unguessable (it's the only access control here)."""
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "INSERT INTO shares (id, iv, ciphertext, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+            (share_id, iv, ciphertext, created_at, expires_at),
+        )
+
+
+def get_share(db_path, share_id, now):
+    """Returns the share if it exists and hasn't expired, else None. Doesn't
+    delete expired rows itself — see delete_expired_shares for the sweep."""
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT iv, ciphertext, expires_at FROM shares WHERE id = ?",
+            (share_id,),
+        ).fetchone()
+        if row is None or row["expires_at"] <= now:
+            return None
+        return {"iv": row["iv"], "ciphertext": row["ciphertext"]}
+
+
+def delete_expired_shares(db_path, now):
+    with get_connection(db_path) as conn:
+        conn.execute("DELETE FROM shares WHERE expires_at <= ?", (now,))
 
 
 def get_records_since(db_path, token, since):

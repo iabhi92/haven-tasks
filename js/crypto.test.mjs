@@ -13,6 +13,8 @@ import {
   decryptTask,
   generateRecoveryCode,
   normalizeRecoveryCode,
+  bufToBase64Url,
+  base64UrlToBuf,
 } from "./crypto.js";
 
 const results = [];
@@ -121,6 +123,20 @@ await test("6. tamper detection: flipping one ciphertext byte makes decryption t
   const tampered = { ...record, ciphertext: bytes.toString("base64") };
 
   await assert.rejects(() => decryptTask(tampered, dek));
+});
+
+// ---- 7. Base64url round-trip (share-link fragment key encoding) ----
+await test("7. base64url round-trip: encodes without +/=, decodes back to identical bytes", async () => {
+  // 32 bytes of 0xff/0x00-heavy content is chosen to force + and / in
+  // standard base64 output, so this actually exercises the substitution.
+  const original = new Uint8Array(32);
+  for (let i = 0; i < original.length; i++) original[i] = i % 2 === 0 ? 0xff : 0x00;
+
+  const encoded = bufToBase64Url(original.buffer);
+  assert.ok(!encoded.includes("+") && !encoded.includes("/") && !encoded.includes("="));
+
+  const decoded = new Uint8Array(base64UrlToBuf(encoded));
+  assert.deepEqual(decoded, original);
 });
 
 // ---- report ----

@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804i";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804j";
 import {
   renderBoard,
   renderList,
@@ -30,7 +30,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804i";
+} from "./ui.js?v=20260804j";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -46,14 +46,16 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260804i";
+  bufToBase64Url,
+} from "./crypto.js?v=20260804j";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260804i";
+  pushShare,
+} from "./sync.js?v=20260804j";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -82,9 +84,22 @@ let activeProject = "Inbox";
 let selectionMode = false;
 let selectedIds = new Set();
 
+// The task currently open in the share modal — held here (not re-read from
+// `tasks` on click) so the share reflects what was on screen when "Share
+// link…" was pressed, same as the edit form itself does.
+let shareModalTask = null;
+
 const SYNC_SERVER_KEY = "haven-sync-server";
 const SYNC_TOKEN_KEY = "haven-sync-token";
 const SYNC_LAST_KEY = "haven-sync-last";
+
+// Share links relay through a server too (someone has to host the ciphertext
+// between sender and recipient), but unlike sync it needs no per-user setup:
+// falls back to the project's own hosted relay if the user hasn't configured
+// a sync server of their own. Either way the relay only ever sees ciphertext
+// under a fresh key it never receives — see docs/ARCHITECTURE.md.
+const DEFAULT_SHARE_SERVER = "https://haven-sync.onrender.com";
+const SHARE_FIELDS = ["title", "notes", "status", "priority", "dueDate", "tags", "subtasks"];
 
 // Setup is a two-step flow (passphrase -> confirm recovery code saved), so the
 // generated keyring/DEK/code have to sit here in between those two steps.
@@ -1292,8 +1307,99 @@ function wireEditModal() {
     closeEditModal();
   });
 
+  document.getElementById("editShareBtn").addEventListener("click", () => {
+    const id = document.getElementById("editId").value;
+    const task = tasks.find((t) => t.id === id);
+    if (task) openShareModal(task);
+  });
+
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) closeEditModal();
+  });
+}
+
+// ---------- share links (fresh-key, no account, Layer 2) ----------
+// The relay server never sees the decryption key — it lives only in the
+// resulting URL's fragment (`#...`), which browsers never transmit to any
+// server per the URL spec. See docs/ARCHITECTURE.md "Fragment-key share links".
+
+function shareServerUrl() {
+  const config = getSyncConfig();
+  return (config && config.server) || DEFAULT_SHARE_SERVER;
+}
+
+async function createShareLink(task) {
+  const shareDek = await generateDek();
+  const snapshot = {};
+  for (const field of SHARE_FIELDS) snapshot[field] = task[field];
+
+  const { iv, ciphertext } = await encryptTask(snapshot, shareDek);
+  const rawKey = await crypto.subtle.exportKey("raw", shareDek);
+  const server = shareServerUrl();
+  const { id } = await pushShare(server, iv, ciphertext);
+
+  const url = new URL("shared.html", location.href);
+  url.searchParams.set("server", server);
+  url.searchParams.set("id", id);
+  url.hash = bufToBase64Url(rawKey);
+  return url.toString();
+}
+
+function openShareModal(task) {
+  shareModalTask = task;
+  document.getElementById("shareError").textContent = "";
+  document.getElementById("shareBeforeSection").hidden = false;
+  document.getElementById("shareAfterSection").hidden = true;
+  document.getElementById("shareLinkOutput").value = "";
+  document.getElementById("shareModal").hidden = false;
+}
+
+function closeShareModal() {
+  document.getElementById("shareModal").hidden = true;
+  shareModalTask = null;
+}
+
+function wireShareModal() {
+  const overlay = document.getElementById("shareModal");
+  const createBtn = document.getElementById("shareCreateBtn");
+  const copyBtn = document.getElementById("shareCopyBtn");
+  const errorEl = document.getElementById("shareError");
+  const output = document.getElementById("shareLinkOutput");
+
+  document.getElementById("shareCancelBtn").addEventListener("click", () => closeShareModal());
+  document.getElementById("shareDoneBtn").addEventListener("click", () => closeShareModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeShareModal();
+  });
+
+  createBtn.addEventListener("click", async () => {
+    if (!shareModalTask) return;
+    errorEl.textContent = "";
+    createBtn.disabled = true;
+    createBtn.textContent = "Creating…";
+    try {
+      output.value = await createShareLink(shareModalTask);
+      document.getElementById("shareBeforeSection").hidden = true;
+      document.getElementById("shareAfterSection").hidden = false;
+    } catch (err) {
+      errorEl.textContent = "Couldn't create the link — check your connection and try again.";
+    } finally {
+      createBtn.disabled = false;
+      createBtn.textContent = "Create link";
+    }
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      const original = copyBtn.textContent;
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => { copyBtn.textContent = original; }, 1500);
+    } catch {
+      // Clipboard API can be unavailable; the input is already selected
+      // above as a manual copy fallback.
+    }
   });
 }
 
@@ -1657,6 +1763,7 @@ async function boot() {
   wireViewToggle();
   wireEditModal();
   wireAddModal();
+  wireShareModal();
   wireDragAndDrop();
   wireCommandPalette();
   wireRevealView();

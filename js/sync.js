@@ -51,3 +51,25 @@ export async function pullKeyringBootstrap(serverUrl, token) {
   if (!res.ok) throw new Error(`Fetching sync keyring failed: ${res.status}`);
   return res.json();
 }
+
+// Deliberately no Authorization header — /share is unauthenticated by design
+// (see docs/ARCHITECTURE.md "Fragment-key share links"). The relay only ever
+// sees {iv, ciphertext} encrypted under a fresh key that never leaves the
+// browser except in the recipient's own URL fragment.
+export async function pushShare(serverUrl, iv, ciphertext) {
+  const res = await fetch(`${serverUrl.replace(/\/$/, "")}/share`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ iv, ciphertext }),
+  });
+  if (!res.ok) throw new Error(`Creating share failed: ${res.status}`);
+  return res.json();
+}
+
+// Returns null if the share is missing or has expired.
+export async function pullShare(serverUrl, shareId) {
+  const res = await fetch(`${serverUrl.replace(/\/$/, "")}/share/${encodeURIComponent(shareId)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Fetching share failed: ${res.status}`);
+  return res.json();
+}

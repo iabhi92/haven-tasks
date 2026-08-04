@@ -53,9 +53,36 @@
   than the stronger option," not "weak" outright. Documented as a real limitation, not hidden —
   see `docs/ARCHITECTURE.md`'s key-derivation section for the migration path once Argon2id lands.
 
-### A4. Compromised or curious collaborator (future, sharing feature)
-- **Status:** v1 is single-user, so this is out of scope. When sharing is added, removing a
-  collaborator must rotate the content key. Named here so it is not forgotten.
+### A4. Compromised or curious collaborator (future, ongoing shared vault)
+- **Status:** still out of scope for v1. This is about *persistent, revocable* multi-user access
+  to a vault (Layer 2's "Compartmentalised vaults") — a different, heavier problem than the
+  one-shot links in A4b below, since revoking a collaborator means rotating a key others still
+  depend on. Named here so it is not forgotten.
+
+### A4b. Anyone who obtains a fragment-key share link
+- **Capability:** whoever has the full URL (query string + fragment) can decrypt and view that one
+  task, with no login and no rate limiting on the viewer beyond what the relay enforces.
+- **Defenses:**
+  - The decryption key lives only in the URL fragment, which browsers never transmit to any
+    server — the relay stores and serves ciphertext it cannot read (see
+    docs/ARCHITECTURE.md §5b). Verified in the self-attack checklist below.
+  - The share uses a freshly generated key, not the vault's DEK — obtaining it exposes exactly one
+    task snapshot, nothing else in the vault, and nothing about how to derive the DEK.
+  - Links expire after 7 days (server-enforced), bounding how long a leaked link stays live.
+  - Only a fixed field snapshot is shared (`title`, `notes`, `status`, `priority`, `dueDate`,
+    `tags`, `subtasks`) — not the task `id`, `project`, or timestamps.
+- **Residual risk, stated plainly:**
+  - **No revocation.** Once created, a link works for anyone who has it until it expires — there
+    is no "unshare" button. A user who pastes a link somewhere public, or whose browser history is
+    exposed, cannot undo that.
+  - **Fragment leakage outside the browser's own transmission behavior.** Browsers don't send
+    fragments over the network, but the *full URL including the fragment* can still end up in
+    browser history, an OS clipboard manager, a screen-recording, or a chat app that a user pastes
+    it into — none of which this design can prevent. This is inherent to putting a secret in a
+    URL at all, not specific to this implementation.
+  - **The relay learns access patterns.** It sees when and how often a given share id is fetched
+    (though never by whom without IP logs it may or may not keep), even though it can't read the
+    content.
 
 ### A5. XSS — the existential threat
 - **Capability:** if an attacker can run JavaScript in the app's origin, they can read the DEK and
@@ -98,7 +125,10 @@
 3. **Lose both credentials = data gone.** There is deliberately no server-side reset.
 4. **Weak passphrases remain the user's risk.**
 5. **Last-write-wins can lose edits** on concurrent multi-device changes until CRDT merge lands.
-6. **v1 is single-user.** Sharing, and the revocation problem it brings, is out of scope.
+6. **v1 is single-user for the vault itself.** Persistent, revocable multi-user access
+   (Compartmentalised vaults) is out of scope — see A4. One-shot fragment-key share links (A4b)
+   exist but are not a substitute: they're single-task, one-way, and have no revocation beyond a
+   7-day expiry.
 7. **The recovery code becomes a shared secret once sync is joined.** Before sync, it protects one
    device. After a second device joins a sync bucket (docs/ARCHITECTURE.md §5's keyring-bootstrap
    mechanism), the *same* recovery code unwraps the *same* DEK on every joined device — so anyone
@@ -132,6 +162,11 @@
       (meta-only `frame-ancestors` is ignored by browsers) — fixed via a real `_headers` file, but
       only effective once deployed behind a host that honors it. See `docs/SECURITY.md`.
 - [x] **Timing on unlock** — note whether unlock failure timing leaks anything meaningful.
+- [x] **Share-link key never reaches the relay** — create a share, then fetch its `GET
+      /share/<id>` response directly; confirm it contains only `{iv, ciphertext}`, never the
+      fragment key or plaintext. See `server/tests/test_share.py`.
+- [x] **Share-link tamper detection** — flip a character in the fragment key; confirm the viewer
+      fails closed with an error, never partially decrypts or renders content.
 
 ## How to read this document (for a reviewer)
 

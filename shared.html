@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Same connect-src widening as app.html, for the same reason: the server to
+     fetch the share from is named in the URL's query string, not knowable in
+     advance. See docs/THREAT_MODEL.md and app.html's own comment on this. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Shared task — Haven</title>
+<link rel="stylesheet" href="css/style.css?v=20260804j">
+</head>
+<body>
+
+<div class="lock-screen">
+  <div class="lock-card lock-card-wide">
+    <div class="lock-logo" aria-hidden="true">H</div>
+    <h1 class="lock-title">Shared task</h1>
+
+    <p class="share-view-loading" id="shareViewLoading">Decrypting&hellip;</p>
+    <p class="share-view-error" id="shareViewError" role="alert" hidden></p>
+
+    <div id="shareViewContent" hidden></div>
+
+    <div class="share-view-footer">
+      <p class="lock-sub share-view-footer-note">
+        This was decrypted entirely in your browser — the link's key never touched any server.
+      </p>
+      <a href="index.html" class="btn btn-primary btn-sm">Get your own Haven — it's free</a>
+    </div>
+  </div>
+</div>
+
+<script src="js/shared.js?v=20260804j" type="module"></script>
+</body>
+</html>

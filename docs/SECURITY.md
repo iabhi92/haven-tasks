@@ -84,6 +84,36 @@
 - [x] **Timing on unlock** — See "Wrong-passphrase behaviour" above; same finding, not a separate
       test.
 
+## Fragment-key share links — added Layer 2, verified 2026-08-04
+
+Same "actually run it" standard as above, against a real Playwright browser and a local Flask
+instance of `server/app.py` on port 5050. Full script: `test_share_links.mjs` (scratchpad,
+throwaway, same convention as everything else in this file).
+
+- [x] **The relay never sees the key or plaintext** — Created a share for a task with an
+      identifying title and notes, then issued a raw `fetch()` (not through the app) to
+      `GET /share/<id>`. The response body was exactly `{iv, ciphertext}` — the task title, the
+      notes text, and the fragment key itself were all absent from the raw response, confirmed by
+      substring search.
+- [x] **Fresh-context recipient decrypts via URL alone** — Opened the created link in a brand-new
+      Playwright browser context (no cookies, no localStorage, no IndexedDB carried over from the
+      sender). The task's title, notes, tag, and subtask all rendered correctly with zero setup —
+      no unlock screen, no passphrase prompt.
+- [x] **Recipient page persists nothing** — After viewing, `localStorage` and `indexedDB.databases()`
+      in the recipient's context were both empty. Closing the tab leaves no trace of the visit.
+- [x] **Tamper detection on the fragment key** — Flipped one character of the key in the URL
+      fragment. The viewer failed closed with a clear error and never rendered any task content
+      (`#shareViewContent` stayed `hidden`) — same AES-GCM auth-tag rejection as ordinary task
+      decryption.
+- [x] **Unknown/expired share id** — Requested a share id that was never created. Server returned
+      404; viewer showed "This link has expired or no longer exists," not a crash or a blank page.
+- [x] **Missing fragment key** — Loaded the link with the `#key` portion stripped entirely (as
+      would happen if only the query string were copied). Viewer detected the missing key
+      client-side and showed a clear error without attempting a request that could 404 confusingly.
+- [x] **Server-side entropy/expiry** — `server/tests/test_share.py` covers id uniqueness across
+      requests, the 20,000-char size cap per field, and that an artificially time-traveled clock
+      (`monkeypatch` on `time.time`) makes a share 404 once past its 7-day `expiresAt`.
+
 ## Server hardening applied this phase
 
 `server/app.py`'s `after_request` hook now sets, on every response (previously only CORS

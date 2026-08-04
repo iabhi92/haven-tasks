@@ -3,13 +3,29 @@
 scoped by bearer token, and nothing else. See docs/ARCHITECTURE.md §5.
 """
 
+import secrets
+import time
+
 from flask import Blueprint, current_app, jsonify, request
 
-from storage import get_keyring_bootstrap, get_records_since, put_keyring_bootstrap, upsert_records
+from storage import (
+    create_share,
+    get_keyring_bootstrap,
+    get_records_since,
+    get_share,
+    put_keyring_bootstrap,
+    upsert_records,
+)
 
 bp = Blueprint("sync", __name__)
 
 MAX_RECORDS_PER_PUSH = 500
+
+# Shares are anonymous (no bearer token) by design — the random id is the
+# only credential. These caps keep that from becoming free anonymous
+# storage: small payloads only, and gone again within a week.
+MAX_SHARE_FIELD_LEN = 20_000
+SHARE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 def _extract_token():
@@ -112,3 +128,35 @@ def pull_keyring_bootstrap():
         return jsonify({"error": "no keyring bootstrap published for this token yet"}), 404
 
     return jsonify(bootstrap)
+
+
+@bp.route("/share", methods=["POST"])
+def create_share_route():
+    """Deliberately unauthenticated: a share link's security comes entirely
+    from the fragment key never reaching this server (see
+    docs/ARCHITECTURE.md "Fragment-key share links"), not from a bearer
+    token. The share id is generated here, not client-supplied, so it always
+    has full server-side-verified entropy."""
+    body = request.get_json(silent=True) or {}
+    iv = body.get("iv")
+    ciphertext = body.get("ciphertext")
+    if not isinstance(iv, str) or not isinstance(ciphertext, str) or not iv or not ciphertext:
+        return jsonify({"error": "body must include non-empty iv and ciphertext strings"}), 400
+    if len(iv) > MAX_SHARE_FIELD_LEN or len(ciphertext) > MAX_SHARE_FIELD_LEN:
+        return jsonify({"error": "iv/ciphertext too large"}), 400
+
+    share_id = secrets.token_urlsafe(24)
+    now = int(time.time() * 1000)
+    expires_at = now + SHARE_TTL_SECONDS * 1000
+
+    create_share(current_app.config["SYNC_DB_PATH"], share_id, iv, ciphertext, now, expires_at)
+    return jsonify({"id": share_id, "expiresAt": expires_at})
+
+
+@bp.route("/share/<share_id>", methods=["GET"])
+def get_share_route(share_id):
+    now = int(time.time() * 1000)
+    share = get_share(current_app.config["SYNC_DB_PATH"], share_id, now)
+    if share is None:
+        return jsonify({"error": "share not found or expired"}), 404
+    return jsonify(share)

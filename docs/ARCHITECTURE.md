@@ -226,6 +226,45 @@ plaintext.
   row server-side (`iv`/`ciphertext` set to `NULL` on the same row, not just a flag toggled) — see
   `server/storage.py`'s `upsert_records`.
 
+## 5b. Fragment-key share links (Layer 2)
+
+Lets a task be shared read-only, without an account on either end, in a way even Haven's own
+relay server can't read. The trick is which part of the URL carries the key.
+
+- **Fresh key, not the DEK.** Sharing generates a brand-new random AES-256-GCM key
+  (`generateDek()` again, not the vault's own DEK) that exists only for this one share — it never
+  touches the keyring, and compromising it can't expose anything else in the vault.
+- **Payload:** a snapshot of `{title, notes, status, priority, dueDate, tags, subtasks}` — not the
+  full task record (no `id`, no `project`, no timestamps), encrypted with `encryptTask()`/the
+  fresh key exactly like a normal task record is.
+- **Where the key lives:** the resulting link is
+  `shared.html?server=<relay>&id=<share-id>#<base64url key>`. The key is placed *only* in the URL
+  fragment (after `#`). Per the URL spec, browsers never send the fragment to any server — not the
+  relay, not the static host, not even in the `Referer` header of outbound requests from that
+  page. `server`/`id` are non-secret routing info and can safely sit in the query string, same as
+  how a sync server URL is already treated as non-sensitive local config.
+- **Endpoints (deliberately unauthenticated — see `server/routes.py`):**
+  - `POST /share` — body: `{iv, ciphertext}`. Server generates the id itself
+    (`secrets.token_urlsafe(24)`, so it always has full entropy regardless of client behavior).
+    Returns `{id, expiresAt}`. Caps `iv`/`ciphertext` at 20,000 chars each to keep this from
+    becoming free anonymous storage.
+  - `GET /share/<id>` — returns `{iv, ciphertext}`, or 404 if missing or past `expiresAt`.
+  - No bearer token: the random id *is* the capability, same entropy class as a sync token or
+    recovery code. This is intentional, not an oversight — the whole point is a recipient needs
+    nothing but the link.
+- **Expiry:** 7 days, enforced server-side (`server/storage.py`'s `get_share`); expired rows are
+  swept lazily rather than on a schedule.
+- **Which server relays it:** the share flow reuses the user's configured sync server if they have
+  one (`getSyncConfig()`), else falls back to the project's own hosted relay
+  (`https://haven-sync.onrender.com`) — sharing a single task shouldn't require setting up sync
+  first.
+- **The viewer (`shared.html`/`js/shared.js`):** no unlock screen, no IndexedDB, no keyring —
+  fetches `{iv, ciphertext}`, imports the fragment key, decrypts, and renders read-only via
+  `textContent` only (same never-`innerHTML` discipline as the rest of the app). Nothing about the
+  visit is ever persisted locally; closing the tab leaves no trace on that device.
+- **What the relay server learns:** ciphertext size, creation/expiry timestamps, the share id, and
+  request timing. Never the plaintext task, never the key.
+
 ## 6. The "You vs The Server" reveal
 
 Purely a rendering of data the app already has — no new crypto.
