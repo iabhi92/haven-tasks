@@ -135,6 +135,28 @@
     normally first) and redistributing fresh shares — the same limitation A4b's share links have,
     for the same underlying reason: a secret already handed out can't be un-handed-out.
 
+### A4d. Whoever controls a registered passkey's authenticator
+- **Capability:** anyone who can complete a WebAuthn assertion against the registered authenticator
+  (someone with the physical hardware key, or biometric/PIN access to the platform authenticator)
+  can unlock the vault, exactly as fully as someone who knows the passphrase can.
+- **Defense:** `userVerification: "required"` on every ceremony — a bare "the device is present"
+  isn't enough, the authenticator itself must confirm the biometric/PIN/presence check it was
+  configured with. This app never sees or stores that verification method; the authenticator does.
+- **Residual risk, stated plainly:**
+  - **This is a second, equally-capable unlock path, not a lesser one.** Someone who steals a
+    device with a registered platform authenticator, and can also satisfy its user-verification
+    (e.g. the device owner's own fingerprint on their own stolen laptop, or a coerced unlock),
+    gets full vault access without ever needing the passphrase. Adding a passkey widens who/what
+    can unlock the vault; it doesn't add a check on top of the passphrase.
+  - **No cross-device sync of the passkey-wrapped copies.** `wrappedDekHardware` lives only in
+    this device's local keyring — registering a passkey on one device doesn't make it work on
+    another, even if the underlying passkey credential itself is synced by the platform (e.g.
+    iCloud Keychain, Google Password Manager) — the wrapped bytes it would need to unwrap aren't
+    part of what those platforms sync.
+  - **Stale wrapped copies after a recovery-code passphrase reset**, since that flow rolls a fresh
+    signing key — see docs/ARCHITECTURE.md §4c's own stated residual limitation for the exact
+    mechanics; re-registering the passkey after a reset avoids it.
+
 ### A5. XSS — the existential threat
 - **Capability:** if an attacker can run JavaScript in the app's origin, they can read the DEK and
   plaintext directly from memory before encryption, defeating the entire scheme.
@@ -259,6 +281,19 @@
 - [x] **integrity.json has no drift** — recomputed every listed file's SHA-384 independently and
       confirmed it matches the manifest exactly, catching the case where a file was edited without
       re-running `scripts/generate-integrity.mjs`.
+- [x] **Passkey unlock: wrong passphrase never starts a WebAuthn ceremony** — entering an
+      incorrect passphrase in "Add a passkey" is rejected before `navigator.credentials.create()`
+      is ever called; no browser prompt appears, nothing is persisted.
+- [x] **Passkey unlock: an authenticator that can't support this is refused cleanly** — registered
+      against a virtual authenticator with `largeBlob` disabled; confirmed a specific error and
+      confirmed via direct IndexedDB inspection that no `webauthnCredentialId` or wrapped-key
+      fields were written.
+- [x] **Passkey unlock: full unlock works with zero passphrase entry**, and the tamper-evident
+      history log's signing key is correctly derived through the same path (an entry added
+      immediately after a passkey unlock still verifies) — confirming `KEK_hw` unwraps both
+      `wrappedDekHardware` and `wrappedSigningKeyHardware` correctly, not just one of the two.
+- [x] **Removing a passkey cleanly falls back to the passphrase** — after removal, the unlock
+      button disappears and the original passphrase still unlocks the vault normally.
 
 ## How to read this document (for a reviewer)
 

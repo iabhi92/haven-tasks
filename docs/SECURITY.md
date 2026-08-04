@@ -260,6 +260,43 @@ API URL into a tab).
    still applies unchanged (PBKDF2 vs Argon2id, metadata visibility, single-user v1, etc.) — this
    document doesn't repeat them, it only adds what Phase 7's self-attack pass specifically found.
 
+## WebAuthn passkey unlock — verified 2026-08-05
+
+Tested against Chromium's CDP virtual authenticator (`WebAuthn.addVirtualAuthenticator` with
+`hasLargeBlob: true`, `ctap2Version: "ctap2_1"`) — real WebAuthn ceremonies, ES modules and all,
+not mocked API calls. One real design mistake was caught and fixed during this pass, not just
+confirmed working — see the second item below.
+
+- [x] **Full unlock works with zero passphrase entry, including the history-signing key path** —
+      Registered a passkey through the real "Add a passkey" UI (re-entering the passphrase as the
+      flow requires), locked, and unlocked using only the passkey button — no passphrase typed.
+      Confirmed the existing task was readable, *and* that adding a new task and running "Verify
+      history" afterward showed an intact chain — proving `KEK_hw` correctly unwrapped both
+      `wrappedDekHardware` and `wrappedSigningKeyHardware`, not just the DEK half.
+- [x] **Found and fixed a real WebAuthn API misuse: `support: "required"` vs `"preferred"`** — The
+      first implementation requested `largeBlob.support: "required"` on registration, reasoning
+      that the feature is required for this to work at all. Testing against a virtual authenticator
+      with `largeBlob` disabled showed the actual behavior: `create()` itself throws, and the
+      browser reports it as the exact same generic `NotAllowedError` a cancelled/timed-out ceremony
+      produces (deliberate WebAuthn privacy behavior — a site shouldn't be able to fingerprint
+      authenticator capabilities from which error it gets). The UI's specific "doesn't support the
+      storage this needs" message was unreachable as a result. Fixed by switching to `"preferred"`,
+      under which `create()` succeeds regardless and the real answer is read from
+      `getClientExtensionResults().largeBlob.supported` — re-tested against the same
+      largeBlob-disabled authenticator to confirm the specific message is now actually reachable.
+- [x] **Wrong passphrase during registration never reaches the browser's WebAuthn prompt** —
+      Entered an incorrect passphrase in "Add a passkey." Rejected with "That's not your current
+      passphrase" before `navigator.credentials.create()` is called at all — confirmed by the
+      absence of any WebAuthn ceremony (no CDP `WebAuthn.addVirtualAuthenticator` interaction
+      logged) and the setup section staying in place rather than advancing.
+- [x] **Unsupported authenticator leaves the keyring untouched** — After the `"preferred"` fix
+      above, registering against a `largeBlob`-disabled authenticator shows the specific error and
+      leaves `webauthnCredentialId`/`wrappedDekHardware` absent from the keyring, confirmed by
+      direct IndexedDB inspection, not just by the UI staying on the setup screen.
+- [x] **Removing a passkey falls back cleanly** — After registering, then removing via "Remove
+      passkey," the lock screen's passkey button disappears and the original passphrase still
+      unlocks the vault without any degradation.
+
 ## How to re-run this
 
 - Frontend checks: serve the repo root (`python3 -m http.server 8123`), drive it with Playwright

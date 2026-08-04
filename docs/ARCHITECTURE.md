@@ -254,6 +254,62 @@ unlock-path code to audit.
   operation — never written anywhere new; the resulting shares are exactly as sensitive as the
   original code was, just spread across more people.
 
+## 4c. WebAuthn passkey unlock (Layer 2)
+
+A faster alternative to typing the passphrase — Touch ID, Windows Hello, or a hardware security
+key — implemented as a **third parallel wrap of the DEK** (and the history-signing key), alongside
+the passphrase-wrapped and recovery-code-wrapped copies from §1/§4. The passphrase remains fully
+functional and is not weakened or bypassed; this is an additional door, not a replacement one.
+
+- **Mechanism: `largeBlob`, not `prf`.** WebAuthn has two extensions that can hand a website secret
+  bytes tied to a credential: `prf` (derives a value deterministically via HMAC) and `largeBlob`
+  (stores/retrieves an arbitrary blob directly). This project uses `largeBlob`: a random 256-bit
+  secret is generated client-side and *stored* via the credential (not derived from it). Real-world
+  authenticator support for the two extensions differs and neither is universal — `largeBlob`
+  specifically requires a CTAP2.1 authenticator with resident-key and large-blob support.
+- **`KEK_hw`:** the stored secret is imported directly as an AES-256-GCM key
+  (`importDek(secretBytes)` — no PBKDF2. Unlike a human passphrase, this secret is already
+  full-entropy random, so stretching it would add cost without adding security, the same reasoning
+  `generateHardwareSecret()`'s own doc comment gives.) `KEK_hw` wraps a *second* copy of the DEK
+  (`wrappedDekHardware`/`wrapIvHardware`) and a second copy of the history-signing private key's
+  PKCS8 export (`wrappedSigningKeyHardware`/`signingKeyWrapIvHardware`) — both via the generic
+  `wrapRawBytes()`/`unwrapDek()` pair (the latter reused as-is: it's just "AES-GCM-decrypt these
+  bytes," indifferent to what the bytes represent).
+- **Registration requires the current passphrase**, re-entered in the "Add a passkey" modal —
+  not because the live in-memory `dek`/`historySigningKey` couldn't theoretically be used, but
+  because both are deliberately imported **non-extractable** during normal operation (`importDek`'s
+  default, `unwrapSigningKey`'s hardcoded `false`) precisely so nothing at runtime can ever export
+  them. Re-deriving `KEK` from a freshly-entered passphrase and re-unwrapping `wrappedDek`/
+  `wrappedSigningKey` from scratch is the only way to get extractable raw bytes to re-wrap — the
+  same trade a browser DevTools inspector would face, not a shortcut this code takes for itself.
+- **The registration ceremony is two WebAuthn prompts, not one — this is spec behavior, not a
+  bug.** `largeBlob.write` is only available during an assertion (`get()`), never during the
+  `create()` that registers the credential. So "Add a passkey" does `create()` (register, check
+  `largeBlobSupported`) then immediately `get()` (write the secret) — two separate authenticator
+  interactions the user will see back-to-back.
+- **`support: "preferred"`, not `"required"` — a real, caught issue during development.** WebAuthn
+  lets `create()` request `largeBlob.support: "required"`, which sounds like the right choice for
+  a feature this depends on — but the browser deliberately reports an authenticator's lack of
+  `largeBlob` support as the exact same generic `NotAllowedError` a cancelled or timed-out ceremony
+  gets (a WebAuthn privacy property: a site shouldn't be able to fingerprint an authenticator's
+  capabilities by which specific error it gets back). With `"required"`, this app could not tell
+  "your authenticator doesn't support this" apart from "you cancelled" to show an accurate message.
+  Switched to `"preferred"`, under which `create()` succeeds regardless and the real answer is read
+  from `getClientExtensionResults().largeBlob.supported` afterward — verified with a virtual
+  authenticator that has `largeBlob` disabled, confirming the specific, accurate error path.
+- **Unlock:** `readLargeBlob()` performs a `get()` assertion, retrieves the secret, and from there
+  proceeds exactly like a normal unlock (derive `KEK_hw`, unwrap, `afterUnlock()`) — no passphrase
+  involved anywhere in this path.
+- **Residual limitation, stated plainly:** if the passphrase is later changed via the
+  recovery-code reset flow (§4, which rolls a fresh signing key by design), a passkey registered
+  *before* that reset still holds the *old* wrapped DEK/signing-key copies. Unlocking via passkey
+  after such a reset would restore access to the vault correctly (the DEK itself doesn't change on
+  a passphrase reset, only its wrapping) but would resume signing history entries under the
+  pre-reset signing key rather than the post-reset one — not a correctness bug (the old key is
+  still in `signingKeyLog`, so verification still passes) but a minor inconsistency a user who
+  both loses their passphrase *and* uses a passkey regularly could hit. Re-registering the passkey
+  after any recovery-code reset avoids this; not automated in v1.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

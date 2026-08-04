@@ -125,8 +125,11 @@ data."*
       High · Signal: high. Shipped: hand-implemented GF(256) SSS (`js/crypto.js`), splits the
       existing recovery code itself so reconstruction re-enters the existing recovery-code unlock
       flow unchanged — see docs/ARCHITECTURE.md §4b.
-- [ ] Hardware key / passkey (WebAuthn) unlock as an alternative to passphrase — High · Signal:
-      high
+- [x] Hardware key / passkey (WebAuthn) unlock as an alternative to passphrase — High · Signal:
+      high. Shipped: `largeBlob`-based (not `prf` — real authenticator/test-tooling support for
+      `largeBlob` was verifiable end-to-end, see docs/ARCHITECTURE.md §4c for why), a third
+      parallel wrap of the DEK alongside the passphrase and recovery-code copies. Passphrase
+      remains fully functional; this adds a door, doesn't replace one.
 
 ### Trust-minimization
 

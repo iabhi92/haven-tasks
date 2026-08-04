@@ -1285,6 +1285,7 @@ body { display: flex; }
   min-height: 1em;
 }
 .lock-submit { width: 100%; padding: 11px; font-size: 14px; }
+.lock-passkey-btn { margin-bottom: 16px; }
 .lock-error.is-ok { color: var(--success); }
 .sync-close-row { margin-top: 16px; }
 

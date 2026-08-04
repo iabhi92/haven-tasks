@@ -7,7 +7,7 @@ import {
   appendHistoryEntry,
   getAllHistoryEntries,
   getLastHistoryEntry,
-} from "./store.js?v=20260804n";
+} from "./store.js?v=20260804o";
 import {
   renderBoard,
   renderList,
@@ -40,7 +40,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804n";
+} from "./ui.js?v=20260804o";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -71,7 +71,15 @@ import {
   reconstructSecret,
   encodeShare,
   decodeShare,
-} from "./crypto.js?v=20260804n";
+  generateHardwareSecret,
+  wrapRawBytes,
+} from "./crypto.js?v=20260804o";
+import {
+  isWebAuthnAvailable,
+  registerPasskey,
+  writeLargeBlob,
+  readLargeBlob,
+} from "./webauthn.js?v=20260804o";
 import {
   generateSyncToken,
   pushRecords,
@@ -80,7 +88,7 @@ import {
   pullKeyringBootstrap,
   pushShare,
   deleteShare,
-} from "./sync.js?v=20260804n";
+} from "./sync.js?v=20260804o";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -913,6 +921,152 @@ function wireSocialRecoveryModal() {
     document.getElementById("socialRecoverySetupSection").hidden = true;
     document.getElementById("socialRecoveryResultSection").hidden = false;
   });
+}
+
+// ---------- WebAuthn passkey unlock (settings, while unlocked) ----------
+// See docs/ARCHITECTURE.md "WebAuthn passkey unlock" for the full design.
+// Short version: a random 256-bit secret is stored via the authenticator's
+// largeBlob extension; that secret becomes KEK_hw (imported directly, no
+// PBKDF2 — it's already full entropy), which wraps a *second* copy of the
+// DEK and the signing private key, parallel to the passphrase-wrapped
+// copies. Requires re-entering the passphrase to obtain extractable raw
+// bytes to re-wrap — the live in-memory `dek`/`historySigningKey` are
+// deliberately non-extractable and stay that way.
+
+async function openPasskeyModal() {
+  document.getElementById("passkeySetupPassphrase").value = "";
+  document.getElementById("passkeyError").textContent = "";
+  document.getElementById("passkeyModal").hidden = false;
+  await refreshPasskeyModalState();
+}
+
+async function refreshPasskeyModalState() {
+  const keyring = await getKeyring();
+  const hasPasskey = !!keyring.webauthnCredentialId;
+  document.getElementById("passkeySetupSection").hidden = hasPasskey;
+  document.getElementById("passkeyResultSection").hidden = !hasPasskey;
+}
+
+function closePasskeyModal() {
+  document.getElementById("passkeyModal").hidden = true;
+  document.getElementById("passkeySetupPassphrase").value = "";
+}
+
+function wirePasskeyModal() {
+  const overlay = document.getElementById("passkeyModal");
+  const errorEl = document.getElementById("passkeyError");
+
+  document.getElementById("passkeyCancelBtn").addEventListener("click", () => closePasskeyModal());
+  document.getElementById("passkeyDoneBtn").addEventListener("click", () => closePasskeyModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closePasskeyModal();
+  });
+
+  document.getElementById("passkeyRegisterBtn").addEventListener("click", async () => {
+    errorEl.textContent = "";
+    if (!isWebAuthnAvailable()) {
+      errorEl.textContent = "This browser doesn't support passkeys.";
+      return;
+    }
+
+    const passphrase = document.getElementById("passkeySetupPassphrase").value;
+    const keyring = await getKeyring();
+    const kek = await deriveKek(passphrase, base64ToBuf(keyring.salt));
+
+    let rawDekBytes, rawSigningKeyBytes;
+    try {
+      rawDekBytes = await unwrapDek(keyring.wrappedDek, keyring.wrapIv, kek);
+      rawSigningKeyBytes = await unwrapDek(keyring.wrappedSigningKey, keyring.signingKeyWrapIv, kek);
+    } catch {
+      errorEl.textContent = "That's not your current passphrase.";
+      return;
+    }
+
+    let registration;
+    try {
+      registration = await registerPasskey({
+        userId: crypto.getRandomValues(new Uint8Array(16)),
+        userName: "Haven vault",
+      });
+    } catch (err) {
+      errorEl.textContent = "Couldn't create a passkey — it may have been cancelled.";
+      return;
+    }
+    if (!registration.largeBlobSupported) {
+      errorEl.textContent = "That authenticator doesn't support the storage this needs. Nothing was changed — try a different authenticator.";
+      return;
+    }
+
+    const hardwareSecret = generateHardwareSecret();
+    try {
+      await writeLargeBlob(registration.credentialId, hardwareSecret);
+    } catch (err) {
+      errorEl.textContent = "Couldn't save the passkey's data — try again.";
+      return;
+    }
+
+    const kekHw = await importDek(hardwareSecret);
+    const { wrapped: wrappedDekHardware, iv: wrapIvHardware } = await wrapRawBytes(rawDekBytes, kekHw);
+    const { wrapped: wrappedSigningKeyHardware, iv: signingKeyWrapIvHardware } = await wrapRawBytes(rawSigningKeyBytes, kekHw);
+
+    await putKeyring({
+      ...keyring,
+      webauthnCredentialId: bufToBase64(registration.credentialId),
+      wrappedDekHardware,
+      wrapIvHardware,
+      wrappedSigningKeyHardware,
+      signingKeyWrapIvHardware,
+    });
+
+    document.getElementById("passkeySetupPassphrase").value = "";
+    await refreshPasskeyModalState();
+    document.getElementById("passkeyUnlockBtn").hidden = false;
+  });
+
+  document.getElementById("passkeyRemoveBtn").addEventListener("click", async () => {
+    const keyring = await getKeyring();
+    const { webauthnCredentialId, wrappedDekHardware, wrapIvHardware, wrappedSigningKeyHardware, signingKeyWrapIvHardware, ...rest } = keyring;
+    await putKeyring(rest);
+    await refreshPasskeyModalState();
+    document.getElementById("passkeyUnlockBtn").hidden = true;
+  });
+}
+
+// Lock-screen unlock — no passphrase involved at all. Re-derives KEK_hw from
+// the largeBlob secret, unwraps the hardware-wrapped copies of the DEK and
+// signing key, and proceeds exactly like a normal unlock from there.
+async function unlockWithPasskey() {
+  const errorEl = document.getElementById("unlockError");
+  setUnlockError("");
+  const keyring = await getKeyring();
+  if (!keyring.webauthnCredentialId) return;
+
+  let secretBytes;
+  try {
+    secretBytes = await readLargeBlob(base64ToBuf(keyring.webauthnCredentialId));
+  } catch (err) {
+    setUnlockError("Couldn't use the passkey — it may have been cancelled or isn't available on this device.");
+    return;
+  }
+  if (!secretBytes) {
+    setUnlockError("No passkey data found. Unlock with your passphrase instead.");
+    return;
+  }
+
+  try {
+    const kekHw = await importDek(secretBytes);
+    const rawDekBytes = await unwrapDek(keyring.wrappedDekHardware, keyring.wrapIvHardware, kekHw);
+    dek = await importDek(rawDekBytes);
+    const rawSigningKeyBytes = await unwrapDek(keyring.wrappedSigningKeyHardware, keyring.signingKeyWrapIvHardware, kekHw);
+    historySigningKey = await crypto.subtle.importKey("pkcs8", rawSigningKeyBytes, { name: "Ed25519" }, false, ["sign"]);
+    historySigningPublicKeyB64 = keyring.signingPublicKey;
+    await primeHistoryChainTip();
+  } catch (err) {
+    setUnlockError("Couldn't unlock with this passkey.");
+    return;
+  }
+
+  await afterUnlock();
 }
 
 function openSyncModal() {
@@ -1766,6 +1920,7 @@ function getCmdkItems() {
     { label: "Import tasks from JSON", action: () => document.getElementById("importFileInput").click() },
     { label: "Sync settings", action: openSyncModal },
     { label: "Set up social recovery", action: openSocialRecoveryModal },
+    { label: "Add a passkey", action: openPasskeyModal },
   ];
 }
 
@@ -2189,9 +2344,13 @@ async function boot() {
   const keyring = await getKeyring();
   if (keyring) {
     showUnlockScreen();
+    if (keyring.webauthnCredentialId && isWebAuthnAvailable()) {
+      document.getElementById("passkeyUnlockBtn").hidden = false;
+    }
   } else {
     showSetupScreen();
   }
+  document.getElementById("passkeyUnlockBtn").addEventListener("click", () => unlockWithPasskey());
   wireLockScreen();
   wireLockButton();
   wireQuickAdd();
@@ -2211,6 +2370,7 @@ async function boot() {
   wireHistoryView();
   wireSyncModal();
   wireSocialRecoveryModal();
+  wirePasskeyModal();
 }
 
 wireThemeToggle();

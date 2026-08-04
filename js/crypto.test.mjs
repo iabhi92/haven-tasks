@@ -29,6 +29,8 @@ import {
   reconstructSecret,
   encodeShare,
   decodeShare,
+  generateHardwareSecret,
+  wrapRawBytes,
 } from "./crypto.js";
 
 const results = [];
@@ -265,6 +267,29 @@ await test("17. SSS: full round trip produces the IDENTICAL recovery code string
   const reconstructedSecret = reconstructSecret([shares[1], shares[2], shares[4]]);
   const reconstructedCode = bytesToRecoveryCode(reconstructedSecret);
   assert.equal(reconstructedCode, originalCode);
+});
+
+// ---- 18. WebAuthn passkey unlock: hardware secret wraps/unwraps arbitrary raw bytes ----
+await test("18. wrapRawBytes + unwrapDek round-trip arbitrary bytes (e.g. a signing key's PKCS8 export) under a hardware-secret-derived key", async () => {
+  const hardwareSecret = generateHardwareSecret();
+  assert.equal(hardwareSecret.length, 32);
+  const kekHw = await importDek(hardwareSecret); // no PBKDF2 — already full-entropy random bytes
+
+  const arbitraryBytes = crypto.getRandomValues(new Uint8Array(48)); // e.g. PKCS8 export length
+  const { wrapped, iv } = await wrapRawBytes(arbitraryBytes, kekHw);
+  const unwrapped = new Uint8Array(await unwrapDek(wrapped, iv, kekHw));
+  assert.deepEqual(unwrapped, arbitraryBytes);
+});
+
+await test("19. WebAuthn passkey unlock: wrong hardware secret fails closed", async () => {
+  const realSecret = generateHardwareSecret();
+  const wrongSecret = generateHardwareSecret();
+  const kekHw = await importDek(realSecret);
+  const wrongKekHw = await importDek(wrongSecret);
+
+  const dekBytes = crypto.getRandomValues(new Uint8Array(32));
+  const { wrapped, iv } = await wrapRawBytes(dekBytes, kekHw);
+  await assert.rejects(() => unwrapDek(wrapped, iv, wrongKekHw));
 });
 
 // ---- report ----

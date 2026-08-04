@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804n" integrity="sha384-NKPgpHKJ+yFrh1ftn0a14BQuqXc+tjgg8tP0R5VSf7CuFSjp2o6ClHGDCgl9WRYl" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260804o" integrity="sha384-c5fPTs2MUpKzTYKsVgQD5QspaQ4KQo39nnxyrDlOcwBaIwtSGV4oxTWvtm5gCDzF" crossorigin="anonymous">
 </head>
 <body>
 
@@ -60,6 +60,7 @@
 
     <form id="unlockForm" class="lock-form" autocomplete="off" hidden>
       <p class="lock-sub">Enter your passphrase to unlock your tasks.</p>
+      <button type="button" class="btn btn-ghost lock-submit lock-passkey-btn" id="passkeyUnlockBtn" hidden>Unlock with passkey</button>
       <div class="field">
         <label for="unlockPassphrase">Passphrase</label>
         <input type="password" id="unlockPassphrase" autocomplete="current-password" required>
@@ -659,6 +660,39 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="passkeyModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="passkeyModalTitle">
+    <h2 id="passkeyModalTitle">Unlock with a passkey</h2>
+
+    <div id="passkeySetupSection">
+      <p class="modal-help">
+        Add a passkey (Touch ID, Windows Hello, or a hardware security key) as a faster way to
+        unlock — your passphrase still works too, and still is what protects the actual encryption
+        key underneath. Needs an authenticator that supports resident keys and encrypted storage
+        (most modern platform authenticators do); if yours doesn't, you'll get a clear error and
+        nothing will be changed.
+      </p>
+      <div class="field">
+        <label for="passkeySetupPassphrase">Confirm your passphrase</label>
+        <input type="password" id="passkeySetupPassphrase" autocomplete="current-password">
+      </div>
+      <p class="lock-error" id="passkeyError" role="alert"></p>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-ghost" id="passkeyCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="passkeyRegisterBtn">Add passkey</button>
+      </div>
+    </div>
+
+    <div id="passkeyResultSection" hidden>
+      <p class="modal-help">Passkey added. You can use it next time you unlock, from this device.</p>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-danger" id="passkeyRemoveBtn">Remove passkey</button>
+        <button type="button" class="btn btn-primary" id="passkeyDoneBtn">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="syncModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <h2 id="syncModalTitle">Sync (optional)</h2>
@@ -725,6 +759,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json" hidden>
 
-<script src="js/app.js?v=20260804n" integrity="sha384-AO31GP82mONF8hNOK49LekPRBP/CcOOrG7Tu81P8xnznq7OqoHlR0+WibFBprvlx" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260804o" integrity="sha384-eERQGluguTuMlAEPff+GzQ2TzO8DSR8xSMZ2PBkuF1GPZ6BcUIhYMPB1HyINZsBq" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

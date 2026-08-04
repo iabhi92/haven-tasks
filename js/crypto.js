@@ -31,6 +31,15 @@ export function generateSalt() {
   return crypto.getRandomValues(new Uint8Array(16));
 }
 
+// A random 256-bit secret stored via WebAuthn largeBlob (docs/ARCHITECTURE.md
+// "WebAuthn passkey unlock") — unlike a human passphrase, this never needs
+// PBKDF2 stretching: it's already full-entropy, so it's imported directly as
+// an AES-256-GCM key (via importDek(), which despite the name is a generic
+// raw-bytes-to-AES-GCM-key import) rather than run through deriveKek().
+export function generateHardwareSecret() {
+  return crypto.getRandomValues(new Uint8Array(32));
+}
+
 // URL-safe variants — used for the share-link fragment key (docs/ARCHITECTURE.md
 // "Fragment-key share links"), where raw base64's +/= would need escaping.
 export function bufToBase64Url(buf) {
@@ -79,6 +88,17 @@ export async function wrapDek(dek, kek) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const wrapped = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, kek, raw);
   return { wrappedDek: bufToBase64(wrapped), wrapIv: bufToBase64(iv) };
+}
+
+// Generic AES-256-GCM encrypt of already-raw bytes under a key — unlike
+// wrapDek(), does not export a CryptoKey first, because sometimes what's
+// being wrapped (e.g. a signing key's PKCS8 bytes, en route to also being
+// wrapped under a WebAuthn-derived key — see "WebAuthn passkey unlock") is
+// already raw bytes with no CryptoKey to export from.
+export async function wrapRawBytes(bytes, kek) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const wrapped = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, kek, bytes);
+  return { wrapped: bufToBase64(wrapped), iv: bufToBase64(iv) };
 }
 
 // Returns raw DEK bytes (ArrayBuffer), not a CryptoKey — callers import via
