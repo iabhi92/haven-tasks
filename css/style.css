@@ -1316,6 +1316,15 @@ body { display: flex; }
 @media (max-width: 860px) {
   body { flex-direction: column; }
   .rail {
+    /* .rail's flex: 0 0 76px / width: 76px are sized for the desktop
+       left-sidebar layout, where the main flex axis is horizontal (so
+       flex-basis controls width). Once `body` switches to a vertical
+       main axis above, that same flex-basis silently starts constraining
+       *height* instead — collapsing the rail into a small square instead
+       of a full-width top bar. Both have to be reset here, not just the
+       explicit height/width already below. */
+    flex: 0 0 auto;
+    width: auto;
     height: auto;
     margin: 12px;
     border-radius: 18px;
@@ -1325,6 +1334,14 @@ body { display: flex; }
     gap: 16px;
   }
   .rail-nav { flex-direction: row; }
+  .theme-toggle-btn { margin-top: 0; margin-left: auto; }
+  /* The quick-add bar's priority/date fields have no explicit width, so on
+     narrow screens they were pushing the date input past the edge of the
+     bar instead of shrinking — found by actually testing at a phone
+     viewport width, not just eyeballing the desktop layout. */
+  .quick-add { flex-wrap: wrap; }
+  .quick-add input[type="text"] { flex: 1 1 100%; }
+  .quick-add-priority, .quick-add-date { flex: 1 1 auto; min-width: 0; }
   .board { grid-template-columns: 1fr; }
   .page-header { flex-wrap: wrap; }
   .header-actions { width: 100%; }
