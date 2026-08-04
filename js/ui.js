@@ -507,6 +507,20 @@ export function showUndoToast(message, onUndo) {
   undoToastTimer = setTimeout(() => { toast.hidden = true; }, 6000);
 }
 
+// Same toast, no action button — for one-off status messages (e.g. an
+// import summary) that don't have anything to undo.
+export function showInfoToast(message) {
+  clearTimeout(undoToastTimer);
+  const toast = document.getElementById("undoToast");
+  document.getElementById("undoToastMessage").textContent = message;
+  document.getElementById("undoToastBtn").hidden = true;
+  toast.hidden = false;
+  undoToastTimer = setTimeout(() => {
+    toast.hidden = true;
+    document.getElementById("undoToastBtn").hidden = false;
+  }, 6000);
+}
+
 // ---------- command palette ----------
 
 export function openCmdk() {

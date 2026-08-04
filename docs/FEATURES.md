@@ -85,7 +85,9 @@ data."*
 - [x] No-account instant start — Low · Signal: high
 - [x] Full offline operation — Low
 - [x] Recovery-code flow (humane, honest) — Med · Signal: high
-- [ ] Encrypted export/import + portable backups — Med (export exists; import does not yet)
+- [x] Encrypted export/import + portable backups — Med (both now exist; see the comment above
+      `exportTasks()` in `js/app.js` — "encrypted" here describes where imported data lands, not
+      a separately-encrypted file format, which would be a distinct, unbuilt feature)
 - [x] Self-hostable sync server (optional, off by default) — Med
 - [x] "You vs The Server" live transparency panel — Low · Signal: high
 - [x] "How your data is protected" page + raw-ciphertext DB dump — Low · Signal: high

@@ -1,4 +1,4 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804h";
+import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804i";
 import {
   renderBoard,
   renderList,
@@ -12,6 +12,7 @@ import {
   readAddForm,
   renderSubtaskList,
   showUndoToast,
+  showInfoToast,
   getDragAfterElement,
   renderStats,
   setPageSubtitle,
@@ -29,7 +30,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804h";
+} from "./ui.js?v=20260804i";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -45,14 +46,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64,
   base64ToBuf,
-} from "./crypto.js?v=20260804h";
+} from "./crypto.js?v=20260804i";
 import {
   generateSyncToken,
   pushRecords,
   pullRecords,
   pushKeyringBootstrap,
   pullKeyringBootstrap,
-} from "./sync.js?v=20260804h";
+} from "./sync.js?v=20260804i";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -494,6 +495,88 @@ function exportTasks() {
   URL.revokeObjectURL(url);
 }
 
+// exportTasks() writes plain JSON (the already-decrypted in-memory task
+// list) — a portable backup, not a separately-encrypted file format. Import
+// is the exact mirror: it never touches the network, reads a local file the
+// same way an <input type="file"> always has, and whatever it adds goes
+// through the same encrypt-before-store path as a task typed by hand.
+// "Encrypted" here describes where the data lives once imported (the app's
+// storage), not the backup file itself — encrypting the export file too
+// would be a real, separate feature (its own passphrase/key entry UX), not
+// implemented here.
+const MAX_IMPORT_RECORDS = 500; // matches server/routes.py's MAX_RECORDS_PER_PUSH, same reasoning
+
+function normalizeImportedTask(raw, fallbackStatus) {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.id !== "string" || typeof raw.title !== "string" || !raw.title.trim()) return null;
+  const status = STATUSES.includes(raw.status) ? raw.status : fallbackStatus;
+  return {
+    id: raw.id,
+    title: raw.title.trim(),
+    project: typeof raw.project === "string" && raw.project.trim() ? raw.project.trim() : "Inbox",
+    notes: typeof raw.notes === "string" ? raw.notes : "",
+    status,
+    priority: ["low", "medium", "high"].includes(raw.priority) ? raw.priority : "medium",
+    dueDate: typeof raw.dueDate === "string" ? raw.dueDate : null,
+    tags: Array.isArray(raw.tags) ? raw.tags.filter((t) => typeof t === "string") : [],
+    subtasks: Array.isArray(raw.subtasks)
+      ? raw.subtasks
+          .filter((s) => s && typeof s.title === "string")
+          .map((s) => ({ id: typeof s.id === "string" ? s.id : uuid(), title: s.title, done: !!s.done }))
+      : [],
+    recurrence: ["daily", "weekly", "monthly"].includes(raw.recurrence) ? raw.recurrence : null,
+    order: typeof raw.order === "number" ? raw.order : nextOrder(status),
+    createdAt: typeof raw.createdAt === "number" ? raw.createdAt : now(),
+    updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : now(),
+  };
+}
+
+// Merge, not overwrite: an imported task with an id that already exists
+// locally only replaces the local copy if it's actually newer — the same
+// last-write-wins rule the sync protocol uses (docs/ARCHITECTURE.md §5) —
+// so re-importing the same backup twice, or importing a slightly stale
+// backup over current data, can't silently destroy newer local edits.
+async function importTasksFromFile(file) {
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    showInfoToast("Import failed: that file isn't valid JSON.");
+    return;
+  }
+  if (!Array.isArray(parsed)) {
+    showInfoToast("Import failed: expected a JSON array of tasks (the format Haven's own export produces).");
+    return;
+  }
+
+  const items = parsed.slice(0, MAX_IMPORT_RECORDS);
+  let added = 0, updated = 0, skipped = 0;
+  const toPersist = [];
+
+  for (const raw of items) {
+    const candidate = normalizeImportedTask(raw, "todo");
+    if (!candidate) { skipped++; continue; }
+    const existing = tasks.find((t) => t.id === candidate.id);
+    if (!existing) {
+      tasks.push(candidate);
+      toPersist.push(candidate);
+      added++;
+    } else if (candidate.updatedAt > existing.updatedAt) {
+      Object.assign(existing, candidate);
+      toPersist.push(existing);
+      updated++;
+    } else {
+      skipped++;
+    }
+  }
+
+  render();
+  for (const task of toPersist) await persistTask(task);
+
+  const skippedNote = parsed.length > MAX_IMPORT_RECORDS ? ` (file had ${parsed.length}, only the first ${MAX_IMPORT_RECORDS} were read)` : "";
+  showInfoToast(`Import done: ${added} added, ${updated} updated, ${skipped} skipped${skippedNote}.`);
+}
+
 // ---------- sync (Phase 6, optional) ----------
 
 function getSyncConfig() {
@@ -882,6 +965,16 @@ function wireSelectMode() {
   });
 }
 
+function wireImport() {
+  const input = document.getElementById("importFileInput");
+  input.addEventListener("change", async () => {
+    const file = input.files[0];
+    input.value = ""; // so re-selecting the same file still fires "change"
+    if (!file) return;
+    await importTasksFromFile(file);
+  });
+}
+
 function wireBulkActions() {
   document.getElementById("bulkStatusSelect").addEventListener("change", async (e) => {
     const status = e.target.value;
@@ -1267,6 +1360,7 @@ function getCmdkItems() {
       },
     },
     { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
+    { label: "Import tasks from JSON", action: () => document.getElementById("importFileInput").click() },
     { label: "Sync settings", action: openSyncModal },
   ];
 }
@@ -1558,6 +1652,7 @@ async function boot() {
   wireFilterBar();
   wireSelectMode();
   wireBulkActions();
+  wireImport();
   wireProjectSwitcher();
   wireViewToggle();
   wireEditModal();
