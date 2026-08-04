@@ -50,6 +50,12 @@ sensitive — it says plainly what is and isn't defended against.
 
 ## Deploying
 
+Before deploying, run `node scripts/generate-integrity.mjs` if any `css/*.css` or `js/*.js` file
+changed — it regenerates the SRI hashes baked into `app.html`/`index.html`/`shared.html` and
+`integrity.json` (docs/ARCHITECTURE.md §5d). Skipping this after an edit doesn't serve stale
+content the way a forgotten `?v=` bump does — it makes the browser refuse to load the changed file
+at all, which is a much louder failure but still worth avoiding by just running the script.
+
 The frontend (`index.html`, `app.html`, `css/`, `js/`, `vendor/`) is fully static — deploy it
 anywhere that serves static files over HTTPS. Use a host that honors the `_headers` file at the
 repo root (Netlify, Cloudflare Pages/Workers static assets) so the real CSP/clickjacking headers

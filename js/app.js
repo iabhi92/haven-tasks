@@ -7,7 +7,7 @@ import {
   appendHistoryEntry,
   getAllHistoryEntries,
   getLastHistoryEntry,
-} from "./store.js?v=20260804m";
+} from "./store.js?v=20260804n";
 import {
   renderBoard,
   renderList,
@@ -40,7 +40,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804m";
+} from "./ui.js?v=20260804n";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -71,7 +71,7 @@ import {
   reconstructSecret,
   encodeShare,
   decodeShare,
-} from "./crypto.js?v=20260804m";
+} from "./crypto.js?v=20260804n";
 import {
   generateSyncToken,
   pushRecords,
@@ -80,7 +80,7 @@ import {
   pullKeyringBootstrap,
   pushShare,
   deleteShare,
-} from "./sync.js?v=20260804m";
+} from "./sync.js?v=20260804n";
 
 const STATUSES = ["todo", "in-progress", "done"];
 

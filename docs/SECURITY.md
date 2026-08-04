@@ -200,6 +200,33 @@ first item below.
       share (already added) and a garbage string (not a valid encoded share at all) are both
       rejected with a clear, specific error and never added to the collected set.
 
+## Verifiable frontend (SRI + integrity manifest) — verified 2026-08-04
+
+The one item below that matters most: this checks the browser actually *enforces* the mechanism,
+not merely that the right-looking attribute is present in the HTML.
+
+- [x] **SRI mismatch genuinely blocks the resource** — Made a byte-for-byte copy of the deployed
+      app, corrupted `app.html`'s `integrity` attribute for `js/app.js` to a wrong-but-valid-shaped
+      hash, served it, and loaded it in a real browser. Console showed Chromium's own enforcement
+      message (`Failed to find a valid digest in the 'integrity' attribute... The resource has been
+      blocked`), and the app never initialized — `js/app.js` genuinely never ran, confirmed by the
+      setup form staying in its un-wired initial state rather than just checking for a console
+      error. This is the difference between "the feature looks implemented" and "the feature
+      actually stops something."
+- [x] **The correct hashes are actually correct** — With the real (uncorrupted) hashes in place,
+      `app.html`, `index.html`, and a full setup → add-task flow all ran with zero SRI-related
+      console errors and zero failed resource loads — the positive case, run for real alongside the
+      negative one above, not assumed from "the negative case worked so the positive case must too."
+- [x] **integrity.json has zero drift from actual file content** — Independently recomputed
+      SHA-384 for all 10 manifest entries (outside of, and without trusting, the generator script
+      itself) and confirmed an exact match — catches the failure mode where a file changes but the
+      manifest doesn't get regenerated before commit/deploy.
+- [x] **Found and removed real dead code while building this** — `js/reveal.js` was a 4-line Phase
+      5 placeholder ("Not implemented yet") never imported by any HTML file; it would have been
+      silently included in `integrity.json` as if it were a real served asset. Deleted rather than
+      hashed — a manifest with a phantom entry undermines exactly the "these are the real served
+      files" claim this feature exists to make.
+
 ## Server hardening applied this phase
 
 `server/app.py`'s `after_request` hook now sets, on every response (previously only CORS

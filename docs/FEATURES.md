@@ -101,9 +101,12 @@ data."*
       Ed25519-signed, hash-chained log (`js/store.js`'s `historyLog`), "Verify history" panel in
       the app. **Local-only in v1** — see docs/ARCHITECTURE.md §5c for the honest scope limit
       (doesn't yet defend against a malicious sync server, only local non-privileged tampering).
-- [ ] ⭐ Verifiable frontend — reproducible build with published hashes so users can confirm the
+- [x] ⭐ Verifiable frontend — reproducible build with published hashes so users can confirm the
       served code matches the audited code; closes the biggest honest hole in the threat model —
-      High · Signal: very high
+      High · Signal: very high. Shipped: browser-enforced SRI on every entry `<script>`/`<link>`
+      tag (`scripts/generate-integrity.mjs`) plus a published `integrity.json` covering everything
+      SRI can't reach (ES module imports — a real browser-platform gap, not skipped). See
+      docs/ARCHITECTURE.md §5d for exactly what's browser-enforced vs. independently-checkable.
 - [ ] Verifiable, signed backups (prove an export wasn't tampered with) — Med
 
 ### The OMG feature (cheap, flashy, honest)

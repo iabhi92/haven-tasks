@@ -27,9 +27,13 @@
 - **Defense:** the server only ever holds ciphertext + non-secret metadata. Keys are derived
   on-device and never transmitted. The operator cannot decrypt tasks.
 - **Residual risk:** the server learns metadata — record counts, ciphertext sizes, update timing,
-  sync-token activity. A malicious server could also serve **malicious frontend code** (see A5).
+  sync-token activity. A malicious *frontend* host (a different party than the sync server in this
+  architecture, but the same class of risk) could also serve **malicious frontend code** (see A5).
   This is the most important honest limitation: E2EE in a web app trusts the code delivery.
-  Mitigations: self-hosting, static hosting with integrity, reproducible/pinned frontend builds.
+  Mitigations: self-hosting, SRI-pinned entry scripts/stylesheets and a published integrity
+  manifest for everything else (docs/ARCHITECTURE.md §5d — shipped, not just a Mitigations bullet
+  anymore, though it reduces rather than eliminates this trust requirement, see the non-goals
+  section below for exactly where the line is).
 
 ### A2. Network attacker (passive or active)
 - **Capability:** intercepts or tampers with traffic.
@@ -167,8 +171,14 @@
 
 1. **Metadata is not hidden.** Record counts, sizes, and timing are visible to the server and
    network. Mitigations (padding, batching) are future work.
-2. **Web-delivery trust.** E2EE in a browser trusts that the served code is honest. Self-hosting
-   and integrity-pinning reduce, not eliminate, this.
+2. **Web-delivery trust.** E2EE in a browser trusts that the served code is honest. As of the
+   Verifiable frontend feature (docs/ARCHITECTURE.md §5d), entry-point scripts/stylesheets are
+   SRI-pinned (browser-enforced) and every served JS/CSS file's hash is published in
+   `integrity.json` (independently checkable). This reduces, but by design cannot eliminate, this
+   trust requirement — SRI has no effect on ES module `import` statements (a real browser-platform
+   gap, not an oversight here, see §5d), and a host that could tamper with the app could in
+   principle tamper with `integrity.json` too; the manifest is checkable by a third party who
+   fetches it independently, not enforced against a compromised host serving both consistently.
 3. **Lose both credentials = data gone.** There is deliberately no server-side reset.
 4. **Weak passphrases remain the user's risk.**
 5. **Last-write-wins can lose edits** on concurrent multi-device changes until CRDT merge lands.
@@ -242,6 +252,13 @@
 - [x] **Social recovery: garbage/mismatched shares fail closed** — an invalid share string is
       rejected before being added; a duplicate share is rejected; shares from two different split
       operations (different `k`) are rejected as mismatched before ever attempting reconstruction.
+- [x] **SRI is actually enforced, not just present** — deliberately corrupted `app.js`'s
+      `integrity` attribute in a throwaway copy and confirmed Chromium blocks the resource
+      (`Failed to find a valid digest... The resource has been blocked`) and the app never
+      initializes, rather than just checking the attribute's text is non-empty.
+- [x] **integrity.json has no drift** — recomputed every listed file's SHA-384 independently and
+      confirmed it matches the manifest exactly, catching the case where a file was edited without
+      re-running `scripts/generate-integrity.mjs`.
 
 ## How to read this document (for a reviewer)
 
