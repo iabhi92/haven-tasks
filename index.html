@@ -39,7 +39,7 @@
 </script>
 
 <link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-LiAobYp0XGMvUNW1Wwh54v/hcLhTgxuo9CJB7bD4DCHc7mI3sYhmJCov1V2iSBkh" crossorigin="anonymous">
-<link rel="stylesheet" href="css/landing.css?v=20260804p" integrity="sha384-ASC67I4xKEFwjlFOSLDGcuMy36fU7V/V8dBCEo8LqmJMN6mSq3pnW6z7u/O0Hg7D" crossorigin="anonymous">
+<link rel="stylesheet" href="css/landing.css?v=20260804p" integrity="sha384-+d0X/hb7ymU1G2RMtrQRixcjDRx1js/fi+AHSpit7JxBshIuorEdR90dBvTShFXH" crossorigin="anonymous">
 </head>
 <body class="landing-body">
 
@@ -64,57 +64,67 @@
     <div class="landing-blob landing-blob-1" aria-hidden="true"></div>
     <div class="landing-blob landing-blob-2" aria-hidden="true"></div>
     <div class="landing-blob landing-blob-3" aria-hidden="true"></div>
-    <p class="landing-eyebrow hero-word hero-word-0">Free task manager. No signup.</p>
-    <h1 class="landing-hero-h1">
-      <span class="hero-word-line"><span class="hero-word hero-word-1">Track</span> <span class="hero-word hero-word-2">your</span> <span class="hero-word hero-word-3">tasks.</span></span>
-      <span class="hero-word-line"><span class="hero-word hero-word-4">Keep</span> <span class="hero-word hero-word-5">them</span> <span class="hero-word hero-word-6">to</span> <span class="hero-word hero-word-7">yourself.</span></span>
-    </h1>
-    <p class="landing-sub hero-word hero-word-8">
-      Haven is a task manager with boards, lists, due dates, priorities, tags, and search — the
-      stuff you'd expect from any to-do app. The difference is what happens after you hit save:
-      everything you write gets encrypted on your own device first, so nobody else can read it.
-      Not other users, not a database admin, not us.
-    </p>
-    <div class="landing-cta-row hero-word hero-word-9">
-      <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
-      <a href="#features" class="btn btn-ghost btn-lg">See what's inside</a>
-    </div>
-    <p class="landing-hero-note hero-word hero-word-10">No signup. No credit card. Works right in your browser.</p>
-
-    <div class="hero-showcase hero-word hero-word-11" id="heroShowcase" aria-hidden="true">
-      <div class="hero-mockup-titlebar">
-        <span class="hero-mockup-dot hero-mockup-dot-red"></span>
-        <span class="hero-mockup-dot hero-mockup-dot-yellow"></span>
-        <span class="hero-mockup-dot hero-mockup-dot-green"></span>
-        <span class="hero-mockup-url">taskhavens.com/app</span>
-        <span class="hero-mockup-lock">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
-        </span>
+    <div class="landing-hero-grid">
+      <div class="landing-hero-text">
+        <p class="landing-eyebrow hero-word hero-word-0">Free task manager. No signup.</p>
+        <h1 class="landing-hero-h1">
+          <span class="hero-word-line"><span class="hero-word hero-word-1">Track</span> <span class="hero-word hero-word-2">your</span> <span class="hero-word hero-word-3">tasks.</span></span>
+          <span class="hero-word-line"><span class="hero-word hero-word-4">Keep</span> <span class="hero-word hero-word-5">them</span> <span class="hero-word hero-word-6 landing-accent">to yourself.</span></span>
+        </h1>
+        <p class="landing-sub hero-word hero-word-8">
+          Haven is a task manager with boards, lists, due dates, priorities, tags, and search —
+          the stuff you'd expect from any to-do app. The difference is what happens after you hit
+          save: everything you write gets encrypted on your own device first, so nobody else can
+          read it. Not other users, not a database admin, not us.
+        </p>
+        <div class="landing-cta-row hero-word hero-word-9">
+          <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
+          <a href="#features" class="btn btn-ghost btn-lg">See what's inside</a>
+        </div>
+        <p class="landing-hero-note hero-word hero-word-10">No signup. No credit card. Works right in your browser.</p>
       </div>
-      <div class="hero-mockup-body">
-        <div class="hero-mockup-col">
-          <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-todo"></span>To Do</div>
-          <div class="hero-mockup-card">
-            <span class="hero-mockup-card-title">Finish quarterly report</span>
-            <span class="hero-mockup-badge hero-mockup-badge-high">High</span>
+
+      <div class="landing-hero-visual hero-word hero-word-11">
+        <div class="hero-showcase" id="heroShowcase" aria-hidden="true">
+          <div class="hero-mockup-titlebar">
+            <span class="hero-mockup-dot hero-mockup-dot-red"></span>
+            <span class="hero-mockup-dot hero-mockup-dot-yellow"></span>
+            <span class="hero-mockup-dot hero-mockup-dot-green"></span>
+            <span class="hero-mockup-url">taskhavens.com/app</span>
+            <span class="hero-mockup-lock">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
+            </span>
           </div>
-          <div class="hero-mockup-card">
-            <span class="hero-mockup-card-title">Renew passport</span>
-            <span class="hero-mockup-tag">#personal</span>
+          <div class="hero-mockup-body">
+            <div class="hero-mockup-col">
+              <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-todo"></span>To Do</div>
+              <div class="hero-mockup-card">
+                <span class="hero-mockup-card-title">Finish quarterly report</span>
+                <span class="hero-mockup-badge hero-mockup-badge-high">High</span>
+              </div>
+              <div class="hero-mockup-card">
+                <span class="hero-mockup-card-title">Renew passport</span>
+                <span class="hero-mockup-tag">#personal</span>
+              </div>
+            </div>
+            <div class="hero-mockup-col">
+              <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-progress"></span>In Progress</div>
+              <div class="hero-mockup-card">
+                <span class="hero-mockup-card-title">Client proposal draft</span>
+                <span class="hero-mockup-badge hero-mockup-badge-medium">Medium</span>
+              </div>
+            </div>
+            <div class="hero-mockup-col">
+              <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-done"></span>Done</div>
+              <div class="hero-mockup-card is-done">
+                <span class="hero-mockup-card-title">Book dentist appointment</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="hero-mockup-col">
-          <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-progress"></span>In Progress</div>
-          <div class="hero-mockup-card">
-            <span class="hero-mockup-card-title">Client proposal draft</span>
-            <span class="hero-mockup-badge hero-mockup-badge-medium">Medium</span>
-          </div>
-        </div>
-        <div class="hero-mockup-col">
-          <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-done"></span>Done</div>
-          <div class="hero-mockup-card is-done">
-            <span class="hero-mockup-card-title">Book dentist appointment</span>
-          </div>
+        <div class="hero-visual-chip hero-visual-chip-1">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
+          AES-256, on-device
         </div>
       </div>
     </div>
@@ -142,12 +152,6 @@
           needs your attention today.</p>
       </div>
       <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-8" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg></div>
-        <h3>Multiple projects</h3>
-        <p>Separate boards for school, work, or whatever else — switch between them from the same
-          header dropdown you already use for the project name.</p>
-      </div>
-      <div class="landing-proof-card reveal-up">
         <div class="feat-icon feat-icon-9" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h8l10 10-8 8L3 11V3Z"/><circle cx="7.5" cy="7.5" r="1.4" fill="currentColor" stroke="none"/></svg></div>
         <h3>Tags and subtasks</h3>
         <p>Break a task into smaller steps with their own checkboxes, and tag anything so it's easy
@@ -160,42 +164,16 @@
           and tag for you — parsed on your device, never sent anywhere to figure out.</p>
       </div>
       <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-11" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v6l-4 2v-8L4 5Z"/></svg></div>
-        <h3>Smart views</h3>
-        <p>Jump straight to what's due Today, what's Upcoming, or what's Overdue — plus filter by
-          priority or tag and sort however you want.</p>
-      </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-12" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
-        <h3>Recurring tasks</h3>
-        <p>Set something to repeat daily, weekly, or monthly. Check it off and the next one's
-          already waiting — the finished one stays right where you left it.</p>
-      </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-4" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11"/></svg></div>
-        <h3>Bulk actions and undo</h3>
-        <p>Select several tasks at once to move or delete them together. Every delete is reversible
-          for a few seconds after — no "are you sure?" dialogs in the way.</p>
-      </div>
-      <div class="landing-proof-card reveal-up">
         <div class="feat-icon feat-icon-5" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 17a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-.8 2.6"/><path d="M3 3l18 18"/></svg></div>
         <h3>Works offline</h3>
         <p>No wifi on the train? Doesn't matter. Haven runs entirely in your browser and keeps
           working with no connection at all.</p>
       </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-6" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M3 16v4h4"/><path d="M21 8V4h-4"/></svg></div>
-        <h3>Sync across devices</h3>
-        <p>Turn on sync if you want your tasks on your phone too. It's optional, and it's still
-          private on every device.</p>
-      </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-7" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/></svg></div>
-        <h3>Your data, exportable anytime</h3>
-        <p>Export everything as a plain JSON file whenever you want, and import it right back in.
-          No lock-in — it's your data, so it leaves and returns when you do.</p>
-      </div>
     </div>
+    <p class="landing-proof-more reveal-up">
+      Also included: multiple projects, smart views &amp; filters, recurring tasks, bulk actions
+      with undo, cross-device sync, and JSON export/import — no lock-in, no upsells.
+    </p>
   </section>
 
   <section id="privacy" class="landing-reveal-section">
