@@ -493,6 +493,14 @@ const HISTORY_BREAK_REASON_TEXT = {
   "bad-signature": "This entry's signature doesn't match its content — something in it was changed after it was signed.",
 };
 
+const HISTORY_BREAK_REASON_SHORT = {
+  "chain-broken": "Broken link",
+  "untrusted-signer": "Untrusted signer",
+  "bad-signature": "Bad signature",
+};
+
+const HISTORY_OP_LABEL = { create: "Created", update: "Updated", delete: "Deleted" };
+
 export function renderHistoryReport(report) {
   const container = document.getElementById("historyReport");
   container.textContent = "";
@@ -502,15 +510,46 @@ export function renderHistoryReport(report) {
     return;
   }
 
-  if (report.ok) {
-    const line = el("p", "history-report-line history-report-ok", `Chain intact — all ${report.entryCount} signed ${report.entryCount === 1 ? "entry" : "entries"} verified.`);
-    container.appendChild(line);
-    return;
+  const line = report.ok
+    ? el("p", "history-report-line history-report-ok", `Chain intact — all ${report.entryCount} signed ${report.entryCount === 1 ? "entry" : "entries"} verified below.`)
+    : el("p", "history-report-line history-report-bad", `Problem found at entry ${report.brokenAt + 1} of ${report.entryCount}.`);
+  container.appendChild(line);
+
+  if (!report.ok) {
+    container.appendChild(el("p", "history-report-detail", HISTORY_BREAK_REASON_TEXT[report.reason] || report.reason));
   }
 
-  const line = el("p", "history-report-line history-report-bad", `Problem found at entry ${report.brokenAt + 1} of ${report.entryCount}.`);
-  container.appendChild(line);
-  container.appendChild(el("p", "history-report-detail", HISTORY_BREAK_REASON_TEXT[report.reason] || report.reason));
+  // The actual evidence, not just the verdict — every entry Verify checked,
+  // so the claim above can be inspected rather than taken on faith.
+  const wrap = el("div", "history-table-wrap");
+  const table = document.createElement("table");
+  table.className = "history-table";
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const label of ["#", "When", "Change", "Task ID", "Entry hash", "Status"]) {
+    headRow.appendChild(el("th", "", label));
+  }
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  for (const entry of report.entries) {
+    const row = document.createElement("tr");
+    if (!entry.ok) row.classList.add("is-bad-entry");
+    row.appendChild(el("td", "", String(entry.index + 1)));
+    row.appendChild(el("td", "", new Date(entry.timestamp).toLocaleString()));
+    row.appendChild(el("td", "", HISTORY_OP_LABEL[entry.op] || entry.op));
+    row.appendChild(el("td", "history-table-mono", entry.taskId.slice(0, 8)));
+    row.appendChild(el("td", "history-table-mono", entry.hashPrefix));
+    const statusText = entry.ok ? "✓ Verified" : "✗ " + (HISTORY_BREAK_REASON_SHORT[entry.reason] || entry.reason);
+    const statusCell = el("td", `history-table-status ${entry.ok ? "is-ok" : "is-bad"}`, statusText);
+    if (!entry.ok) statusCell.title = HISTORY_BREAK_REASON_TEXT[entry.reason] || entry.reason;
+    row.appendChild(statusCell);
+    tbody.appendChild(row);
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  container.appendChild(wrap);
 }
 
 // ---------- undo toast ----------

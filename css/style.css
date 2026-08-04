@@ -348,9 +348,9 @@ body { display: flex; }
   border: none;
   background: transparent;
   color: var(--text);
-  font-size: 26px;
+  font-size: 21px;
   font-weight: 700;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.01em;
   padding: 0;
   outline: none;
   cursor: pointer;
@@ -772,9 +772,9 @@ body { display: flex; }
 
 .task-title {
   margin: 0 0 6px;
-  font-family: "Special Elite", var(--font);
+  font-family: var(--font);
   font-size: 15px;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.4;
   word-break: break-word;
 }
@@ -884,12 +884,44 @@ body { display: flex; }
 .history-report-ok { color: var(--success); }
 .history-report-bad { color: var(--danger); }
 .history-report-detail {
-  margin: 0;
+  margin: 0 0 16px;
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-muted);
   max-width: 640px;
 }
+.history-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-top: 12px;
+}
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 560px;
+}
+.history-table th,
+.history-table td {
+  padding: 9px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.history-table th {
+  background: var(--surface-sunken);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+.history-table tbody tr:last-child td { border-bottom: none; }
+.history-table-mono { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.history-table-status.is-ok { color: var(--success); font-weight: 600; }
+.history-table-status.is-bad { color: var(--danger); font-weight: 600; }
+.history-table tr.is-bad-entry { background: var(--danger-soft); }
 .reveal-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -982,9 +1014,9 @@ body { display: flex; }
   min-width: 0;
 }
 .list-row-title {
-  font-family: "Special Elite", var(--font);
+  font-family: var(--font);
   font-size: 14.5px;
-  font-weight: 400;
+  font-weight: 600;
 }
 .list-row.is-done .list-row-title {
   text-decoration: line-through;

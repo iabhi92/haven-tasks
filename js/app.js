@@ -7,7 +7,7 @@ import {
   appendHistoryEntry,
   getAllHistoryEntries,
   getLastHistoryEntry,
-} from "./store.js?v=20260804o";
+} from "./store.js?v=20260804p";
 import {
   renderBoard,
   renderList,
@@ -40,7 +40,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804o";
+} from "./ui.js?v=20260804p";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -73,13 +73,13 @@ import {
   decodeShare,
   generateHardwareSecret,
   wrapRawBytes,
-} from "./crypto.js?v=20260804o";
+} from "./crypto.js?v=20260804p";
 import {
   isWebAuthnAvailable,
   registerPasskey,
   writeLargeBlob,
   readLargeBlob,
-} from "./webauthn.js?v=20260804o";
+} from "./webauthn.js?v=20260804p";
 import {
   generateSyncToken,
   pushRecords,
@@ -88,7 +88,7 @@ import {
   pullKeyringBootstrap,
   pushShare,
   deleteShare,
-} from "./sync.js?v=20260804o";
+} from "./sync.js?v=20260804p";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -484,37 +484,61 @@ async function appendSignedHistoryEntry(taskId, op, iv, ciphertext) {
 // entry's own hash — catches reordering/deletion/insertion; (2) the
 // signature verifies under a *trusted* public key (one that's ever been this
 // device's active signing key, per the keyring's signingKeyLog) — catches
-// content tampering. Returns as soon as it finds the first break, since
-// everything after a broken link is unverifiable regardless of its own
-// internal consistency.
+// content tampering. Keeps checking every entry (not just up to the first
+// break) and returns a per-entry breakdown — {index, op, taskId, timestamp,
+// hashPrefix, ok} for each — so "Chain intact" is something a user can
+// inspect entry-by-entry, not a bare claim asked to be taken on faith.
 async function verifyHistoryChain() {
-  const entries = await getAllHistoryEntries();
+  const rawEntries = await getAllHistoryEntries();
   const keyring = await getKeyring();
   const trustedKeys = new Set((keyring?.signingKeyLog || []).map((k) => k.publicKey));
 
   let expectedPrevHash = "GENESIS";
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
+  let firstBreak = null;
+  const entries = [];
+
+  for (let i = 0; i < rawEntries.length; i++) {
+    const entry = rawEntries[i];
+    let reason = null;
+
     if (entry.prevHash !== expectedPrevHash) {
-      return { ok: false, brokenAt: i, reason: "chain-broken", entryCount: entries.length };
+      reason = "chain-broken";
+    } else if (!trustedKeys.has(entry.publicKey)) {
+      reason = "untrusted-signer";
+    } else {
+      let signatureValid;
+      try {
+        const publicKey = await importSigningPublicKey(base64ToBuf(entry.publicKey));
+        const data = await canonicalBytes(historyEntryContent(entry));
+        signatureValid = await verifyBytes(publicKey, data, base64ToBuf(entry.signature));
+      } catch {
+        signatureValid = false;
+      }
+      if (!signatureValid) reason = "bad-signature";
     }
-    if (!trustedKeys.has(entry.publicKey)) {
-      return { ok: false, brokenAt: i, reason: "untrusted-signer", entryCount: entries.length };
-    }
-    let signatureValid;
-    try {
-      const publicKey = await importSigningPublicKey(base64ToBuf(entry.publicKey));
-      const data = await canonicalBytes(historyEntryContent(entry));
-      signatureValid = await verifyBytes(publicKey, data, base64ToBuf(entry.signature));
-    } catch {
-      signatureValid = false;
-    }
-    if (!signatureValid) {
-      return { ok: false, brokenAt: i, reason: "bad-signature", entryCount: entries.length };
-    }
-    expectedPrevHash = await historyEntryHash(entry);
+
+    const ownHash = await historyEntryHash(entry);
+    entries.push({
+      index: i,
+      op: entry.op,
+      taskId: entry.taskId,
+      timestamp: entry.timestamp,
+      hashPrefix: ownHash.slice(0, 12),
+      ok: reason === null,
+      reason,
+    });
+
+    if (reason && firstBreak === null) firstBreak = { brokenAt: i, reason };
+    // A hash chain's own definition of "next" only makes sense relative to
+    // the *actual* previous entry, tampered or not — so expectedPrevHash
+    // keeps advancing off the real stored data even after a break, letting
+    // every remaining entry still be individually checked and shown.
+    expectedPrevHash = ownHash;
   }
-  return { ok: true, entryCount: entries.length };
+
+  return firstBreak
+    ? { ok: false, brokenAt: firstBreak.brokenAt, reason: firstBreak.reason, entryCount: rawEntries.length, entries }
+    : { ok: true, entryCount: rawEntries.length, entries };
 }
 
 // Decrypt-on-load: a record that fails to decrypt under the current DEK (corrupted,

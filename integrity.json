@@ -3,16 +3,16 @@
   "generatedFrom": ".",
   "files": {
     "css/article.css": "sha384-RNkJC7Sva7On5yVhhZkuvVRS6BsoyZkRnvdSasgn/Yf7zaBb9JrgPILQER3GrvoJ",
-    "css/landing.css": "sha384-f9z4ClvWCIOG5iknD6r6lxCjuA4GmmUW9pz52Co07KUSxQGz+PDArH3RJqCGcCcH",
-    "css/style.css": "sha384-c5fPTs2MUpKzTYKsVgQD5QspaQ4KQo39nnxyrDlOcwBaIwtSGV4oxTWvtm5gCDzF",
-    "js/app.js": "sha384-eERQGluguTuMlAEPff+GzQ2TzO8DSR8xSMZ2PBkuF1GPZ6BcUIhYMPB1HyINZsBq",
+    "css/landing.css": "sha384-ASC67I4xKEFwjlFOSLDGcuMy36fU7V/V8dBCEo8LqmJMN6mSq3pnW6z7u/O0Hg7D",
+    "css/style.css": "sha384-LiAobYp0XGMvUNW1Wwh54v/hcLhTgxuo9CJB7bD4DCHc7mI3sYhmJCov1V2iSBkh",
+    "js/app.js": "sha384-EePb+HxIKiPLp81PJQEZPG6GN2J06roR9bDmcHCtsBjULRTZg49wnp0Bm/i7G7/F",
     "js/crypto.js": "sha384-SsL5AVrzzWh8iGVpHQ9s7gh4nN5SFHLeBeUZ8mgtf6JI/azVze5/aPp1QokcE8iL",
     "js/crypto.test.mjs": "sha384-vO9uulmpQNiF2b1dGH70up9Y8/m6wq9QD0UxlRLwkDOVfBYGy9faw+31EkyeqawH",
-    "js/landing.js": "sha384-nGytLlYrD3VDkm1kktEILpSTCErBfeDETVzg0IZKBa8J4be0jDsXLC1bELcdUwSq",
-    "js/shared.js": "sha384-VaRBXM1FTupEALKvO/wkMw4YvIoumPNTXL0G5UMzdUeH60rW673bSo4ae+lRirTB",
+    "js/landing.js": "sha384-H8w9KC5mq69JuHFtzAy5Lhp8D8VVyox1woosS4OHR+hndy7JbguGEXb00ezLqxPe",
+    "js/shared.js": "sha384-4m+IRzU1yIaAwnAnl7QLBN+i3IlVZU47Czm5v6ZqQ3UsC1pEKxfDf9i7QxaMNUFN",
     "js/store.js": "sha384-ALSyyp3Amqg20epa/QIlU+TfIyOuZQA+PihB1e7njBY/3sbykDhIde+peeCX6fEo",
     "js/sync.js": "sha384-xYWg4bhhNCxa/miC/9Dk3QDnJpDPx4ti4siGMh12j+F2pkr9LaXjalvCRuzoYmbk",
-    "js/ui.js": "sha384-lOsFnxTopH9jGsJE7sQE0EpTzYOQTejkFX2tiucYEKXt4e5gSvxwHYZ+9ma8aOFI",
+    "js/ui.js": "sha384-D3FpqBG25c+Xg4+2Y7O8zRJUDXzWvJeBjbVk0UAFvGwPGESzP1ujh9fBtazz8bEO",
     "js/webauthn.js": "sha384-ggmUjtipV2JtNbTFwovlqDUYZfGrXK6j6EbAhXqEA1d7FfJKhaZ2DOvmKenO7xL7"
   }
 }

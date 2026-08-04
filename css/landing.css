@@ -121,9 +121,10 @@ p.hero-word, div.hero-word { display: block; }
   text-decoration: none;
 }
 .landing-wordmark {
-  font-family: "Special Elite", var(--font-mono);
+  font-family: var(--font);
   font-size: 18px;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text);
 }
 .landing-nav-links {
@@ -233,102 +234,104 @@ p.hero-word, div.hero-word { display: block; }
 }
 
 /* ---------- hero showcase visual ---------- */
+/* A real (if simplified) mockup of the actual board UI, not abstract art —
+   shows what the product genuinely looks like rather than decoration that
+   could belong to any SaaS landing page. Built entirely in CSS, no image. */
 .hero-showcase {
   position: relative;
   width: min(760px, 100%);
-  aspect-ratio: 16 / 8.5;
   margin: 56px auto 0;
-  border-radius: 28px;
+  border-radius: 16px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 22% 28%, rgba(129, 140, 248, 0.55) 0%, transparent 45%),
-    radial-gradient(circle at 75% 20%, rgba(245, 158, 11, 0.4) 0%, transparent 45%),
-    radial-gradient(circle at 80% 75%, rgba(52, 211, 153, 0.4) 0%, transparent 45%),
-    radial-gradient(circle at 25% 80%, rgba(236, 72, 153, 0.3) 0%, transparent 45%),
-    linear-gradient(160deg, #1e1b3a 0%, #14122a 100%);
+  background: linear-gradient(160deg, #201c3d 0%, #14122a 100%);
   box-shadow:
     0 40px 70px -24px rgba(16, 18, 22, 0.4),
     0 16px 32px -12px rgba(16, 18, 22, 0.25),
-    inset 0 2px 0 rgba(255, 255, 255, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-.hero-sphere {
-  position: absolute;
-  border-radius: 50%;
-  box-shadow:
-    0 10px 20px -6px rgba(0, 0, 0, 0.4),
-    inset 0 2px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -3px 8px rgba(0, 0, 0, 0.3);
-}
-/* Four spheres, one per quadrant, deliberately spaced so nothing collides
-   with the task-card mockups or the lock badge — the earlier version had a
-   5th sphere and cards stacked directly on top of spheres, which read as
-   cluttered rather than composed. */
-.hero-sphere-1 {
-  width: 16%; aspect-ratio: 1; left: 7%; top: 12%;
-  background: radial-gradient(circle at 32% 28%, #c4b5fd, #7c3aed 55%, #4c1d95);
-}
-.hero-sphere-2 {
-  width: 11%; aspect-ratio: 1; right: 10%; top: 10%;
-  background: radial-gradient(circle at 32% 28%, #fde68a, #f59e0b 55%, #92400e);
-}
-.hero-sphere-3 {
-  width: 15%; aspect-ratio: 1; right: 9%; bottom: 12%;
-  background: radial-gradient(circle at 32% 28%, #a7f3d0, #10b981 55%, #065f46);
-}
-.hero-sphere-4 {
-  width: 9%; aspect-ratio: 1; left: 9%; bottom: 16%;
-  background: radial-gradient(circle at 32% 28%, #bfdbfe, #3b82f6 55%, #1e3a8a);
-}
-.hero-sphere-5 { display: none; }
-.hero-showcase-card {
-  position: absolute;
-  width: 148px;
-  padding: 11px 13px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 16px 28px -10px rgba(0, 0, 0, 0.4);
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.hero-showcase-card-1 { left: 27%; top: 22%; transform: rotate(-3deg); }
-.hero-showcase-card-2 { right: 22%; bottom: 20%; transform: rotate(3deg); }
-.hero-showcase-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-}
-.hero-showcase-dot-amber { background: #f59e0b; }
-.hero-showcase-dot-green { background: #22c55e; }
-.hero-showcase-line {
-  display: block;
-  height: 6px;
-  border-radius: 3px;
-  background: #d5d7dc;
-}
-.hero-showcase-line-1 { width: 85%; }
-.hero-showcase-line-2 { width: 55%; }
-.hero-showcase-lock {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: rgba(20, 15, 30, 0.55);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
+.hero-mockup-titlebar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #f4f0eb;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
-.hero-showcase-lock svg { width: 26px; height: 26px; }
+.hero-mockup-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.hero-mockup-dot-red { background: #ff5f57; }
+.hero-mockup-dot-yellow { background: #febc2e; }
+.hero-mockup-dot-green { background: #28c840; }
+.hero-mockup-url {
+  margin-left: 10px;
+  font-size: 11px;
+  color: rgba(244, 240, 235, 0.45);
+  font-family: var(--font-mono);
+}
+.hero-mockup-lock {
+  margin-left: auto;
+  color: rgba(244, 240, 235, 0.55);
+  display: flex;
+}
+.hero-mockup-lock svg { width: 13px; height: 13px; }
+.hero-mockup-body {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  padding: 20px;
+}
+.hero-mockup-col-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(244, 240, 235, 0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 10px;
+}
+.hero-mockup-dot-status { width: 6px; height: 6px; border-radius: 50%; }
+.hero-mockup-dot-status-todo { background: #9a9ea6; }
+.hero-mockup-dot-status-progress { background: #f59e0b; }
+.hero-mockup-dot-status-done { background: #34d399; }
+.hero-mockup-card {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.35);
+}
+.hero-mockup-card-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #16181d;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+.hero-mockup-card.is-done .hero-mockup-card-title {
+  color: #9a9ea6;
+  text-decoration: line-through;
+}
+.hero-mockup-badge {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+.hero-mockup-badge-high { background: #fdeeee; color: #dc4c4c; }
+.hero-mockup-badge-medium { background: #fdf3e3; color: #c98a1f; }
+.hero-mockup-tag {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(79, 70, 229, 0.12);
+  color: #6366f1;
+}
 @media (max-width: 700px) {
-  .hero-showcase { aspect-ratio: 4 / 5; margin-top: 40px; }
-  .hero-showcase-card { width: 110px; font-size: 11px; }
+  .hero-mockup-body { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
 }
 
 /* ---------- feature grid ---------- */
@@ -520,6 +523,15 @@ p.hero-word, div.hero-word { display: block; }
 
 @media (max-width: 700px) {
   .landing-proof-grid { grid-template-columns: 1fr; }
-  .landing-nav-links { gap: 12px; font-size: 13px; }
   .landing-cta-band { padding: 56px 24px 40px; }
+}
+
+/* Below ~520px the brand + 3 text links + CTA button no longer fit on one
+   row (neither side wraps or shrinks against `space-between`), and were
+   visibly overlapping — found on a real mobile-width screenshot, not
+   assumed. Standard mobile-nav pattern: keep the primary CTA, drop the
+   secondary text links rather than shrink everything to illegibility. */
+@media (max-width: 520px) {
+  .landing-nav-links a:not(.btn) { display: none; }
+  .landing-nav-links { gap: 0; }
 }
