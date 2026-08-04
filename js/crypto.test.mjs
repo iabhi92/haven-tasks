@@ -15,6 +15,14 @@ import {
   normalizeRecoveryCode,
   bufToBase64Url,
   base64UrlToBuf,
+  generateSigningKeypair,
+  exportSigningPublicKey,
+  importSigningPublicKey,
+  wrapSigningKey,
+  unwrapSigningKey,
+  signBytes,
+  verifyBytes,
+  sha256Hex,
 } from "./crypto.js";
 
 const results = [];
@@ -137,6 +145,60 @@ await test("7. base64url round-trip: encodes without +/=, decodes back to identi
 
   const decoded = new Uint8Array(base64UrlToBuf(encoded));
   assert.deepEqual(decoded, original);
+});
+
+// ---- 8. History signing: keypair round-trip, wrap/unwrap, tamper detection ----
+await test("8. history signing: generate, sign, verify with the exported raw public key", async () => {
+  const { publicKey, privateKey } = await generateSigningKeypair();
+  const data = new TextEncoder().encode(JSON.stringify({ taskId: "t1", op: "create" }));
+  const signature = await signBytes(privateKey, data);
+
+  const rawPub = await exportSigningPublicKey(publicKey);
+  assert.equal(rawPub.byteLength, 32); // Ed25519 raw public keys are always 32 bytes
+
+  const importedPub = await importSigningPublicKey(rawPub);
+  const ok = await verifyBytes(importedPub, data, signature);
+  assert.equal(ok, true);
+});
+
+await test("9. history signing: wrap/unwrap private key under a KEK, still signs identically", async () => {
+  const salt = fixedBytes(16, 9);
+  const kek = await deriveKek("a passphrase for the signing key test", salt);
+  const { publicKey, privateKey } = await generateSigningKeypair();
+
+  const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(privateKey, kek);
+  const unwrappedPrivateKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, kek);
+
+  const data = new TextEncoder().encode("some canonical entry bytes");
+  const signature = await signBytes(unwrappedPrivateKey, data);
+  const rawPub = await exportSigningPublicKey(publicKey);
+  const ok = await verifyBytes(await importSigningPublicKey(rawPub), data, signature);
+  assert.equal(ok, true);
+});
+
+await test("10. history signing: wrong KEK fails closed unwrapping the private key", async () => {
+  const salt = fixedBytes(16, 10);
+  const kek = await deriveKek("correct passphrase", salt);
+  const wrongKek = await deriveKek("wrong passphrase", salt);
+  const { privateKey } = await generateSigningKeypair();
+  const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(privateKey, kek);
+
+  await assert.rejects(() => unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, wrongKek));
+});
+
+await test("11. history signing: tampering with signed bytes makes verification fail", async () => {
+  const { publicKey, privateKey } = await generateSigningKeypair();
+  const data = new TextEncoder().encode("entry-1");
+  const signature = await signBytes(privateKey, data);
+
+  const tamperedData = new TextEncoder().encode("entry-2"); // attacker rewrote the entry
+  const ok = await verifyBytes(publicKey, tamperedData, signature);
+  assert.equal(ok, false); // must fail closed, not throw or silently pass
+});
+
+await test("12. sha256Hex: known test vector for the empty string", async () => {
+  const hash = await sha256Hex(new Uint8Array(0));
+  assert.equal(hash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 });
 
 // ---- report ----

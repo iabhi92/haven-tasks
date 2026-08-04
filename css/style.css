@@ -874,6 +874,22 @@ body { display: flex; }
   outline: none;
 }
 .reveal-demo-input:focus { border-color: var(--accent); }
+
+.history-report { margin-top: 16px; }
+.history-report-line {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.history-report-ok { color: var(--success); }
+.history-report-bad { color: var(--danger); }
+.history-report-detail {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 640px;
+}
 .reveal-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;

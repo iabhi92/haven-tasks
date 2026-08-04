@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804k">
+<link rel="stylesheet" href="css/style.css?v=20260804l">
 </head>
 <body>
 
@@ -117,6 +117,13 @@
       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path d="M10 2.5l6 2.2v4.6c0 4-2.6 6.8-6 8.2-3.4-1.4-6-4.2-6-8.2V4.7l6-2.2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
         <path d="M7.2 10l2 2 3.6-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </button>
+    <button type="button" class="rail-btn" id="viewHistoryBtn" role="tab" aria-selected="false" aria-label="Verify task history" title="Verify task history">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M4 6a6 6 0 1 1 1.5 5.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+        <path d="M4 3.5V6.5H7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M10 6.5v3.7l2.6 1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
       </svg>
     </button>
   </nav>
@@ -303,6 +310,20 @@
           the only thing that would ever be sent — the exact same ciphertext already sitting here.</p>
         <button type="button" class="btn btn-ghost" id="dumpDbBtn">Dump my local database</button>
         <pre id="dbDumpOutput" class="reveal-pre reveal-pre-wide"></pre>
+      </section>
+    </div>
+
+    <div id="historyView" class="reveal-view" hidden>
+      <section class="reveal-section">
+        <h2>Verify your task history</h2>
+        <p class="reveal-intro">Every time a task is added, edited, or deleted, Haven signs a
+          record of it with a key that lives only on this device and chains it to the record
+          before it — like a private, personal git log. If anything in that log were ever silently
+          altered, this check would catch it: a broken link in the chain, or a signature that
+          doesn't match, shows up immediately below. This runs entirely on your device against
+          your local history — nothing is uploaded to check it.</p>
+        <button type="button" class="btn btn-primary" id="verifyHistoryBtn">Verify now</button>
+        <div id="historyReport" class="history-report"></div>
       </section>
     </div>
 
@@ -631,6 +652,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json" hidden>
 
-<script src="js/app.js?v=20260804k" type="module"></script>
+<script src="js/app.js?v=20260804l" type="module"></script>
 </body>
 </html>

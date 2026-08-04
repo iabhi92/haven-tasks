@@ -53,6 +53,26 @@
   than the stronger option," not "weak" outright. Documented as a real limitation, not hidden —
   see `docs/ARCHITECTURE.md`'s key-derivation section for the migration path once Argon2id lands.
 
+### A3b. Something that silently corrupts or backdates local task data (bug, rogue extension, disk bit rot)
+- **Capability:** direct read/write access to this device's IndexedDB, at the same level the app's
+  own JavaScript has — a buggy migration, a misbehaving browser extension, or storage-layer
+  corruption that rewrites a task record's ciphertext or timestamp without going through the app's
+  normal edit path.
+- **Defense:** the tamper-evident signed history log (docs/ARCHITECTURE.md §5c). Every real edit
+  is hash-chained and signed with a per-device Ed25519 key at the time it happens; the "Verify
+  history" panel recomputes the chain and reports the first entry where either the link or the
+  signature doesn't check out, rather than trusting the log's own stored order and content is exactly
+  what it claims to be.
+- **Residual risk, stated plainly:** this defends against tampering that does *not* also
+  consistently rewrite `signingKeyLog` (stored in the same keyring record). An attacker with the
+  same access level as this device's own JavaScript — i.e. someone who has already achieved what
+  A5 (XSS) achieves — could rewrite the log and the trusted key list together and the check would
+  pass. This is the same "local compromise defeats local-only defenses" limit every purely local
+  integrity mechanism has; it's not a substitute for A5's own defenses, it's a check against a
+  narrower class of *non-privileged* corruption. The log also isn't synced anywhere yet, so it
+  doesn't currently defend against A1 (a malicious sync server) either — see §5c's stated scope
+  limit.
+
 ### A4. Compromised or curious collaborator (future, ongoing shared vault)
 - **Status:** still out of scope for v1. This is about *persistent, revocable* multi-user access
   to a vault (Layer 2's "Compartmentalised vaults") — a different, heavier problem than the
@@ -179,6 +199,17 @@
 - [x] **Revocation actually revokes** — `DELETE /share/<id>` makes an immediately-following `GET`
       404, including a link that worked seconds earlier. See
       `server/tests/test_share.py::test_revoke_makes_share_immediately_unavailable`.
+- [x] **History tamper detection — content tampering** — directly overwrite one stored history
+      entry's `payloadHash` in IndexedDB (bypassing the app entirely). "Verify history" reports the
+      exact entry index and correctly attributes it to a signature mismatch, not a chain break.
+- [x] **History tamper detection — chain break** — directly delete a middle entry from the
+      `historyLog` IndexedDB store. "Verify history" reports the break at the correct position and
+      correctly attributes it to the chain link, not a signature.
+- [x] **History key rotation preserves old verifiability** — reset the passphrase via recovery
+      code (which rolls a fresh signing key by design, docs/ARCHITECTURE.md §5c). Confirmed
+      entries signed before the reset still verify afterward, and a new entry signed after the
+      reset verifies under the new key — both segments of the chain check out under one "Verify
+      history" run.
 
 ## How to read this document (for a reviewer)
 

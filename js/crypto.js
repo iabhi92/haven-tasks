@@ -157,3 +157,56 @@ export function generateRecoveryCode() {
 export function normalizeRecoveryCode(code) {
   return code.toUpperCase().replace(/[^0-9A-Z]/g, "");
 }
+
+// ---------- tamper-evident history signing (Layer 2) ----------
+// A per-device Ed25519 identity used only to sign local history-log entries
+// (docs/ARCHITECTURE.md "Tamper-evident signed task history") — a distinct
+// keypair from the DEK, so compromising one doesn't implicate the other.
+
+export async function generateSigningKeypair() {
+  // extractable: true so the private key can be exported once to wrap, same
+  // pattern as generateDek().
+  return crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+}
+
+export async function exportSigningPublicKey(publicKey) {
+  return crypto.subtle.exportKey("raw", publicKey);
+}
+
+export async function importSigningPublicKey(rawBytes) {
+  return crypto.subtle.importKey("raw", rawBytes, { name: "Ed25519" }, false, ["verify"]);
+}
+
+// Wraps the private key's PKCS8 export under a KEK with AES-256-GCM, exactly
+// like wrapDek/unwrapDek wrap the DEK — the private key is just opaque bytes
+// to AES-GCM, whether they encode a symmetric key or an asymmetric one.
+export async function wrapSigningKey(privateKey, kek) {
+  const pkcs8 = await crypto.subtle.exportKey("pkcs8", privateKey);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const wrapped = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, kek, pkcs8);
+  return { wrappedSigningKey: bufToBase64(wrapped), signingKeyWrapIv: bufToBase64(iv) };
+}
+
+export async function unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, kek) {
+  const pkcs8 = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: base64ToBuf(signingKeyWrapIv) },
+    kek,
+    base64ToBuf(wrappedSigningKey)
+  );
+  return crypto.subtle.importKey("pkcs8", pkcs8, { name: "Ed25519" }, false, ["sign"]);
+}
+
+export async function signBytes(privateKey, dataBytes) {
+  return crypto.subtle.sign("Ed25519", privateKey, dataBytes);
+}
+
+export async function verifyBytes(publicKey, dataBytes, signatureBytes) {
+  return crypto.subtle.verify("Ed25519", publicKey, signatureBytes, dataBytes);
+}
+
+// Hex, not base64: history entries are inspectable/exportable JSON meant to
+// be eyeballed and diffed, where hex reads unambiguously at a glance.
+export async function sha256Hex(dataBytes) {
+  const digest = await crypto.subtle.digest("SHA-256", dataBytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}

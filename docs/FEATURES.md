@@ -96,8 +96,11 @@ data."*
 
 ### Verifiable / provable (strongest, most ownable lane)
 
-- [ ] ⭐ Tamper-evident signed task history — append-only, signed change log; silent
-      edits/deletions/backdating become provable — High · Signal: very high
+- [x] ⭐ Tamper-evident signed task history — append-only, signed change log; silent
+      edits/deletions/backdating become provable — High · Signal: very high. Shipped: per-device
+      Ed25519-signed, hash-chained log (`js/store.js`'s `historyLog`), "Verify history" panel in
+      the app. **Local-only in v1** — see docs/ARCHITECTURE.md §5c for the honest scope limit
+      (doesn't yet defend against a malicious sync server, only local non-privileged tampering).
 - [ ] ⭐ Verifiable frontend — reproducible build with published hashes so users can confirm the
       served code matches the audited code; closes the biggest honest hole in the threat model —
       High · Signal: very high

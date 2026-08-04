@@ -1,4 +1,13 @@
-import { getAllTasks, putTask, deleteTask, getKeyring, putKeyring } from "./store.js?v=20260804k";
+import {
+  getAllTasks,
+  putTask,
+  deleteTask,
+  getKeyring,
+  putKeyring,
+  appendHistoryEntry,
+  getAllHistoryEntries,
+  getLastHistoryEntry,
+} from "./store.js?v=20260804l";
 import {
   renderBoard,
   renderList,
@@ -15,6 +24,7 @@ import {
   showInfoToast,
   getDragAfterElement,
   renderStats,
+  renderHistoryReport,
   setPageSubtitle,
   openCmdk,
   closeCmdk,
@@ -30,7 +40,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804k";
+} from "./ui.js?v=20260804l";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -47,7 +57,15 @@ import {
   bufToBase64,
   base64ToBuf,
   bufToBase64Url,
-} from "./crypto.js?v=20260804k";
+  generateSigningKeypair,
+  exportSigningPublicKey,
+  importSigningPublicKey,
+  wrapSigningKey,
+  unwrapSigningKey,
+  signBytes,
+  verifyBytes,
+  sha256Hex,
+} from "./crypto.js?v=20260804l";
 import {
   generateSyncToken,
   pushRecords,
@@ -56,7 +74,7 @@ import {
   pullKeyringBootstrap,
   pushShare,
   deleteShare,
-} from "./sync.js?v=20260804k";
+} from "./sync.js?v=20260804l";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -69,6 +87,17 @@ let tagFilter = "";
 let sortMode = "manual";
 let draggedId = null;
 let dek = null; // the in-memory DEK CryptoKey — null whenever locked
+
+// Per-device Ed25519 identity for the tamper-evident history log (docs/
+// ARCHITECTURE.md "Tamper-evident signed task history") — distinct from the
+// DEK, unwrapped alongside it at unlock, null whenever locked.
+let historySigningKey = null; // private CryptoKey, sign-only
+let historySigningPublicKeyB64 = null; // this device's *current* public key
+// The hash of the most-recently-appended entry's full signed content, used
+// as the next entry's prevHash. Cached in memory rather than re-read from
+// IndexedDB on every mutation; (re)initialized from the real last entry at
+// unlock via primeHistoryChainTip().
+let historyChainTip = "GENESIS";
 
 // Projects are a lightweight client-side grouping — a plain string field on
 // each task (default "Inbox"), same encrypted envelope as everything else.
@@ -112,6 +141,8 @@ const SHARE_FIELDS = ["title", "notes", "status", "priority", "dueDate", "tags",
 let pendingKeyring = null;
 let pendingDek = null;
 let pendingRecoveryCode = null;
+let pendingSigningKey = null;
+let pendingSigningPublicKeyB64 = null;
 
 // DEK recovered via recovery code, pending a new passphrase to re-wrap it under.
 let recoveredDek = null;
@@ -354,10 +385,122 @@ function nextOrder(status) {
 
 // Encrypt-before-store: store.js only ever sees {id, iv, ciphertext, updatedAt} —
 // id and updatedAt stay cleartext metadata (per docs/ARCHITECTURE.md §3), everything
-// else about the task lives only inside the ciphertext.
-async function persistTask(task) {
+// else about the task lives only inside the ciphertext. `op`/`logHistory` feed the
+// tamper-evident history log below — logHistory:false is for writes (like reorders)
+// that aren't meaningful audit events, not a way to skip signing for content changes.
+async function persistTask(task, op = "update", logHistory = true) {
   const { iv, ciphertext } = await encryptTask(task, dek);
   await putTask({ id: task.id, iv, ciphertext, updatedAt: task.updatedAt });
+  if (logHistory) await appendSignedHistoryEntry(task.id, op, iv, ciphertext);
+}
+
+// ---------- tamper-evident history log ----------
+// Every meaningful task mutation gets an append-only, hash-chained, signed
+// entry — see docs/ARCHITECTURE.md "Tamper-evident signed task history".
+// Entries record *that* and *when* a task changed (via a hash of its
+// ciphertext), never the plaintext itself, so the log stays as
+// privacy-preserving as everything else in the app.
+
+// Fixed key order, no signature field yet — this is exactly what gets signed.
+function historyEntryContent({ id, taskId, op, payloadHash, prevHash, timestamp, publicKey }) {
+  return { id, taskId, op, payloadHash, prevHash, timestamp, publicKey };
+}
+
+async function canonicalBytes(obj) {
+  return new TextEncoder().encode(JSON.stringify(obj));
+}
+
+// An entry's "own hash" (used as the *next* entry's prevHash) covers the
+// signature too, like a git commit hash covers its own signature — so a
+// resigned-but-otherwise-identical forged entry still breaks the chain.
+async function historyEntryHash(entry) {
+  return sha256Hex(await canonicalBytes({ ...historyEntryContent(entry), signature: entry.signature }));
+}
+
+async function primeHistoryChainTip() {
+  const last = await getLastHistoryEntry();
+  historyChainTip = last ? await historyEntryHash(last) : "GENESIS";
+}
+
+// Normal-unlock path: reuse the existing signing key if the keyring has one,
+// or transparently create one if it doesn't — covers accounts created before
+// this feature shipped, as a one-time local migration on their next unlock.
+async function ensureLocalSigningKeyOnUnlock(keyring, kek) {
+  if (keyring.wrappedSigningKey) {
+    historySigningKey = await unwrapSigningKey(keyring.wrappedSigningKey, keyring.signingKeyWrapIv, kek);
+    historySigningPublicKeyB64 = keyring.signingPublicKey;
+    await primeHistoryChainTip();
+    return;
+  }
+  const signingKeypair = await generateSigningKeypair();
+  const signingPublicKeyB64 = bufToBase64(await exportSigningPublicKey(signingKeypair.publicKey));
+  const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, kek);
+  await putKeyring({
+    ...keyring,
+    signingPublicKey: signingPublicKeyB64,
+    wrappedSigningKey,
+    signingKeyWrapIv,
+    signingKeyLog: [{ publicKey: signingPublicKeyB64, startedAt: now() }],
+  });
+  historySigningKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, kek);
+  historySigningPublicKeyB64 = signingPublicKeyB64;
+  await primeHistoryChainTip(); // no local entries predate this device's very first key
+}
+
+async function appendSignedHistoryEntry(taskId, op, iv, ciphertext) {
+  if (!historySigningKey) return; // locked, or history not yet initialized — skip rather than throw
+  const payloadHash = op === "delete" ? null : await sha256Hex(await canonicalBytes({ iv, ciphertext }));
+  const content = historyEntryContent({
+    id: uuid(),
+    taskId,
+    op,
+    payloadHash,
+    prevHash: historyChainTip,
+    timestamp: now(),
+    publicKey: historySigningPublicKeyB64,
+  });
+  const signature = bufToBase64(await signBytes(historySigningKey, await canonicalBytes(content)));
+  const entry = { ...content, signature };
+  await appendHistoryEntry(entry);
+  historyChainTip = await historyEntryHash(entry);
+}
+
+// Walks the full local chain and reports whether it's intact. Checks two
+// independent things per entry: (1) prevHash actually matches the previous
+// entry's own hash — catches reordering/deletion/insertion; (2) the
+// signature verifies under a *trusted* public key (one that's ever been this
+// device's active signing key, per the keyring's signingKeyLog) — catches
+// content tampering. Returns as soon as it finds the first break, since
+// everything after a broken link is unverifiable regardless of its own
+// internal consistency.
+async function verifyHistoryChain() {
+  const entries = await getAllHistoryEntries();
+  const keyring = await getKeyring();
+  const trustedKeys = new Set((keyring?.signingKeyLog || []).map((k) => k.publicKey));
+
+  let expectedPrevHash = "GENESIS";
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (entry.prevHash !== expectedPrevHash) {
+      return { ok: false, brokenAt: i, reason: "chain-broken", entryCount: entries.length };
+    }
+    if (!trustedKeys.has(entry.publicKey)) {
+      return { ok: false, brokenAt: i, reason: "untrusted-signer", entryCount: entries.length };
+    }
+    let signatureValid;
+    try {
+      const publicKey = await importSigningPublicKey(base64ToBuf(entry.publicKey));
+      const data = await canonicalBytes(historyEntryContent(entry));
+      signatureValid = await verifyBytes(publicKey, data, base64ToBuf(entry.signature));
+    } catch {
+      signatureValid = false;
+    }
+    if (!signatureValid) {
+      return { ok: false, brokenAt: i, reason: "bad-signature", entryCount: entries.length };
+    }
+    expectedPrevHash = await historyEntryHash(entry);
+  }
+  return { ok: true, entryCount: entries.length };
 }
 
 // Decrypt-on-load: a record that fails to decrypt under the current DEK (corrupted,
@@ -395,7 +538,7 @@ async function addTask({ title, project, notes, status, priority, dueDate, tags,
   };
   tasks.push(task);
   render();
-  await persistTask(task);
+  await persistTask(task, "create");
 }
 
 // "YYYY-MM-DD" from a Date using local calendar fields, not toISOString()
@@ -443,7 +586,7 @@ async function maybeSpawnNextOccurrence(task) {
     updatedAt: now(),
   };
   tasks.push(next);
-  await persistTask(next);
+  await persistTask(next, "create");
 }
 
 async function updateTask(partial) {
@@ -452,7 +595,7 @@ async function updateTask(partial) {
   const becameDone = partial.status === "done" && task.status !== "done";
   Object.assign(task, partial, { updatedAt: now() });
   render();
-  await persistTask(task);
+  await persistTask(task, "update");
   if (becameDone) {
     await maybeSpawnNextOccurrence(task);
     render(); // the spawned occurrence needs to appear without a manual refresh
@@ -463,6 +606,7 @@ async function removeTask(id) {
   tasks = tasks.filter((t) => t.id !== id);
   render();
   await deleteTask(id);
+  await appendSignedHistoryEntry(id, "delete", null, null);
 
   // Local storage hard-deletes immediately (as it always has, since Phase 1) — but
   // if sync is on, other devices need to learn about this deletion too, and once
@@ -580,11 +724,11 @@ async function importTasksFromFile(file) {
     const existing = tasks.find((t) => t.id === candidate.id);
     if (!existing) {
       tasks.push(candidate);
-      toPersist.push(candidate);
+      toPersist.push({ task: candidate, op: "create" });
       added++;
     } else if (candidate.updatedAt > existing.updatedAt) {
       Object.assign(existing, candidate);
-      toPersist.push(existing);
+      toPersist.push({ task: existing, op: "update" });
       updated++;
     } else {
       skipped++;
@@ -592,7 +736,7 @@ async function importTasksFromFile(file) {
   }
 
   render();
-  for (const task of toPersist) await persistTask(task);
+  for (const { task, op } of toPersist) await persistTask(task, op);
 
   const skippedNote = parsed.length > MAX_IMPORT_RECORDS ? ` (file had ${parsed.length}, only the first ${MAX_IMPORT_RECORDS} were read)` : "";
   showInfoToast(`Import done: ${added} added, ${updated} updated, ${skipped} skipped${skippedNote}.`);
@@ -845,9 +989,12 @@ function wireSyncModal() {
   });
 }
 
+// logHistory:false — a drag-drop reorder changes only display order, not
+// task content, so it isn't a meaningful audit event (and logging one entry
+// per task on every reorder would drown out real edits in the history view).
 async function persistReorder(status) {
   const inStatus = tasks.filter((t) => t.status === status).sort((a, b) => a.order - b.order);
-  await Promise.all(inStatus.map((t) => persistTask(t)));
+  await Promise.all(inStatus.map((t) => persistTask(t, "update", false)));
 }
 
 function applyDropOrder(status, orderedIds) {
@@ -1108,6 +1255,11 @@ function wireViewToggle() {
     render();
     updateReveal(document.getElementById("revealDemoInput").value);
   });
+  document.getElementById("viewHistoryBtn").addEventListener("click", () => {
+    view = "history";
+    setView(view);
+    render();
+  });
 }
 
 // Live plaintext/ciphertext demo — runs the exact same encryptTask() every real
@@ -1150,6 +1302,13 @@ function wireRevealView() {
     // just surfaced inside the app itself instead of making the user go find it.
     const records = await getAllTasks();
     document.getElementById("dbDumpOutput").textContent = JSON.stringify(records, null, 2);
+  });
+}
+
+function wireHistoryView() {
+  document.getElementById("verifyHistoryBtn").addEventListener("click", async () => {
+    const report = await verifyHistoryChain();
+    renderHistoryReport(report);
   });
 }
 
@@ -1503,6 +1662,10 @@ function getCmdkItems() {
         updateReveal(document.getElementById("revealDemoInput").value);
       },
     },
+    {
+      label: "Verify task history",
+      action: () => { view = "history"; setView(view); render(); },
+    },
     { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
     { label: "Import tasks from JSON", action: () => document.getElementById("importFileInput").click() },
     { label: "Sync settings", action: openSyncModal },
@@ -1626,7 +1789,19 @@ function wireLockScreen() {
     const rawDekBytes = await unwrapDek(wrappedDek, wrapIv, kek);
     await unwrapDek(wrappedDekRecovery, wrapIvRecovery, kekR);
 
+    // A fresh per-device history-signing identity, wrapped under the same
+    // passphrase KEK as the DEK — see docs/ARCHITECTURE.md "Tamper-evident
+    // signed task history". Deliberately NOT wrapped under KEK_r too (v1
+    // scope): a recovery-code reset starts a new signing identity instead of
+    // recovering this one, documented there.
+    const signingKeypair = await generateSigningKeypair();
+    const signingPublicKeyRaw = await exportSigningPublicKey(signingKeypair.publicKey);
+    const signingPublicKeyB64 = bufToBase64(signingPublicKeyRaw);
+    const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, kek);
+
     pendingDek = await importDek(rawDekBytes);
+    pendingSigningKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, kek);
+    pendingSigningPublicKeyB64 = signingPublicKeyB64;
     pendingKeyring = {
       kdf: KDF_NAME,
       kdfParams: { iterations: PBKDF2_ITERATIONS },
@@ -1636,6 +1811,10 @@ function wireLockScreen() {
       saltRecovery: bufToBase64(saltRecovery),
       wrappedDekRecovery,
       wrapIvRecovery,
+      signingPublicKey: signingPublicKeyB64,
+      wrappedSigningKey,
+      signingKeyWrapIv,
+      signingKeyLog: [{ publicKey: signingPublicKeyB64, startedAt: now() }],
       version: 1,
     };
     pendingRecoveryCode = recoveryCode;
@@ -1662,9 +1841,14 @@ function wireLockScreen() {
   recoveryContinueBtn.addEventListener("click", async () => {
     await putKeyring(pendingKeyring);
     dek = pendingDek;
+    historySigningKey = pendingSigningKey;
+    historySigningPublicKeyB64 = pendingSigningPublicKeyB64;
+    historyChainTip = "GENESIS"; // brand-new vault, nothing in the log yet
     pendingKeyring = null;
     pendingDek = null;
     pendingRecoveryCode = null;
+    pendingSigningKey = null;
+    pendingSigningPublicKeyB64 = null;
     await afterUnlock();
   });
 
@@ -1686,6 +1870,8 @@ function wireLockScreen() {
       passphraseInput.focus();
       return;
     }
+
+    await ensureLocalSigningKeyOnUnlock(keyring, kek);
 
     // Same reasoning as the setup path — the passphrase's job is done once it's
     // derived the KEK above, so it shouldn't keep sitting in the DOM.
@@ -1758,10 +1944,32 @@ function wireLockScreen() {
     const newKek = await deriveKek(newPassphrase, newSalt);
     const { wrappedDek: newWrappedDek, wrapIv: newWrapIv } = await wrapDek(recoveredDek, newKek);
 
-    await putKeyring({ ...keyring, salt: bufToBase64(newSalt), wrappedDek: newWrappedDek, wrapIv: newWrapIv });
+    // The old signing key was wrapped only under the now-forgotten passphrase's
+    // KEK (v1 scope decision — see docs/ARCHITECTURE.md), so it's unrecoverable
+    // here by construction. Roll a fresh one and *append* it to signingKeyLog
+    // (never overwrite) so history entries signed before this reset stay
+    // verifiable — they just belong to a previous segment of the chain.
+    const signingKeypair = await generateSigningKeypair();
+    const signingPublicKeyB64 = bufToBase64(await exportSigningPublicKey(signingKeypair.publicKey));
+    const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, newKek);
+    const signingKeyLog = [...(keyring.signingKeyLog || []), { publicKey: signingPublicKeyB64, startedAt: now() }];
+
+    await putKeyring({
+      ...keyring,
+      salt: bufToBase64(newSalt),
+      wrappedDek: newWrappedDek,
+      wrapIv: newWrapIv,
+      signingPublicKey: signingPublicKeyB64,
+      wrappedSigningKey,
+      signingKeyWrapIv,
+      signingKeyLog,
+    });
 
     const rawDekBytes = await unwrapDek(newWrappedDek, newWrapIv, newKek);
     dek = await importDek(rawDekBytes);
+    historySigningKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, newKek);
+    historySigningPublicKeyB64 = signingPublicKeyB64;
+    await primeHistoryChainTip();
     recoveredDek = null;
 
     document.getElementById("resetPassphrase").value = "";
@@ -1774,6 +1982,9 @@ function wireLockScreen() {
 function wireLockButton() {
   document.getElementById("lockBtn").addEventListener("click", () => {
     dek = null;
+    historySigningKey = null;
+    historySigningPublicKeyB64 = null;
+    historyChainTip = "GENESIS";
     tasks = [];
     document.getElementById("unlockPassphrase").value = "";
     setUnlockError("");
@@ -1805,6 +2016,7 @@ async function boot() {
   wireDragAndDrop();
   wireCommandPalette();
   wireRevealView();
+  wireHistoryView();
   wireSyncModal();
 }
 

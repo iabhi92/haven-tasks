@@ -139,6 +139,36 @@ throwaway, same convention as everything else in this file).
       confirmed both the migration adds the columns idempotently and a pre-existing row (created
       before this feature existed) is still readable afterward with unlimited-views semantics.
 
+## Tamper-evident signed task history — verified 2026-08-04
+
+Local-only feature (docs/ARCHITECTURE.md §5c) — no server component to test, so all checks below
+are against a real Playwright browser and real IndexedDB, not mocks.
+
+- [x] **Real create/update/delete produce a verifiably intact chain** — Created two tasks, edited
+      one, deleted the other, through the actual UI (quick-add, edit modal, delete button). "Verify
+      history" reported exactly 4 entries, chain intact.
+- [x] **Reorder is correctly excluded from the log** — Dragged a task to a new position within a
+      column. Confirmed zero new `historyLog` entries were added — a scope decision
+      (docs/ARCHITECTURE.md §5c), verified as actually implemented rather than just claimed.
+- [x] **Content tampering is detected and correctly attributed** — Directly overwrote one stored
+      entry's `payloadHash` via raw IndexedDB access (bypassing the app). "Verify history" flagged
+      the exact entry index and attributed it to a signature mismatch specifically, not a generic
+      failure.
+- [x] **Chain-link tampering is detected and correctly attributed** — Directly deleted a middle
+      entry from `historyLog` via raw IndexedDB access. "Verify history" flagged the break at the
+      correct position and attributed it to the broken link, distinctly from the signature-mismatch
+      case above — confirming the two failure modes are actually distinguished, not just both
+      reported as "something's wrong."
+- [x] **Key rotation across a passphrase reset preserves old verifiability** — Reset the passphrase
+      via recovery code (which cannot recover the old signing key by design, so it rolls a fresh
+      one). Confirmed the pre-reset entry still verifies under its original key, a post-reset entry
+      verifies under the new key, and both check out together in one "Verify history" run — proving
+      `signingKeyLog` actually accumulates rather than overwrites.
+- [x] **Pre-existing accounts get a signing key transparently** — Simulated an account created
+      before this feature shipped (a keyring with no `wrappedSigningKey`) by unlocking normally;
+      confirmed `ensureLocalSigningKeyOnUnlock()` generates and persists one on that unlock without
+      any user-visible action required, and history logging works immediately after.
+
 ## Server hardening applied this phase
 
 `server/app.py`'s `after_request` hook now sets, on every response (previously only CORS

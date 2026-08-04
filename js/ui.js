@@ -192,8 +192,8 @@ export function renderList(tasks, handlers) {
   }
 }
 
-const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView" };
-const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn" };
+const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView" };
+const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn" };
 
 export function setView(view) {
   for (const key of Object.keys(VIEW_PANEL_IDS)) {
@@ -215,9 +215,9 @@ export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
   const empty = document.getElementById("emptyState");
   const noResults = document.getElementById("noResultsState");
 
-  // The reveal page has its own live demo input and doesn't depend on whether any
-  // real tasks exist — it must stay reachable even on a genuinely empty board.
-  if (view === "reveal") {
+  // The reveal and history pages don't depend on whether any real tasks exist —
+  // both must stay reachable even on a genuinely empty board.
+  if (view === "reveal" || view === "history") {
     empty.hidden = true;
     noResults.hidden = true;
     setView(view);
@@ -485,6 +485,32 @@ export function renderStats(tasks) {
 
 export function setPageSubtitle(text) {
   document.getElementById("pageSubtitle").textContent = text;
+}
+
+const HISTORY_BREAK_REASON_TEXT = {
+  "chain-broken": "This entry's link to the one before it doesn't match — something was inserted, removed, or reordered in the log.",
+  "untrusted-signer": "This entry was signed by a key that was never one of this device's own signing keys.",
+  "bad-signature": "This entry's signature doesn't match its content — something in it was changed after it was signed.",
+};
+
+export function renderHistoryReport(report) {
+  const container = document.getElementById("historyReport");
+  container.textContent = "";
+
+  if (report.entryCount === 0) {
+    container.appendChild(el("p", "history-report-line", "No history entries yet — add or edit a task, then check back."));
+    return;
+  }
+
+  if (report.ok) {
+    const line = el("p", "history-report-line history-report-ok", `Chain intact — all ${report.entryCount} signed ${report.entryCount === 1 ? "entry" : "entries"} verified.`);
+    container.appendChild(line);
+    return;
+  }
+
+  const line = el("p", "history-report-line history-report-bad", `Problem found at entry ${report.brokenAt + 1} of ${report.entryCount}.`);
+  container.appendChild(line);
+  container.appendChild(el("p", "history-report-detail", HISTORY_BREAK_REASON_TEXT[report.reason] || report.reason));
 }
 
 // ---------- undo toast ----------

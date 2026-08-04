@@ -114,11 +114,19 @@ Wrapping = AES-256-GCM encrypt of the raw DEK bytes under the KEK, with a random
   "saltRecovery": "<base64>",
   "wrappedDekRecovery": "<base64>",
   "wrapIvRecovery": "<base64>",
+  "signingPublicKey": "<base64, current active key, not secret>",
+  "wrappedSigningKey": "<base64 ciphertext>",
+  "signingKeyWrapIv": "<base64>",
+  "signingKeyLog": [{ "publicKey": "<base64>", "startedAt": 1234567890 }],
   "version": 1
 }
 ```
 
 None of this is secret. It is useless without the passphrase or recovery code.
+`signingPublicKey`/`signingKeyLog` are the one exception to "useless without the passphrase" —
+they're public keys by definition, harmless to read, needed only to *verify* history entries, not
+to decrypt anything. See §5c for `wrappedSigningKey`'s lifecycle (why it's not wrapped under
+`KEK_r` like `wrappedDek` is, and why `signingKeyLog` only ever grows).
 
 ## 2. Unlock / lock flow
 
@@ -288,6 +296,58 @@ originally called out in docs/THREAT_MODEL.md's A4b:
   visit is ever persisted locally; closing the tab leaves no trace on that device.
 - **What the relay server learns:** ciphertext size, creation/expiry timestamps, the share id, and
   request timing. Never the plaintext task, never the key.
+
+## 5c. Tamper-evident signed task history (Layer 2)
+
+Makes silent edits, deletions, or backdating of local task data provable rather than merely
+assumed-honest — every meaningful mutation is signed and hash-chained, so tampering leaves a
+detectable gap or mismatch instead of quietly succeeding.
+
+- **A second, separate keypair.** Each device generates its own Ed25519 signing keypair at setup
+  (`generateSigningKeypair()` in `js/crypto.js`), wrapped under the same passphrase-derived KEK
+  as the DEK but stored in its own `wrappedSigningKey`/`signingKeyWrapIv` keyring fields. This is
+  a distinct identity from the DEK on purpose: it only ever signs metadata *about* changes, never
+  the changes themselves, so nothing about its exposure would help decrypt a single task.
+- **Per-device, not per-vault, and deliberately not wrapped under KEK_r.** A recovery-code-based
+  passphrase reset can't recover the old signing key (it was never wrapped under `KEK_r`) — this
+  is a v1 scope choice, not an oversight. Reset instead **rolls a fresh signing keypair** and
+  *appends* it to `keyring.signingKeyLog` (an array of `{publicKey, startedAt}`, never
+  overwritten), so history entries signed before the reset stay independently verifiable under
+  their original key — they simply belong to a earlier segment of this device's chain.
+- **What gets logged, and what doesn't:** every `create`/`update`/`delete` through `persistTask()`/
+  `removeTask()` appends one entry. Pure display changes (drag-drop reordering, via
+  `persistReorder()`) are explicitly excluded — `persistTask(task, op, logHistory=false)` — since
+  they aren't a meaningful audit event and would otherwise drown out real edits.
+- **Entry shape** (`js/app.js`'s `historyEntryContent()`): `{id, taskId, op, payloadHash, prevHash,
+  timestamp, publicKey}`, plus a `signature` over the canonical JSON of everything except itself.
+  `payloadHash` is `sha256Hex(iv + ciphertext)` — a hash of the *ciphertext*, not the plaintext, so
+  the log stays as privacy-preserving as every other stored record; `delete` entries have
+  `payloadHash: null` since there's no content left to hash.
+- **The hash chain:** `prevHash` references the *previous entry's own hash*, which itself covers
+  that entry's signature (`historyEntryHash()`) — like a git commit hash covering its own
+  signature, so a resigned-but-otherwise-identical forged entry still breaks the chain. The first
+  entry ever appended references the literal string `"GENESIS"`.
+- **Storage:** a new IndexedDB store, `historyLog` (`js/store.js`), keyed by an auto-incrementing
+  `seq` — deliberately *not* the entry's own `id` (a UUID), because a UUID primary key would sort
+  lexicographically and silently break "previous entry" ordering. Only ever `add()`-ed, never
+  `put()`-ed — append-only is enforced at the IndexedDB call site, not just by convention.
+- **Verification (`verifyHistoryChain()`):** walks every entry in append order, checking two
+  independent things per entry — the chain link (`prevHash` matches the real previous entry's
+  hash) and the signature (verifies under a key that has ever been listed in this device's own
+  `signingKeyLog` — not just the *current* key, so old segments from before a rotation still
+  verify). Stops and reports the first break found, since everything after an unverifiable link is
+  unverifiable by construction regardless of its own internal consistency.
+- **UI:** a dedicated "History" panel (rail button + command-palette entry) with a "Verify now"
+  button — plain pass/fail language, no simulated hacker aesthetic, consistent with §6 below.
+- **Honest v1 scope limit — this is local-only.** The log lives in IndexedDB and is not currently
+  synced anywhere. That means it protects against corruption or tampering *of the local store
+  itself* (a buggy migration, a rogue browser extension poking at IndexedDB, disk-level bit rot)
+  but **not** against an attacker with the same level of access this device's own JavaScript has —
+  such an attacker could rewrite the log and `signingKeyLog` consistently with each other, since
+  both live in the same tamperable storage. It also does **not** yet defend against a malicious
+  sync server silently dropping or reordering entries, which would require syncing the log itself
+  (as opaque signed blobs, the same "dumb blob store" pattern as `/sync/push`) and is real,
+  scoped, not-yet-built future work — not a claim this version makes.
 
 ## 6. The "You vs The Server" reveal
 
