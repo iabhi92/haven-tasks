@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804l">
+<link rel="stylesheet" href="css/style.css?v=20260804m">
 </head>
 <body>
 
@@ -77,8 +77,24 @@
       </div>
       <p class="lock-error" id="recoveryError" role="alert"></p>
       <button type="submit" class="btn btn-primary lock-submit">Continue</button>
+      <button type="button" class="lock-link" id="useSharesInsteadBtn">Don't have the code? Recover using shares</button>
       <button type="button" class="lock-link" id="backToUnlockBtn">Back to passphrase</button>
     </form>
+
+    <div class="lock-form" id="shareReconstructPanel" hidden>
+      <p class="lock-sub">Enter shares one at a time from the people you trusted with them. Once
+        enough are in, they'll be combined into your recovery code automatically — the individual
+        shares are never enough on their own.</p>
+      <div class="field">
+        <label for="shareReconstructInput">Share</label>
+        <input type="text" id="shareReconstructInput" autocomplete="off" spellcheck="false">
+      </div>
+      <p class="lock-error" id="shareReconstructError" role="alert"></p>
+      <button type="button" class="btn btn-ghost recovery-copy-btn" id="addShareBtn">Add share</button>
+      <p class="lock-hint" id="shareProgressStatus"></p>
+      <div class="recovery-code-box" id="shareReconstructList"></div>
+      <button type="button" class="lock-link" id="backToCodeEntryBtn">Enter the full code instead</button>
+    </div>
 
     <form id="resetPassphraseForm" class="lock-form" autocomplete="off" hidden>
       <p class="lock-sub">Recovery code accepted. Set a new passphrase — your existing tasks
@@ -586,6 +602,63 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="socialRecoveryModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="socialRecoveryModalTitle">
+    <h2 id="socialRecoveryModalTitle">Social recovery</h2>
+
+    <div id="socialRecoverySetupSection">
+      <p class="modal-help">
+        Split your recovery code into pieces you give to people you trust. Any of them, working
+        together — enough to reach the threshold you choose — can help you back in if you ever
+        forget your passphrase and lose the code. Nobody, not even you, can read the pieces alone
+        or reconstruct anything to give it to anyone else.
+      </p>
+      <div class="field">
+        <label for="socialRecoveryCodeInput">Your existing recovery code</label>
+        <input type="text" id="socialRecoveryCodeInput" autocomplete="off" spellcheck="false" placeholder="Paste it exactly as it was shown to you">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="socialRecoveryK">Shares needed to recover</label>
+          <select id="socialRecoveryK">
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="socialRecoveryN">Total shares to create</label>
+          <select id="socialRecoveryN">
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+          </select>
+        </div>
+      </div>
+      <p class="lock-error" id="socialRecoveryError" role="alert"></p>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-ghost" id="socialRecoveryCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="socialRecoveryGenerateBtn">Generate shares</button>
+      </div>
+    </div>
+
+    <div id="socialRecoveryResultSection" hidden>
+      <p class="modal-help">
+        Give each share below to a different person, over a different channel if possible (one by
+        text, one in person, one by email) — copy each one individually. Once you close this, these
+        exact shares won't be shown again; generate a new set instead if you lose track of one.
+      </p>
+      <div id="socialRecoveryShareList" class="subtask-list"></div>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-primary" id="socialRecoveryDoneBtn">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="syncModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <h2 id="syncModalTitle">Sync (optional)</h2>
@@ -652,6 +725,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json" hidden>
 
-<script src="js/app.js?v=20260804l" type="module"></script>
+<script src="js/app.js?v=20260804m" type="module"></script>
 </body>
 </html>

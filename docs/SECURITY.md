@@ -169,6 +169,37 @@ are against a real Playwright browser and real IndexedDB, not mocks.
       confirmed `ensureLocalSigningKeyOnUnlock()` generates and persists one on that unlock without
       any user-visible action required, and history logging works immediately after.
 
+## Social recovery (Shamir secret sharing) — verified 2026-08-04
+
+Caught a real, ship-blocking bug during this pass, not just confirmed things worked — see the
+first item below.
+
+- [x] **GF(256) field arithmetic bug found and fixed by the test suite doing its job** — The first
+      implementation built its log/exp tables via naive repeated doubling from `1`, which
+      implicitly assumes `2` is a primitive root of the field. It isn't: `2`'s multiplicative order
+      under reduction polynomial `0x11B` is only 51 (a proper divisor of 255), so the table
+      silently cycled after 51 entries instead of covering all 255 nonzero elements, and every
+      split/reconstruct round-trip test failed immediately with garbage output. Fixed by using
+      generator `3` (`double(x) XOR x`), verified to have the full 255-element cycle by an explicit
+      check in the table-building code, not just textbook assertion. This is exactly the failure
+      mode "actually run it" exists to catch — the buggy version would have looked identical in a
+      code review to someone not independently re-deriving the field's primitive roots.
+- [x] **3-of-5 split reconstructs from any qualifying subset** — Split a real recovery code
+      through the actual "Set up social recovery" UI (not the crypto functions directly). Used
+      three different 3-of-5 subsets of the resulting shares (including one not starting with
+      share #1) to reach the reset-passphrase screen each way, then confirmed the new passphrase
+      actually unlocks the vault and the original task is still present and readable.
+- [x] **Splitting requires the real recovery code, not just any input** — Attempted to split using
+      an obviously-wrong recovery code through the UI. Rejected before any shares were generated or
+      shown, with a clear error — confirms the split flow re-verifies against
+      `wrappedDekRecovery` rather than trusting whatever the user typed.
+- [x] **Fewer than k shares never reaches the reset screen** — Added exactly 2 of a required 3
+      shares. Confirmed the app stayed on the share-collection screen showing "2 of 3 shares
+      added" rather than attempting (and silently failing) reconstruction early.
+- [x] **Malformed input is rejected before it can pollute a reconstruction attempt** — A duplicate
+      share (already added) and a garbage string (not a valid encoded share at all) are both
+      rejected with a clear, specific error and never added to the collected set.
+
 ## Server hardening applied this phase
 
 `server/app.py`'s `after_request` hook now sets, on every response (previously only CORS

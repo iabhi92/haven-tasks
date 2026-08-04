@@ -208,6 +208,52 @@ meaningful — title, notes, status, priority, due date — is inside the cipher
 This is the standard, correct recovery pattern. Do not add a server-side reset — that would break
 the entire security model.
 
+## 4b. Social recovery (Layer 2)
+
+Splits the *existing* recovery code from §4 into pieces distributed to trusted people, instead of
+inventing a second, parallel recovery secret — a reconstructed set of shares yields the byte-
+identical original recovery code string, so it re-enters exactly the flow above with zero new
+unlock-path code to audit.
+
+- **Shamir secret sharing over GF(2^8)**, hand-implemented in `js/crypto.js` (`splitSecret`/
+  `reconstructSecret`) — the standard textbook construction (Shamir 1979), not a novel scheme.
+  Field: the AES/Rijndael field, reduction polynomial `x^8+x^4+x^3+x+1` (`0x11B`), generator `3`.
+  **Generator choice matters and was a real, caught bug during development:** `2` is *not* a
+  primitive root of this field (its multiplicative order is only 51, a proper divisor of 255), so
+  a log/exp table built by naive repeated doubling silently cycles after 51 entries instead of
+  covering all 255 nonzero field elements — every share produced from such a table would be
+  systematically wrong. `3` (`double(x) XOR x`) is the standard choice (used by Rijndael's own
+  reference tables) and is verified, not merely assumed, to have the full order-255 cycle — see
+  the comment at `buildGfTables()` and `js/crypto.test.mjs`'s SSS vectors.
+- **What gets split:** the recovery code's own 32 raw bytes (`recoveryCodeToBytes()`), the same
+  bytes §4's `KEK_r` is derived from — not a separate secret. `k` of `n` shares reconstruct those
+  exact 32 bytes; `k-1` reveal nothing (Shamir's information-theoretic guarantee holds regardless
+  of which construction generates the shares).
+- **No built-in correctness check on reconstruction** — mismatched or wrong shares silently
+  reconstruct to garbage bytes rather than erroring, an inherent Shamir property, not a bug in this
+  implementation. Correctness is instead verified for free by reusing §4's own recovery flow:
+  attempting to unwrap `wrappedDekRecovery` with the reconstructed code's derived `KEK_r` either
+  succeeds (AES-GCM auth tag passes → shares were right) or throws (fails closed → shares were
+  wrong/insufficient/mismatched), exactly the same fail-closed behavior a mistyped recovery code
+  already produces. No new verification mechanism needed.
+- **Share encoding:** `[k, index, ...32 share bytes]` (34 bytes) → the same dashed base32 format as
+  a recovery code, via `encodeShare()`/`decodeShare()` — visually and mechanically consistent with
+  everything else the user is asked to transcribe or paste. Embedding `k` in every share lets the
+  reconstruction UI show "2 of 3 needed" without the user separately remembering the threshold.
+  Nothing about a single share (or `k-1` of them) reveals anything about the DEK, the passphrase,
+  or even how close a guess is — that's what "information-theoretic" means here, not just "hard to
+  guess."
+- **UI:** splitting happens from a command-palette action ("Set up social recovery") while
+  unlocked — it re-verifies the entered code against the real `wrappedDekRecovery` before splitting
+  anything, so it can't silently split a typo. Reconstruction happens from the lock screen's
+  existing recovery flow via a "Recover using shares" sub-panel — shares are added one at a time,
+  and once `k` are collected, reconstruction and verification happen automatically (see above),
+  landing on the exact same reset-passphrase screen §4's direct-code-entry path does.
+- **What a holder of one share learns:** nothing usable alone. What the app itself learns from a
+  *successful* split: the plaintext recovery code, transiently, only in memory during the split
+  operation — never written anywhere new; the resulting shares are exactly as sensitive as the
+  original code was, just spread across more people.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

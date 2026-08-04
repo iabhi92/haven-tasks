@@ -23,6 +23,12 @@ import {
   signBytes,
   verifyBytes,
   sha256Hex,
+  recoveryCodeToBytes,
+  bytesToRecoveryCode,
+  splitSecret,
+  reconstructSecret,
+  encodeShare,
+  decodeShare,
 } from "./crypto.js";
 
 const results = [];
@@ -199,6 +205,66 @@ await test("11. history signing: tampering with signed bytes makes verification 
 await test("12. sha256Hex: known test vector for the empty string", async () => {
   const hash = await sha256Hex(new Uint8Array(0));
   assert.equal(hash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+});
+
+// ---- 13. Shamir secret sharing: split/reconstruct round-trip on a real recovery code ----
+await test("13. SSS: 3-of-5 split, any 3 shares reconstruct the exact original recovery code bytes", async () => {
+  const code = generateRecoveryCode();
+  const secret = recoveryCodeToBytes(normalizeRecoveryCode(code));
+  assert.equal(secret.length, 32);
+
+  const shares = splitSecret(secret, 3, 5);
+  assert.equal(shares.length, 5);
+
+  // three different 3-subsets, all must reconstruct identically
+  const subsets = [
+    [shares[0], shares[1], shares[2]],
+    [shares[1], shares[3], shares[4]],
+    [shares[0], shares[2], shares[4]],
+  ];
+  for (const subset of subsets) {
+    const reconstructed = reconstructSecret(subset);
+    assert.deepEqual(reconstructed, secret);
+  }
+});
+
+await test("14. SSS: fewer than k shares reconstructs to the WRONG secret, never the right one", async () => {
+  const secret = crypto.getRandomValues(new Uint8Array(32));
+  const shares = splitSecret(secret, 3, 5);
+  // only 2 of the required 3 — Lagrange interpolation with too few points
+  // silently produces garbage rather than the real secret (Shamir's scheme
+  // has no built-in way to detect this; the app layer must verify separately).
+  const reconstructed = reconstructSecret([shares[0], shares[1]]);
+  assert.notDeepEqual(reconstructed, secret);
+});
+
+await test("15. SSS: encodeShare/decodeShare round-trips k, index, and bytes exactly", async () => {
+  const secret = crypto.getRandomValues(new Uint8Array(32));
+  const shares = splitSecret(secret, 2, 4);
+  for (const share of shares) {
+    const encoded = encodeShare(2, share);
+    assert.match(encoded, /^([0-9A-Z]{5}-){10}[0-9A-Z]{5}$/); // 34 bytes -> 55 chars -> 11 groups of 5
+    const decoded = decodeShare(encoded);
+    assert.equal(decoded.k, 2);
+    assert.equal(decoded.share.index, share.index);
+    assert.deepEqual(decoded.share.bytes, share.bytes);
+  }
+});
+
+await test("16. SSS: k=n (all shares required) still reconstructs correctly", async () => {
+  const secret = crypto.getRandomValues(new Uint8Array(32));
+  const shares = splitSecret(secret, 4, 4);
+  const reconstructed = reconstructSecret(shares);
+  assert.deepEqual(reconstructed, secret);
+});
+
+await test("17. SSS: full round trip produces the IDENTICAL recovery code string, usable in the existing unlock flow", async () => {
+  const originalCode = generateRecoveryCode();
+  const secret = recoveryCodeToBytes(normalizeRecoveryCode(originalCode));
+  const shares = splitSecret(secret, 3, 5);
+  const reconstructedSecret = reconstructSecret([shares[1], shares[2], shares[4]]);
+  const reconstructedCode = bytesToRecoveryCode(reconstructedSecret);
+  assert.equal(reconstructedCode, originalCode);
 });
 
 // ---- report ----

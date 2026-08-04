@@ -1335,6 +1335,40 @@ body { display: flex; }
 .share-view-error { color: var(--danger); }
 .share-view-footer-note { margin-bottom: 12px; }
 
+/* ---------- social recovery share list ---------- */
+.social-recovery-share-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.social-recovery-share-label {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  min-width: 64px;
+}
+.social-recovery-share-value {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  word-break: break-all;
+}
+#shareReconstructList {
+  text-align: left;
+  min-height: 0;
+}
+#shareReconstructList:empty { display: none; }
+.share-reconstruct-item {
+  font-size: 13px;
+  padding: 4px 0;
+  color: var(--text-muted);
+}
+
 .modal-help {
   margin: -6px 0 14px;
   font-size: 13px;

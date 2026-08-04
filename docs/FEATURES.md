@@ -118,8 +118,10 @@ data."*
 
 ### Recovery, done distinctively (E2EE's #1 killer — solving it uniquely is a real edge)
 
-- [ ] Social recovery / Shamir secret sharing (split recovery key among k-of-n trusted people) —
-      High · Signal: high
+- [x] Social recovery / Shamir secret sharing (split recovery key among k-of-n trusted people) —
+      High · Signal: high. Shipped: hand-implemented GF(256) SSS (`js/crypto.js`), splits the
+      existing recovery code itself so reconstruction re-enters the existing recovery-code unlock
+      flow unchanged — see docs/ARCHITECTURE.md §4b.
 - [ ] Hardware key / passkey (WebAuthn) unlock as an alternative to passphrase — High · Signal:
       high
 

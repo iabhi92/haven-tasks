@@ -7,7 +7,7 @@ import {
   appendHistoryEntry,
   getAllHistoryEntries,
   getLastHistoryEntry,
-} from "./store.js?v=20260804l";
+} from "./store.js?v=20260804m";
 import {
   renderBoard,
   renderList,
@@ -40,7 +40,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804l";
+} from "./ui.js?v=20260804m";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -65,7 +65,13 @@ import {
   signBytes,
   verifyBytes,
   sha256Hex,
-} from "./crypto.js?v=20260804l";
+  recoveryCodeToBytes,
+  bytesToRecoveryCode,
+  splitSecret,
+  reconstructSecret,
+  encodeShare,
+  decodeShare,
+} from "./crypto.js?v=20260804m";
 import {
   generateSyncToken,
   pushRecords,
@@ -74,7 +80,7 @@ import {
   pullKeyringBootstrap,
   pushShare,
   deleteShare,
-} from "./sync.js?v=20260804l";
+} from "./sync.js?v=20260804m";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -817,6 +823,96 @@ function refreshSyncModalState() {
     document.getElementById("syncJoinRecoveryCode").value = "";
     document.getElementById("syncJoinPassphrase").value = "";
   }
+}
+
+// ---------- social recovery: split (settings, while unlocked) ----------
+
+function openSocialRecoveryModal() {
+  document.getElementById("socialRecoveryCodeInput").value = "";
+  document.getElementById("socialRecoveryK").value = "2";
+  document.getElementById("socialRecoveryN").value = "3";
+  document.getElementById("socialRecoveryError").textContent = "";
+  document.getElementById("socialRecoverySetupSection").hidden = false;
+  document.getElementById("socialRecoveryResultSection").hidden = true;
+  document.getElementById("socialRecoveryModal").hidden = false;
+}
+
+function closeSocialRecoveryModal() {
+  document.getElementById("socialRecoveryModal").hidden = true;
+  document.getElementById("socialRecoveryCodeInput").value = "";
+}
+
+function wireSocialRecoveryModal() {
+  const overlay = document.getElementById("socialRecoveryModal");
+  const errorEl = document.getElementById("socialRecoveryError");
+
+  document.getElementById("socialRecoveryCancelBtn").addEventListener("click", () => closeSocialRecoveryModal());
+  document.getElementById("socialRecoveryDoneBtn").addEventListener("click", () => closeSocialRecoveryModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeSocialRecoveryModal();
+  });
+
+  document.getElementById("socialRecoveryGenerateBtn").addEventListener("click", async () => {
+    errorEl.textContent = "";
+    const codeInput = document.getElementById("socialRecoveryCodeInput");
+    const k = Number(document.getElementById("socialRecoveryK").value);
+    const n = Number(document.getElementById("socialRecoveryN").value);
+
+    if (k > n) {
+      errorEl.textContent = "The number needed can't be more than the total number of shares.";
+      return;
+    }
+
+    // Verify the entered code is actually this vault's real recovery code
+    // before splitting it — never split and hand out pieces of a typo.
+    const keyring = await getKeyring();
+    const normalized = normalizeRecoveryCode(codeInput.value);
+    const kekR = await deriveKek(normalized, base64ToBuf(keyring.saltRecovery));
+    try {
+      await unwrapDek(keyring.wrappedDekRecovery, keyring.wrapIvRecovery, kekR);
+    } catch {
+      errorEl.textContent = "That doesn't match this device's recovery code.";
+      return;
+    }
+
+    const secretBytes = recoveryCodeToBytes(normalized);
+    const shares = splitSecret(secretBytes, k, n);
+
+    const listEl = document.getElementById("socialRecoveryShareList");
+    listEl.textContent = "";
+    shares.forEach((share, i) => {
+      const encoded = encodeShare(k, share);
+      const row = document.createElement("div");
+      row.className = "social-recovery-share-row";
+      const label = document.createElement("span");
+      label.className = "social-recovery-share-label";
+      label.textContent = `Share ${i + 1} of ${n}`;
+      const value = document.createElement("span");
+      value.className = "social-recovery-share-value";
+      value.textContent = encoded;
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "btn btn-ghost btn-sm";
+      copyBtn.textContent = "Copy";
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(encoded);
+          const original = copyBtn.textContent;
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => { copyBtn.textContent = original; }, 1500);
+        } catch {
+          // Clipboard unavailable — the text is already selectable/visible above.
+        }
+      });
+      row.appendChild(label);
+      row.appendChild(value);
+      row.appendChild(copyBtn);
+      listEl.appendChild(row);
+    });
+
+    document.getElementById("socialRecoverySetupSection").hidden = true;
+    document.getElementById("socialRecoveryResultSection").hidden = false;
+  });
 }
 
 function openSyncModal() {
@@ -1669,6 +1765,7 @@ function getCmdkItems() {
     { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
     { label: "Import tasks from JSON", action: () => document.getElementById("importFileInput").click() },
     { label: "Sync settings", action: openSyncModal },
+    { label: "Set up social recovery", action: openSocialRecoveryModal },
   ];
 }
 
@@ -1746,6 +1843,106 @@ async function afterUnlock() {
   render();
   showApp();
   document.getElementById("quickAddInput").focus();
+}
+
+// Shared by both the direct "enter your recovery code" form and the
+// "reconstruct from shares" flow below — a reconstructed code is just a
+// string indistinguishable from an originally-generated one (see
+// bytesToRecoveryCode()), so both paths converge on this single check.
+// extractable: true on the resulting DEK — it's about to be wrapped again
+// under a new passphrase-derived KEK in the reset-passphrase step.
+async function attemptRecoveryWithCode(code) {
+  const keyring = await getKeyring();
+  if (!keyring.wrappedDekRecovery) {
+    return { ok: false, reason: "No recovery code was ever set up on this device." };
+  }
+  const kekR = await deriveKek(normalizeRecoveryCode(code), base64ToBuf(keyring.saltRecovery));
+  try {
+    const rawDekBytes = await unwrapDek(keyring.wrappedDekRecovery, keyring.wrapIvRecovery, kekR);
+    recoveredDek = await importDek(rawDekBytes, true);
+  } catch {
+    return { ok: false, reason: "That recovery code doesn't match." };
+  }
+  return { ok: true };
+}
+
+// ---------- social recovery: reconstruct-from-shares (lock screen) ----------
+
+let collectedShares = []; // [{ k, share: { index, bytes } }]
+
+function resetShareReconstructPanel() {
+  collectedShares = [];
+  document.getElementById("shareReconstructInput").value = "";
+  document.getElementById("shareReconstructError").textContent = "";
+  renderShareReconstructList();
+}
+
+function renderShareReconstructList() {
+  const list = document.getElementById("shareReconstructList");
+  list.textContent = "";
+  for (const { share } of collectedShares) {
+    const item = document.createElement("div");
+    item.className = "share-reconstruct-item";
+    item.textContent = `Share #${share.index} added`;
+    list.appendChild(item);
+  }
+  const k = collectedShares[0]?.k;
+  document.getElementById("shareProgressStatus").textContent = k
+    ? `${collectedShares.length} of ${k} shares added`
+    : "";
+}
+
+function wireShareReconstructPanel() {
+  document.getElementById("useSharesInsteadBtn").addEventListener("click", () => {
+    document.getElementById("recoveryForm").hidden = true;
+    resetShareReconstructPanel();
+    document.getElementById("shareReconstructPanel").hidden = false;
+  });
+
+  document.getElementById("backToCodeEntryBtn").addEventListener("click", () => {
+    document.getElementById("shareReconstructPanel").hidden = true;
+    document.getElementById("recoveryForm").hidden = false;
+  });
+
+  document.getElementById("addShareBtn").addEventListener("click", async () => {
+    const input = document.getElementById("shareReconstructInput");
+    const errorEl = document.getElementById("shareReconstructError");
+    errorEl.textContent = "";
+
+    let decoded;
+    try {
+      decoded = decodeShare(input.value);
+    } catch {
+      errorEl.textContent = "That doesn't look like a valid share.";
+      return;
+    }
+
+    if (collectedShares.some((c) => c.share.index === decoded.share.index)) {
+      errorEl.textContent = "You've already added this share.";
+      return;
+    }
+    if (collectedShares.length > 0 && collectedShares[0].k !== decoded.k) {
+      errorEl.textContent = "This share doesn't match the others you've entered — make sure they're all from the same set.";
+      return;
+    }
+
+    collectedShares.push(decoded);
+    input.value = "";
+    renderShareReconstructList();
+
+    if (collectedShares.length >= decoded.k) {
+      const secretBytes = reconstructSecret(collectedShares.map((c) => c.share));
+      const code = bytesToRecoveryCode(secretBytes);
+      const result = await attemptRecoveryWithCode(code);
+      if (!result.ok) {
+        errorEl.textContent = "These shares don't reconstruct a valid recovery code — check they're entered correctly, or add another if you have a spare.";
+        resetShareReconstructPanel();
+        return;
+      }
+      document.getElementById("shareReconstructPanel").hidden = true;
+      showResetPassphraseScreen();
+    }
+  });
 }
 
 function wireLockScreen() {
@@ -1885,33 +2082,28 @@ function wireLockScreen() {
     document.getElementById("unlockPassphrase").value = "";
     setRecoveryError("");
     document.getElementById("recoveryCodeInput").value = "";
+    document.getElementById("shareReconstructPanel").hidden = true;
+    document.getElementById("recoveryForm").hidden = false;
     showRecoveryForm();
   });
 
   backToUnlockBtn.addEventListener("click", () => {
     setRecoveryError("");
+    document.getElementById("shareReconstructPanel").hidden = true;
+    document.getElementById("recoveryForm").hidden = false;
     showUnlockScreen();
   });
+
+  wireShareReconstructPanel();
 
   recoveryForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const codeInput = document.getElementById("recoveryCodeInput");
     setRecoveryError("");
 
-    const keyring = await getKeyring();
-    if (!keyring.wrappedDekRecovery) {
-      setRecoveryError("No recovery code was ever set up on this device.");
-      return;
-    }
-
-    const kekR = await deriveKek(normalizeRecoveryCode(codeInput.value), base64ToBuf(keyring.saltRecovery));
-
-    try {
-      const rawDekBytes = await unwrapDek(keyring.wrappedDekRecovery, keyring.wrapIvRecovery, kekR);
-      // extractable: true — it's about to be wrapped again under a new passphrase-derived KEK.
-      recoveredDek = await importDek(rawDekBytes, true);
-    } catch {
-      setRecoveryError("That recovery code doesn't match.");
+    const result = await attemptRecoveryWithCode(codeInput.value);
+    if (!result.ok) {
+      setRecoveryError(result.reason);
       codeInput.value = "";
       codeInput.focus();
       return;
@@ -2018,6 +2210,7 @@ async function boot() {
   wireRevealView();
   wireHistoryView();
   wireSyncModal();
+  wireSocialRecoveryModal();
 }
 
 wireThemeToggle();

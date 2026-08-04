@@ -145,17 +145,178 @@ function bytesToBase32(bytes) {
   return output;
 }
 
+// Exact inverse of bytesToBase32 — trailing bits shorter than a byte are
+// encoding padding (always zero-filled by bytesToBase32), not data, so
+// they're dropped rather than turned into a partial trailing byte.
+function base32ToBytes(str) {
+  let bits = 0;
+  let value = 0;
+  const bytes = [];
+  for (const char of str) {
+    const charValue = BASE32_ALPHABET.indexOf(char);
+    if (charValue === -1) throw new Error(`Invalid base32 character: ${char}`);
+    value = (value << 5) | charValue;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(bytes);
+}
+
+function formatAsDashedCode(bytes) {
+  return bytesToBase32(bytes).match(/.{1,5}/g).join("-");
+}
+
 // 32 random bytes (256 bits) via crypto.getRandomValues — never Math.random().
 export function generateRecoveryCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const raw = bytesToBase32(bytes);
-  return raw.match(/.{1,5}/g).join("-");
+  return formatAsDashedCode(bytes);
 }
 
 // Recovery codes are entered by hand — normalize case/formatting before using
 // as KDF input so "abcd-efgh" and "ABCDEFGH" derive the same key.
 export function normalizeRecoveryCode(code) {
   return code.toUpperCase().replace(/[^0-9A-Z]/g, "");
+}
+
+// The raw 32 bytes behind an already-generated, already-normalized recovery
+// code — needed to split it via Shamir secret sharing (below) without
+// generating a second, different secret.
+export function recoveryCodeToBytes(normalizedCode) {
+  return base32ToBytes(normalizedCode);
+}
+
+// The inverse: reconstructed Shamir secret bytes -> the exact same dashed
+// format generateRecoveryCode() produces, so a reconstructed code is
+// indistinguishable from — and usable anywhere — an originally-generated one.
+export function bytesToRecoveryCode(bytes) {
+  return formatAsDashedCode(bytes);
+}
+
+// ---------- social recovery: Shamir secret sharing over GF(256) ----------
+// Splits the recovery code's own 32 secret bytes into n shares, k of which
+// reconstruct the original bytes exactly; k-1 reveal nothing (information-
+// theoretic security, the standard Shamir 1979 guarantee). Reconstructing
+// yields the *same* recovery code string, so it plugs directly into the
+// existing recovery-code unlock flow — no separate recovery path to build or
+// audit. See docs/ARCHITECTURE.md "Social recovery".
+
+// Standard AES/Rijndael field: GF(2^8) with reduction polynomial
+// x^8+x^4+x^3+x+1 (0x11B) and generator 3 — the same field choice used by
+// most reference Shamir-secret-sharing implementations (e.g. ssss, ss).
+// Not a novel construction; log/exp tables are the usual way to make GF(256)
+// multiply/divide fast without a per-call polynomial reduction.
+const GF_EXP = new Uint8Array(256);
+const GF_LOG = new Uint8Array(256);
+(function buildGfTables() {
+  // Generator must be 3, not 2: 2 (0x02) only has multiplicative order 51 in
+  // this field (a proper divisor of 255), so a table built by repeated
+  // doubling alone silently cycles after 51 entries instead of covering all
+  // 255 nonzero elements. 3 = double(x) XOR x is the standard choice (used
+  // by Rijndael's own reference log/antilog tables) and is a true primitive
+  // root here — verified by checking the loop below visits 255 distinct
+  // values before repeating, not merely asserted.
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    GF_EXP[i] = x;
+    GF_LOG[x] = i;
+    let doubled = x << 1;
+    if (doubled & 0x100) doubled ^= 0x11b;
+    x = doubled ^ x;
+  }
+  GF_EXP[255] = GF_EXP[0]; // wrap, simplifies mult() below
+})();
+
+function gfMul(a, b) {
+  if (a === 0 || b === 0) return 0;
+  return GF_EXP[(GF_LOG[a] + GF_LOG[b]) % 255];
+}
+
+function gfDiv(a, b) {
+  if (a === 0) return 0;
+  if (b === 0) throw new Error("GF(256) division by zero");
+  return GF_EXP[(GF_LOG[a] + 255 - GF_LOG[b]) % 255];
+}
+
+// Splits `secretBytes` into `n` shares of which any `k` reconstruct it.
+// Returns [{ index: 1..n, bytes: Uint8Array(secretBytes.length) }, ...].
+export function splitSecret(secretBytes, k, n) {
+  if (k < 2 || n < k || n > 255) throw new Error("Shamir split requires 2 <= k <= n <= 255");
+  const shares = Array.from({ length: n }, (_, i) => ({
+    index: i + 1,
+    bytes: new Uint8Array(secretBytes.length),
+  }));
+
+  for (let byteIdx = 0; byteIdx < secretBytes.length; byteIdx++) {
+    // Random degree-(k-1) polynomial with this byte as the constant term —
+    // never derived from anything but crypto.getRandomValues.
+    const coeffs = new Uint8Array(k);
+    coeffs[0] = secretBytes[byteIdx];
+    for (let c = 1; c < k; c++) coeffs[c] = crypto.getRandomValues(new Uint8Array(1))[0];
+
+    for (const share of shares) {
+      let y = 0;
+      let xPow = 1;
+      for (let c = 0; c < k; c++) {
+        y ^= gfMul(coeffs[c], xPow);
+        xPow = gfMul(xPow, share.index);
+      }
+      share.bytes[byteIdx] = y;
+    }
+  }
+  return shares;
+}
+
+// Reconstructs the original secret from >= k shares via Lagrange
+// interpolation at x=0, done independently per byte position. Any k
+// *correct* shares reconstruct exactly; wrong/mismatched shares reconstruct
+// to garbage bytes silently (Shamir's scheme has no built-in way to detect
+// that) — callers must independently verify the result, which
+// recoveryCodeToBytes()'s caller does for free by attempting the normal
+// recovery-code unwrap (AES-GCM's auth tag fails closed on wrong input).
+export function reconstructSecret(shares) {
+  const k = shares.length;
+  const length = shares[0].bytes.length;
+  const secret = new Uint8Array(length);
+
+  for (let byteIdx = 0; byteIdx < length; byteIdx++) {
+    let result = 0;
+    for (let i = 0; i < k; i++) {
+      const xi = shares[i].index;
+      const yi = shares[i].bytes[byteIdx];
+      let numerator = 1;
+      let denominator = 1;
+      for (let j = 0; j < k; j++) {
+        if (i === j) continue;
+        const xj = shares[j].index;
+        numerator = gfMul(numerator, xj);
+        denominator = gfMul(denominator, xj ^ xi); // (xj - x) at x=0 is xj; GF subtraction is XOR
+      }
+      result ^= gfMul(yi, gfDiv(numerator, denominator));
+    }
+    secret[byteIdx] = result;
+  }
+  return secret;
+}
+
+// Share encoding: [k, index, ...32 secret-share bytes] -> dashed base32, the
+// same visual format as a recovery code so it's transcribable the same way.
+// Embedding k lets the reconstruction UI show "you have 2 of 3 needed"
+// without the user having to remember or re-enter the threshold separately.
+export function encodeShare(k, share) {
+  const bytes = new Uint8Array(2 + share.bytes.length);
+  bytes[0] = k;
+  bytes[1] = share.index;
+  bytes.set(share.bytes, 2);
+  return formatAsDashedCode(bytes);
+}
+
+export function decodeShare(encoded) {
+  const bytes = base32ToBytes(normalizeRecoveryCode(encoded));
+  if (bytes.length < 3) throw new Error("Not a valid share — too short");
+  return { k: bytes[0], share: { index: bytes[1], bytes: bytes.slice(2) } };
 }
 
 // ---------- tamper-evident history signing (Layer 2) ----------

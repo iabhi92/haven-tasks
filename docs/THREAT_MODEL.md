@@ -110,6 +110,27 @@
     (though never by whom without IP logs it may or may not keep), even though it can't read the
     content.
 
+### A4c. A social recovery share holder (one of k-of-n trusted people)
+- **Capability:** holds one piece of a split recovery code (docs/ARCHITECTURE.md §4b).
+- **Defense:** Shamir's information-theoretic guarantee — any `k-1` shares (however many people
+  collude, short of the threshold) reveal *nothing* about the recovery code, not even a probabilistic
+  edge over guessing blind. This isn't "hard to break," it's mathematically nothing to work with,
+  the same property the scheme has always had since 1979.
+- **Residual risk, stated plainly:**
+  - **`k` colluding (or coerced) share holders can fully recover the vault**, same as anyone who
+    obtains the plain recovery code today — social recovery doesn't add a new secret, it
+    redistributes the existing one. Choosing `k` and who holds shares is entirely the user's trust
+    call; the app enforces nothing about who a share goes to.
+  - **A share holder is a new place the code can leak from that didn't exist before** — a share
+    holder who mishandles or is phished for their share is a real, new attack surface, even though
+    that one share alone is useless. Splitting the code among more people increases the number of
+    parties who need to *individually* be trustworthy for the scheme to hold, even though it also
+    means no single one of them can do damage alone.
+  - **No revocation.** Once shares are distributed, there's no way to invalidate a share someone
+    already has short of generating an entirely new recovery code (which requires unlocking
+    normally first) and redistributing fresh shares — the same limitation A4b's share links have,
+    for the same underlying reason: a secret already handed out can't be un-handed-out.
+
 ### A5. XSS — the existential threat
 - **Capability:** if an attacker can run JavaScript in the app's origin, they can read the DEK and
   plaintext directly from memory before encryption, defeating the entire scheme.
@@ -210,6 +231,17 @@
       entries signed before the reset still verify afterward, and a new entry signed after the
       reset verifies under the new key — both segments of the chain check out under one "Verify
       history" run.
+- [x] **Shamir field arithmetic is actually correct, not just plausible-looking** — found a real
+      bug this way: an initial GF(256) table built with generator `2` produced shares that failed
+      to reconstruct (caught by `js/crypto.test.mjs`'s round-trip vectors before ever reaching
+      manual testing, exactly because "run it for real" was the standard, not "the algorithm looks
+      textbook-correct").
+- [x] **Social recovery: k-of-n reconstructs, k-1 does not** — split a real recovery code 3-of-5
+      through the actual UI, reconstructed successfully from three different 3-subsets of the five
+      shares, and confirmed the app never advances past the share-collection screen with only 2.
+- [x] **Social recovery: garbage/mismatched shares fail closed** — an invalid share string is
+      rejected before being added; a duplicate share is rejected; shares from two different split
+      operations (different `k`) are rejected as mismatched before ever attempting reconstruction.
 
 ## How to read this document (for a reviewer)
 
