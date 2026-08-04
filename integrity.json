@@ -2,6 +2,7 @@
   "algorithm": "sha384",
   "generatedFrom": ".",
   "files": {
+    "css/article.css": "sha384-RNkJC7Sva7On5yVhhZkuvVRS6BsoyZkRnvdSasgn/Yf7zaBb9JrgPILQER3GrvoJ",
     "css/landing.css": "sha384-f9z4ClvWCIOG5iknD6r6lxCjuA4GmmUW9pz52Co07KUSxQGz+PDArH3RJqCGcCcH",
     "css/style.css": "sha384-c5fPTs2MUpKzTYKsVgQD5QspaQ4KQo39nnxyrDlOcwBaIwtSGV4oxTWvtm5gCDzF",
     "js/app.js": "sha384-eERQGluguTuMlAEPff+GzQ2TzO8DSR8xSMZ2PBkuF1GPZ6BcUIhYMPB1HyINZsBq",
