@@ -226,6 +226,15 @@ not merely that the right-looking attribute is present in the HTML.
       silently included in `integrity.json` as if it were a real served asset. Deleted rather than
       hashed — a manifest with a phantom entry undermines exactly the "these are the real served
       files" claim this feature exists to make.
+- [x] **Found a real, transient production issue while deploying this: CDN edge-cache propagation
+      lag** — a post-deploy live check (not just "wrangler said success") caught one Cloudflare
+      edge PoP briefly serving the newly-deployed `app.html` (new integrity hash) alongside a
+      stale-cached `css/style.css` (`cf-cache-status: HIT`, previous version's bytes) — the exact
+      mismatch that makes a browser correctly block the stylesheet. Resolved on its own within
+      seconds; a follow-up fetch-and-hash-every-file check confirmed full consistency. Documented
+      in docs/ARCHITECTURE.md §5d as a real, narrow, CDN-inherent risk with SRI, and as the reason
+      "deploy succeeded" and "the live site is actually consistent" are checked separately here,
+      not treated as the same thing.
 
 ## Server hardening applied this phase
 

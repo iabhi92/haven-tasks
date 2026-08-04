@@ -485,6 +485,18 @@ tampering *detectable* two different ways instead of purely assumed-away.
   cache-bust query strings already require — except a stale SRI hash doesn't serve stale content
   like a stale `?v=` does, it **breaks the site outright** (the browser blocks the mismatched
   resource), so this matters more, not less.
+- **A real, observed operational risk: CDN edge-cache propagation lag right after deploy.**
+  Immediately after a live deploy, one edge PoP briefly served the *new* `app.html` (with a
+  freshly-regenerated integrity hash) alongside a *stale cached* `css/style.css` (the previous
+  version's bytes, `cf-cache-status: HIT`) — precisely the mismatched combination that makes a
+  browser correctly block the stylesheet. It resolved within seconds on its own (Cloudflare's
+  static-assets deploys invalidate per-file, not instantaneously across every edge PoP
+  simultaneously) and a follow-up check confirmed every served file matched `integrity.json`
+  again. This is a real, if narrow and transient, window inherent to pairing SRI with any
+  multi-PoP CDN — not specific to a mistake in this deploy. Practical mitigation: verify
+  `integrity.json`'s hashes against the live site a few seconds after each deploy (fetch every
+  file, hash it, compare) before considering a deploy complete, rather than trusting the deploy
+  tool's own "success" output alone.
 
 ## 6. The "You vs The Server" reveal
 
