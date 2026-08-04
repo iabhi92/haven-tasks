@@ -55,6 +55,11 @@
 .landing-proof-grid .reveal-up.is-visible:nth-child(5) { transition-delay: 0.32s; }
 .landing-proof-grid .reveal-up.is-visible:nth-child(6) { transition-delay: 0.4s; }
 .landing-proof-grid .reveal-up.is-visible:nth-child(7) { transition-delay: 0.48s; }
+.landing-proof-grid .reveal-up.is-visible:nth-child(8) { transition-delay: 0.08s; }
+.landing-proof-grid .reveal-up.is-visible:nth-child(9) { transition-delay: 0.16s; }
+.landing-proof-grid .reveal-up.is-visible:nth-child(10) { transition-delay: 0.24s; }
+.landing-proof-grid .reveal-up.is-visible:nth-child(11) { transition-delay: 0.32s; }
+.landing-proof-grid .reveal-up.is-visible:nth-child(12) { transition-delay: 0.4s; }
 @media (prefers-reduced-motion: reduce) {
   .reveal-up { opacity: 1; transform: none; transition: none; }
 }
@@ -394,6 +399,11 @@ p.hero-word, div.hero-word { display: block; }
 .feat-icon-5 { background: radial-gradient(circle at 32% 28%, #93c5fd, #3b82f6 45%, #1d4ed8); }
 .feat-icon-6 { background: radial-gradient(circle at 32% 28%, #ddd6fe, #8b5cf6 45%, #6d28d9); }
 .feat-icon-7 { background: radial-gradient(circle at 32% 28%, #99f6e4, #14b8a6 45%, #0f766e); }
+.feat-icon-8 { background: radial-gradient(circle at 32% 28%, #fed7aa, #f97316 45%, #c2410c); }
+.feat-icon-9 { background: radial-gradient(circle at 32% 28%, #bae6fd, #0ea5e9 45%, #0369a1); }
+.feat-icon-10 { background: radial-gradient(circle at 32% 28%, #d9f99d, #84cc16 45%, #4d7c0f); }
+.feat-icon-11 { background: radial-gradient(circle at 32% 28%, #fecaca, #ef4444 45%, #b91c1c); }
+.feat-icon-12 { background: radial-gradient(circle at 32% 28%, #e9d5ff, #a855f7 45%, #7e22ce); }
 
 /* ---------- privacy / reveal demo ---------- */
 .landing-reveal-section {
