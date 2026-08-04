@@ -23,7 +23,7 @@
 /* Glossy pill treatment: outer drop shadow + inset top highlight + inset bottom
    shadow, so buttons read as physically raised rather than flat color fills. */
 .landing-cta-row .btn-primary,
-.landing-cta-band .btn-primary {
+.landing-calm-cta .btn-primary {
   box-shadow:
     0 14px 24px -8px rgba(79, 70, 229, 0.45),
     0 4px 8px -2px rgba(79, 70, 229, 0.25),
@@ -150,8 +150,12 @@ p.hero-word, div.hero-word { display: block; }
 /* ---------- hero ---------- */
 .landing-hero {
   position: relative;
-  padding: 88px 24px 64px;
+  padding: 88px 24px 80px;
   overflow: hidden;
+  /* Calm, restrained background — a faint wash, not colorful floating
+     shapes. "Beautifully boring" is the goal, not decoration for its own
+     sake, since the product itself is the thing that should stand out. */
+  background: radial-gradient(ellipse 900px 500px at 15% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%);
 }
 .landing-hero-grid {
   position: relative;
@@ -168,46 +172,6 @@ p.hero-word, div.hero-word { display: block; }
   display: flex;
   justify-content: center;
 }
-.landing-blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(50px);
-  opacity: 0.35;
-  z-index: -1;
-  pointer-events: none;
-  animation: landing-blob-float 10s ease-in-out infinite;
-  transition: transform 0.2s ease-out;
-}
-.landing-blob-1 {
-  width: 340px;
-  height: 340px;
-  top: -120px;
-  left: -80px;
-  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
-}
-.landing-blob-2 {
-  width: 280px;
-  height: 280px;
-  top: -60px;
-  right: -60px;
-  background: radial-gradient(circle, #22c55e 0%, transparent 70%);
-  animation-delay: -3s;
-}
-.landing-blob-3 {
-  width: 220px;
-  height: 220px;
-  bottom: -100px;
-  left: 40%;
-  background: radial-gradient(circle, #f59e0b 0%, transparent 70%);
-  animation-delay: -6s;
-}
-@keyframes landing-blob-float {
-  0%, 100% { transform: translate(var(--mx, 0), var(--my, 0)) scale(1); }
-  50% { transform: translate(calc(var(--mx, 0px) + 20px), calc(var(--my, 0px) - 20px)) scale(1.08); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .landing-blob { animation: none; }
-}
 
 .landing-eyebrow {
   color: var(--accent);
@@ -217,12 +181,26 @@ p.hero-word, div.hero-word { display: block; }
   text-transform: uppercase;
   margin: 0 0 20px;
 }
-.landing-hero-h1 {
-  font-size: clamp(34px, 4.4vw, 54px);
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-  font-weight: 800;
+.landing-eyebrow-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  padding: 6px 14px 6px 10px;
+  border-radius: 999px;
   margin: 0 0 22px;
+}
+.landing-eyebrow-pill svg { width: 13px; height: 13px; }
+.landing-hero-h1 {
+  font-size: clamp(38px, 4.8vw, 60px);
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+  font-weight: 800;
+  margin: 0 0 20px;
 }
 .hero-word-line { display: block; }
 .landing-accent {
@@ -235,160 +213,265 @@ p.hero-word, div.hero-word { display: block; }
   color: var(--text-muted);
   font-size: 17px;
   line-height: 1.6;
-  max-width: 480px;
-  margin: 0 0 32px;
+  max-width: 460px;
+  margin: 0 0 28px;
 }
 .landing-cta-row {
   display: flex;
   justify-content: flex-start;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 .landing-hero-note {
   color: var(--text-faint);
   font-size: 13px;
 }
 
-/* ---------- hero showcase visual ---------- */
-/* A real (if simplified) mockup of the actual board UI, not abstract art —
-   shows what the product genuinely looks like rather than decoration that
-   could belong to any SaaS landing page. Built entirely in CSS, no image.
-   A slight resting tilt plus a hover-straighten reads as a considered,
-   "floating" product shot rather than a flat screenshot pasted in. */
-.hero-showcase {
-  position: relative;
-  width: 100%;
-  max-width: 520px;
-  border-radius: 14px;
-  overflow: hidden;
-  background: linear-gradient(160deg, #201c3d 0%, #14122a 100%);
-  transform: perspective(1400px) rotateY(-6deg) rotateX(2deg);
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow:
-    32px 40px 70px -24px rgba(16, 18, 22, 0.45),
-    0 16px 32px -12px rgba(16, 18, 22, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+/* ---------- trust row + data-flow proof card ---------- */
+.landing-trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 28px;
 }
-.landing-hero-visual:hover .hero-showcase {
-  transform: perspective(1400px) rotateY(-2deg) rotateX(0.5deg);
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-showcase { transition: none; }
-}
-.hero-visual-chip {
-  position: absolute;
-  left: -18px;
-  bottom: -16px;
+.landing-trust-row li {
   display: flex;
   align-items: center;
   gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.landing-trust-row svg { width: 16px; height: 16px; color: var(--accent); flex: 0 0 auto; }
+
+.landing-dataflow-card {
+  max-width: 460px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px 20px;
+}
+.landing-dataflow-title {
+  margin: 0 0 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.landing-dataflow-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.landing-dataflow-node {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 9px 16px 9px 12px;
-  font-size: 12.5px;
+  border-radius: var(--radius-md);
+  padding: 12px 6px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text);
-  box-shadow: 0 14px 28px -10px rgba(16, 18, 22, 0.25);
 }
-.hero-visual-chip svg { width: 15px; height: 15px; color: var(--accent); flex: 0 0 auto; }
-@media (max-width: 960px) {
-  .hero-showcase { transform: none; }
-  .landing-hero-visual:hover .hero-showcase { transform: none; }
+.landing-dataflow-node svg { width: 18px; height: 18px; color: var(--accent); }
+.landing-dataflow-node-lock { background: var(--accent-soft); border-color: transparent; }
+.landing-dataflow-node-lock svg { color: var(--accent); }
+.landing-dataflow-node-muted { color: var(--text-faint); }
+.landing-dataflow-node-muted svg { color: var(--text-faint); }
+.landing-dataflow-arrow {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+.landing-dataflow-arrow-blocked {
+  color: var(--danger);
+  font-size: 11px;
+  letter-spacing: -1px;
+}
+
+/* ---------- hero showcase visual ---------- */
+/* A real (if simplified) mockup of the actual app UI — sidebar navigation
+   plus a task list, the same shape as the real thing — not abstract art
+   and not a dark glossy "SaaS demo" card. Light, calm, ordinary-looking:
+   the goal is to look like a real app you'd trust, not an impressive one. */
+.hero-showcase {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow:
+    0 30px 60px -24px rgba(16, 18, 22, 0.16),
+    0 10px 24px -12px rgba(16, 18, 22, 0.08);
 }
 .hero-mockup-titlebar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
 }
-.hero-mockup-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.hero-mockup-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .hero-mockup-dot-red { background: #ff5f57; }
 .hero-mockup-dot-yellow { background: #febc2e; }
 .hero-mockup-dot-green { background: #28c840; }
-.hero-mockup-url {
-  margin-left: 10px;
-  font-size: 11px;
-  color: rgba(244, 240, 235, 0.45);
-  font-family: var(--font-mono);
-}
-.hero-mockup-lock {
-  margin-left: auto;
-  color: rgba(244, 240, 235, 0.55);
-  display: flex;
-}
-.hero-mockup-lock svg { width: 13px; height: 13px; }
-.hero-mockup-body {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  padding: 20px;
-}
-.hero-mockup-col-head {
+.hero-mockup-brand {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 700;
-  color: rgba(244, 240, 235, 0.75);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin-bottom: 10px;
-}
-.hero-mockup-dot-status { width: 6px; height: 6px; border-radius: 50%; }
-.hero-mockup-dot-status-todo { background: #9a9ea6; }
-.hero-mockup-dot-status-progress { background: #f59e0b; }
-.hero-mockup-dot-status-done { background: #34d399; }
-.hero-mockup-card {
-  background: rgba(255, 255, 255, 0.97);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.35);
-}
-.hero-mockup-card-title {
-  display: block;
+  gap: 6px;
+  margin-left: 10px;
   font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.hero-mockup-brand-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hero-mockup-search {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+  background: var(--surface-sunken);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.hero-mockup-body {
+  display: grid;
+  grid-template-columns: 128px 1fr;
+}
+.hero-mockup-sidebar {
+  border-right: 1px solid var(--border);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.hero-mockup-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
   font-weight: 600;
-  color: #16181d;
-  margin-bottom: 6px;
-  line-height: 1.3;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  border-radius: 6px;
 }
-.hero-mockup-card.is-done .hero-mockup-card-title {
-  color: #9a9ea6;
-  text-decoration: line-through;
+.hero-mockup-nav-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
+.hero-mockup-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.hero-mockup-sidebar-label {
+  margin: 10px 8px 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.hero-mockup-project-dot { width: 6px; height: 6px; border-radius: 50%; }
+.hero-mockup-project-dot-purple { background: #7c3aed; }
+.hero-mockup-project-dot-green { background: #10b981; }
+.hero-mockup-project-dot-blue { background: #3b82f6; }
+.hero-mockup-main { padding: 16px 18px 14px; }
+.hero-mockup-main-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.hero-mockup-main-head h4 { margin: 0; font-size: 15px; font-weight: 700; }
+.hero-mockup-date { font-size: 11px; color: var(--text-faint); }
+.hero-mockup-tasklist { list-style: none; margin: 0; padding: 0; }
+.hero-mockup-tasklist li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.hero-mockup-tasklist li:last-child { border-bottom: none; }
+.hero-mockup-checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  flex: 0 0 auto;
+}
+.hero-mockup-checkbox.is-checked {
+  background: var(--success);
+  border-color: var(--success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 9px;
+}
+.hero-mockup-task-title { flex: 1; font-weight: 600; color: var(--text); }
+.is-done .hero-mockup-task-title { color: var(--text-faint); text-decoration: line-through; font-weight: 500; }
+.hero-mockup-task-due { font-size: 10.5px; color: var(--text-faint); }
 .hero-mockup-badge {
-  display: inline-block;
   font-size: 9.5px;
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 5px;
 }
 .hero-mockup-badge-high { background: #fdeeee; color: #dc4c4c; }
-.hero-mockup-badge-medium { background: #fdf3e3; color: #c98a1f; }
 .hero-mockup-tag {
-  display: inline-block;
   font-size: 9.5px;
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 5px;
-  background: rgba(79, 70, 229, 0.12);
-  color: #6366f1;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
-@media (max-width: 700px) {
-  .hero-mockup-body { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+.hero-mockup-footnote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  font-size: 10.5px;
+  color: var(--text-faint);
 }
+.hero-mockup-footnote svg { width: 11px; height: 11px; flex: 0 0 auto; }
 @media (max-width: 960px) {
-  .landing-hero { padding: 64px 20px 48px; }
+  .landing-hero { padding: 56px 20px 48px; }
   .landing-hero-grid { grid-template-columns: 1fr; text-align: center; }
   .landing-hero-text { text-align: center; }
   .landing-sub { margin-inline: auto; }
   .landing-cta-row { justify-content: center; }
+  .landing-trust-row { justify-content: center; }
+  .landing-dataflow-card { margin-inline: auto; }
   .landing-hero-visual { margin-top: 40px; }
-  .hero-visual-chip { left: 50%; transform: translateX(-50%); bottom: -14px; }
+}
+@media (max-width: 560px) {
+  .hero-mockup-body { grid-template-columns: 1fr; }
+  .hero-mockup-sidebar { display: none; }
 }
 
 /* ---------- feature grid ---------- */
@@ -429,6 +512,38 @@ p.hero-word, div.hero-word { display: block; }
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-muted);
+}
+
+/* ---------- minimal feature intro (calm direction) ---------- */
+.landing-minimal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 32px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+.landing-minimal-grid .reveal-up.is-visible:nth-child(1) { transition-delay: 0s; }
+.landing-minimal-grid .reveal-up.is-visible:nth-child(2) { transition-delay: 0.08s; }
+.landing-minimal-grid .reveal-up.is-visible:nth-child(3) { transition-delay: 0.16s; }
+.landing-minimal-grid .reveal-up.is-visible:nth-child(4) { transition-delay: 0.24s; }
+.landing-minimal-item svg {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+.landing-minimal-item h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.landing-minimal-item p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .landing-minimal-grid { grid-template-columns: repeat(2, 1fr); gap: 28px 20px; }
 }
 .landing-proof-card p {
   margin: 0;
@@ -515,80 +630,51 @@ p.hero-word, div.hero-word { display: block; }
 }
 .landing-privacy-note a { color: var(--text-muted); }
 
-/* ---------- dark zone: CTA band + footer share one continuous dark section,
-   deliberately not theme-tokens here — this block looks the same regardless
-   of light/dark page theme, same idea as the reference design's dark CTA. ---------- */
-.landing-dark-zone {
-  position: relative;
-  margin-top: 56px;
-  background: #0d0d10;
-  color: #f4f0eb;
-  overflow: hidden;
-}
-.landing-cta-band-glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(40px);
-  pointer-events: none;
-}
-.landing-cta-band-glow-1 {
-  width: 380px;
-  height: 380px;
-  top: -160px;
-  left: -100px;
-  background: radial-gradient(circle, rgba(129, 140, 248, 0.35), transparent 70%);
-}
-.landing-cta-band-glow-2 {
-  width: 320px;
-  height: 320px;
-  bottom: -140px;
-  right: -80px;
-  background: radial-gradient(circle, rgba(52, 211, 153, 0.25), transparent 70%);
-}
-.landing-cta-band {
-  position: relative;
-  z-index: 1;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 88px 32px 64px;
+/* ---------- calm final CTA + light footer ----------
+   Deliberately not a dark, glossy band — "beautifully boring" was the
+   explicit direction: the same calm, light page all the way down, no
+   sudden dramatic section to manufacture excitement. */
+.landing-calm-cta {
+  max-width: 560px;
+  margin: 40px auto 0;
+  padding: 80px 24px 56px;
   text-align: center;
 }
-.landing-cta-band h2 {
-  font-size: clamp(28px, 4.5vw, 44px);
+.landing-calm-cta-icon {
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+.landing-calm-cta h2 {
+  font-size: clamp(24px, 3.5vw, 32px);
   font-weight: 800;
   letter-spacing: -0.02em;
-  line-height: 1.15;
-  margin: 0 0 16px;
-  background: linear-gradient(135deg, #ffffff, #c7cef5);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  margin: 0 0 8px;
 }
-.landing-cta-band p {
-  color: rgba(244, 240, 235, 0.7);
+.landing-calm-cta-sub {
+  color: var(--text-muted);
   font-size: 15px;
-  max-width: 440px;
-  margin: 0 auto 28px;
+  margin: 0 0 28px;
 }
+.landing-calm-cta-note { margin-top: 16px; }
 
-.landing-footer {
-  position: relative;
-  z-index: 1;
-  padding: 28px 24px 40px;
+.landing-footer-light {
+  padding: 28px 24px 48px;
   text-align: center;
-  color: rgba(244, 240, 235, 0.5);
+  color: var(--text-faint);
   font-size: 13px;
-  border-top: 1px solid rgba(244, 240, 235, 0.12);
+  border-top: 1px solid var(--border);
   max-width: 1100px;
   margin: 0 auto;
 }
-.landing-footer a { color: rgba(244, 240, 235, 0.75); }
-.landing-footer a:hover { color: #fff; }
+.landing-footer-light a { color: var(--text-muted); }
+.landing-footer-light a:hover { color: var(--accent); }
 .landing-footer-contact { margin-top: 8px; }
 
 @media (max-width: 700px) {
   .landing-proof-grid { grid-template-columns: 1fr; }
-  .landing-cta-band { padding: 56px 24px 40px; }
+  .landing-calm-cta { padding: 56px 24px 40px; }
 }
 
 /* Below ~520px the brand + 3 text links + CTA button no longer fit on one

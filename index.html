@@ -39,7 +39,7 @@
 </script>
 
 <link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-LiAobYp0XGMvUNW1Wwh54v/hcLhTgxuo9CJB7bD4DCHc7mI3sYhmJCov1V2iSBkh" crossorigin="anonymous">
-<link rel="stylesheet" href="css/landing.css?v=20260804p" integrity="sha384-+d0X/hb7ymU1G2RMtrQRixcjDRx1js/fi+AHSpit7JxBshIuorEdR90dBvTShFXH" crossorigin="anonymous">
+<link rel="stylesheet" href="css/landing.css?v=20260804p" integrity="sha384-kcZNp9Jqy1Q1h1MYXdQWz56EV7XtA7fkdmoZ+zowqBBck7lFFDbV+/C45ak8zy2B" crossorigin="anonymous">
 </head>
 <body class="landing-body">
 
@@ -53,7 +53,7 @@
       <a href="#features">Features</a>
       <a href="#privacy">Privacy</a>
       <a href="compare.html">Compare</a>
-      <a href="app.html" class="btn btn-primary btn-sm">Open Haven</a>
+      <a href="app.html" class="btn btn-primary btn-sm">Open Haven →</a>
     </nav>
   </div>
 </header>
@@ -61,27 +61,58 @@
 <main class="landing-main">
 
   <section class="landing-hero">
-    <div class="landing-blob landing-blob-1" aria-hidden="true"></div>
-    <div class="landing-blob landing-blob-2" aria-hidden="true"></div>
-    <div class="landing-blob landing-blob-3" aria-hidden="true"></div>
     <div class="landing-hero-grid">
       <div class="landing-hero-text">
-        <p class="landing-eyebrow hero-word hero-word-0">Free task manager. No signup.</p>
+        <p class="landing-eyebrow-pill hero-word hero-word-0">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
+          Private by default
+        </p>
         <h1 class="landing-hero-h1">
-          <span class="hero-word-line"><span class="hero-word hero-word-1">Track</span> <span class="hero-word hero-word-2">your</span> <span class="hero-word hero-word-3">tasks.</span></span>
-          <span class="hero-word-line"><span class="hero-word hero-word-4">Keep</span> <span class="hero-word hero-word-5">them</span> <span class="hero-word hero-word-6 landing-accent">to yourself.</span></span>
+          <span class="hero-word-line"><span class="hero-word hero-word-1">Your</span> <span class="hero-word hero-word-2">tasks.</span></span>
+          <span class="hero-word-line"><span class="hero-word hero-word-4 landing-accent">Stay</span> <span class="hero-word hero-word-6 landing-accent">yours.</span></span>
         </h1>
         <p class="landing-sub hero-word hero-word-8">
-          Haven is a task manager with boards, lists, due dates, priorities, tags, and search —
-          the stuff you'd expect from any to-do app. The difference is what happens after you hit
-          save: everything you write gets encrypted on your own device first, so nobody else can
-          read it. Not other users, not a database admin, not us.
+          Haven is a local-first task manager. No account, no tracking — everything you write is
+          encrypted on your own device and stays there. We built it and we still can't read it.
         </p>
         <div class="landing-cta-row hero-word hero-word-9">
           <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
-          <a href="#features" class="btn btn-ghost btn-lg">See what's inside</a>
+          <a href="#features" class="btn btn-ghost btn-lg">Explore features</a>
         </div>
-        <p class="landing-hero-note hero-word hero-word-10">No signup. No credit card. Works right in your browser.</p>
+        <ul class="landing-trust-row hero-word hero-word-10">
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/></svg>
+            No account, ever
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M6.5 17a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-.8 2.6"/></svg>
+            Cloud sync is optional
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10" width="15" height="10" rx="2"/><path d="M7.5 10V7a4.5 4.5 0 0 1 9 0v3"/></svg>
+            End-to-end encrypted
+          </li>
+        </ul>
+
+        <div class="landing-dataflow-card hero-word hero-word-11">
+          <p class="landing-dataflow-title">Your data stays here</p>
+          <div class="landing-dataflow-row">
+            <div class="landing-dataflow-node">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>
+              <span>Your device</span>
+            </div>
+            <div class="landing-dataflow-arrow">→</div>
+            <div class="landing-dataflow-node landing-dataflow-node-lock">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
+              <span>Encrypted</span>
+            </div>
+            <div class="landing-dataflow-arrow landing-dataflow-arrow-blocked">╌╌✕</div>
+            <div class="landing-dataflow-node landing-dataflow-node-muted">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-1.5 3.4"/></svg>
+              <span>No cloud</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="landing-hero-visual hero-word hero-word-11">
@@ -90,89 +121,85 @@
             <span class="hero-mockup-dot hero-mockup-dot-red"></span>
             <span class="hero-mockup-dot hero-mockup-dot-yellow"></span>
             <span class="hero-mockup-dot hero-mockup-dot-green"></span>
-            <span class="hero-mockup-url">taskhavens.com/app</span>
-            <span class="hero-mockup-lock">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
-            </span>
+            <span class="hero-mockup-brand"><span class="hero-mockup-brand-icon">H</span>Haven</span>
+            <span class="hero-mockup-search">Search tasks…</span>
           </div>
           <div class="hero-mockup-body">
-            <div class="hero-mockup-col">
-              <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-todo"></span>To Do</div>
-              <div class="hero-mockup-card">
-                <span class="hero-mockup-card-title">Finish quarterly report</span>
-                <span class="hero-mockup-badge hero-mockup-badge-high">High</span>
+            <aside class="hero-mockup-sidebar">
+              <a class="hero-mockup-nav-item is-active">Today <span class="hero-mockup-count">3</span></a>
+              <a class="hero-mockup-nav-item">Inbox <span class="hero-mockup-count">2</span></a>
+              <a class="hero-mockup-nav-item">Upcoming</a>
+              <a class="hero-mockup-nav-item">Completed</a>
+              <p class="hero-mockup-sidebar-label">Projects</p>
+              <a class="hero-mockup-nav-item"><span class="hero-mockup-project-dot hero-mockup-project-dot-purple"></span>Work</a>
+              <a class="hero-mockup-nav-item"><span class="hero-mockup-project-dot hero-mockup-project-dot-green"></span>Personal</a>
+              <a class="hero-mockup-nav-item"><span class="hero-mockup-project-dot hero-mockup-project-dot-blue"></span>University</a>
+            </aside>
+            <main class="hero-mockup-main">
+              <div class="hero-mockup-main-head">
+                <h4>Today</h4>
+                <span class="hero-mockup-date">Tuesday, 6 May</span>
               </div>
-              <div class="hero-mockup-card">
-                <span class="hero-mockup-card-title">Renew passport</span>
-                <span class="hero-mockup-tag">#personal</span>
-              </div>
-            </div>
-            <div class="hero-mockup-col">
-              <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-progress"></span>In Progress</div>
-              <div class="hero-mockup-card">
-                <span class="hero-mockup-card-title">Client proposal draft</span>
-                <span class="hero-mockup-badge hero-mockup-badge-medium">Medium</span>
-              </div>
-            </div>
-            <div class="hero-mockup-col">
-              <div class="hero-mockup-col-head"><span class="hero-mockup-dot-status hero-mockup-dot-status-done"></span>Done</div>
-              <div class="hero-mockup-card is-done">
-                <span class="hero-mockup-card-title">Book dentist appointment</span>
-              </div>
-            </div>
+              <ul class="hero-mockup-tasklist">
+                <li>
+                  <span class="hero-mockup-checkbox"></span>
+                  <span class="hero-mockup-task-title">Finish quarterly report</span>
+                  <span class="hero-mockup-badge hero-mockup-badge-high">High</span>
+                </li>
+                <li>
+                  <span class="hero-mockup-checkbox"></span>
+                  <span class="hero-mockup-task-title">Buy groceries</span>
+                  <span class="hero-mockup-task-due">6 May</span>
+                </li>
+                <li>
+                  <span class="hero-mockup-checkbox"></span>
+                  <span class="hero-mockup-task-title">Renew passport</span>
+                  <span class="hero-mockup-tag">Personal</span>
+                </li>
+                <li class="is-done">
+                  <span class="hero-mockup-checkbox is-checked">✓</span>
+                  <span class="hero-mockup-task-title">Submit application</span>
+                  <span class="hero-mockup-task-due">Today</span>
+                </li>
+              </ul>
+              <p class="hero-mockup-footnote">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
+                All data is stored locally, encrypted on this device
+              </p>
+            </main>
           </div>
-        </div>
-        <div class="hero-visual-chip hero-visual-chip-1">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
-          AES-256, on-device
         </div>
       </div>
     </div>
   </section>
 
   <section id="features" class="landing-proof">
-    <h2 class="landing-section-heading reveal-up">A real task manager, not a one-trick demo</h2>
-    <div class="landing-proof-grid">
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-1" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1.2"/><rect x="9.5" y="4" width="5" height="11" rx="1.2"/><rect x="16" y="4" width="5" height="7" rx="1.2"/></svg></div>
-        <h3>Board and list views</h3>
-        <p>Some days a kanban board makes sense. Other days you just want a plain list. Haven gives
-          you both, and switching between them takes one click.</p>
+    <h2 class="landing-section-heading reveal-up">Everything you need. Nothing you don't.</h2>
+    <div class="landing-minimal-grid">
+      <div class="landing-minimal-item reveal-up">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h10M7 17h6"/></svg>
+        <h3>Organize</h3>
+        <p>Projects, tags, subtasks, and smart views to keep everything in its place.</p>
       </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-2" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg></div>
-        <h3>Drag and drop</h3>
-        <p>Drag a task from To Do to Done. That's the whole interaction — no dropdown, no separate
-          screen to update its status.</p>
+      <div class="landing-minimal-item reveal-up">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
+        <h3>Plan</h3>
+        <p>Due dates, priorities, and recurring tasks to help you stay on track.</p>
       </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-3" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
-        <h3>Due dates and priorities</h3>
-        <p>Set a due date, mark something high priority, and it's obvious at a glance what actually
-          needs your attention today.</p>
+      <div class="landing-minimal-item reveal-up">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 17a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-.8 2.6"/><path d="M3 3l18 18"/></svg>
+        <h3>Focus</h3>
+        <p>Works fully offline. No connection, no problem — nothing waits on a server.</p>
       </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-9" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h8l10 10-8 8L3 11V3Z"/><circle cx="7.5" cy="7.5" r="1.4" fill="currentColor" stroke="none"/></svg></div>
-        <h3>Tags and subtasks</h3>
-        <p>Break a task into smaller steps with their own checkboxes, and tag anything so it's easy
-          to find later — both show up right on the card.</p>
-      </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-10" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg></div>
-        <h3>Type "fri" and it just works</h3>
-        <p>Type "call dentist fri #health" into the quick-add bar and Haven pulls out the due date
-          and tag for you — parsed on your device, never sent anywhere to figure out.</p>
-      </div>
-      <div class="landing-proof-card reveal-up">
-        <div class="feat-icon feat-icon-5" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 17a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-.8 2.6"/><path d="M3 3l18 18"/></svg></div>
-        <h3>Works offline</h3>
-        <p>No wifi on the train? Doesn't matter. Haven runs entirely in your browser and keeps
-          working with no connection at all.</p>
+      <div class="landing-minimal-item reveal-up">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l5.5 5.5"/></svg>
+        <h3>Find</h3>
+        <p>Search that finds anything, instantly — parsed on your device, not a server.</p>
       </div>
     </div>
     <p class="landing-proof-more reveal-up">
-      Also included: multiple projects, smart views &amp; filters, recurring tasks, bulk actions
-      with undo, cross-device sync, and JSON export/import — no lock-in, no upsells.
+      Also included: multiple projects, drag-and-drop boards, bulk actions with undo, optional
+      cross-device sync, and JSON export/import — no lock-in, no upsells.
     </p>
   </section>
 
@@ -215,26 +242,23 @@
 
 </main>
 
-<div class="landing-dark-zone">
-  <div class="landing-cta-band-glow landing-cta-band-glow-1" aria-hidden="true"></div>
-  <div class="landing-cta-band-glow landing-cta-band-glow-2" aria-hidden="true"></div>
+<section class="landing-calm-cta reveal-up">
+  <svg viewBox="0 0 24 24" fill="none" class="landing-calm-cta-icon"><path d="M12 21s-7-4.4-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.6-9.5 9-9.5 9Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  <h2>A calm place for your tasks.</h2>
+  <p class="landing-calm-cta-sub">Simple. Private. Yours.</p>
+  <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
+  <p class="landing-hero-note landing-calm-cta-note">No signup. No credit card. Works right in your browser.</p>
+</section>
 
-  <section class="landing-cta-band reveal-up">
-    <h2>Give Haven a try.</h2>
-    <p>It takes about a minute to set up, and there's nothing to sign up for.</p>
-    <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
-  </section>
-
-  <footer class="landing-footer">
-    <p>
-      Haven is free and open source.
-      <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">View the code</a>.
-    </p>
-    <p class="landing-footer-contact">
-      Questions, bugs, or feedback? Email <a href="mailto:pinku2c@gmail.com">pinku2c@gmail.com</a>.
-    </p>
-  </footer>
-</div>
+<footer class="landing-footer-light">
+  <p>
+    Haven is free and open source.
+    <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">View the code</a>.
+  </p>
+  <p class="landing-footer-contact">
+    Questions, bugs, or feedback? Email <a href="mailto:pinku2c@gmail.com">pinku2c@gmail.com</a>.
+  </p>
+</footer>
 
 <script src="js/landing.js?v=20260804p" integrity="sha384-H8w9KC5mq69JuHFtzAy5Lhp8D8VVyox1woosS4OHR+hndy7JbguGEXb00ezLqxPe" crossorigin="anonymous" type="module"></script>
 </body>
