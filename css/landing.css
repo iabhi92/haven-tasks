@@ -299,12 +299,12 @@ p.hero-word, div.hero-word { display: block; }
 }
 
 /* ---------- hero showcase visual ---------- */
-/* A real (if simplified) mockup of the actual app UI — sidebar navigation
-   plus a task list, the same shape as the real thing — not abstract art
-   and not a dark glossy "SaaS demo" card. Light, calm, ordinary-looking:
-   the goal is to look like a real app you'd trust, not an impressive one. */
+/* An actual screenshot of the real board view (img/hero-screenshot.png),
+   not a hand-drawn approximation — removes any doubt about whether the
+   hero matches the product, since it IS the product. Framed simply (a
+   border + soft shadow), since the app's own UI already has its own
+   chrome; wrapping it in a second fake browser window would be redundant. */
 .hero-showcase {
-  position: relative;
   width: 100%;
   max-width: 560px;
   border-radius: 12px;
@@ -315,150 +315,11 @@ p.hero-word, div.hero-word { display: block; }
     0 30px 60px -24px rgba(16, 18, 22, 0.16),
     0 10px 24px -12px rgba(16, 18, 22, 0.08);
 }
-.hero-mockup-titlebar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--border);
+.hero-showcase img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
-.hero-mockup-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
-.hero-mockup-dot-red { background: #ff5f57; }
-.hero-mockup-dot-yellow { background: #febc2e; }
-.hero-mockup-dot-green { background: #28c840; }
-.hero-mockup-brand {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-}
-.hero-mockup-brand-icon {
-  width: 16px;
-  height: 16px;
-  border-radius: 5px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.hero-mockup-search {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-faint);
-  background: var(--surface-sunken);
-  border-radius: 6px;
-  padding: 4px 10px;
-}
-.hero-mockup-body {
-  display: grid;
-  grid-template-columns: 128px 1fr;
-}
-.hero-mockup-sidebar {
-  border-right: 1px solid var(--border);
-  padding: 14px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.hero-mockup-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: 6px 8px;
-  border-radius: 6px;
-}
-.hero-mockup-nav-item.is-active {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.hero-mockup-count {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--text-faint);
-}
-.hero-mockup-sidebar-label {
-  margin: 10px 8px 4px;
-  font-size: 9.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-}
-.hero-mockup-project-dot { width: 6px; height: 6px; border-radius: 50%; }
-.hero-mockup-project-dot-purple { background: #7c3aed; }
-.hero-mockup-project-dot-green { background: #10b981; }
-.hero-mockup-project-dot-blue { background: #3b82f6; }
-.hero-mockup-main { padding: 16px 18px 14px; }
-.hero-mockup-main-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.hero-mockup-main-head h4 { margin: 0; font-size: 15px; font-weight: 700; }
-.hero-mockup-date { font-size: 11px; color: var(--text-faint); }
-.hero-mockup-tasklist { list-style: none; margin: 0; padding: 0; }
-.hero-mockup-tasklist li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-}
-.hero-mockup-tasklist li:last-child { border-bottom: none; }
-.hero-mockup-checkbox {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border-strong);
-  flex: 0 0 auto;
-}
-.hero-mockup-checkbox.is-checked {
-  background: var(--success);
-  border-color: var(--success);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 9px;
-}
-.hero-mockup-task-title { flex: 1; font-weight: 600; color: var(--text); }
-.is-done .hero-mockup-task-title { color: var(--text-faint); text-decoration: line-through; font-weight: 500; }
-.hero-mockup-task-due { font-size: 10.5px; color: var(--text-faint); }
-.hero-mockup-badge {
-  font-size: 9.5px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 5px;
-}
-.hero-mockup-badge-high { background: #fdeeee; color: #dc4c4c; }
-.hero-mockup-tag {
-  font-size: 9.5px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 5px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.hero-mockup-footnote {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 14px 0 0;
-  font-size: 10.5px;
-  color: var(--text-faint);
-}
-.hero-mockup-footnote svg { width: 11px; height: 11px; flex: 0 0 auto; }
 @media (max-width: 960px) {
   .landing-hero { padding: 56px 20px 48px; }
   .landing-hero-grid { grid-template-columns: 1fr; text-align: center; }
@@ -469,10 +330,7 @@ p.hero-word, div.hero-word { display: block; }
   .landing-dataflow-card { margin-inline: auto; }
   .landing-hero-visual { margin-top: 40px; }
 }
-@media (max-width: 560px) {
-  .hero-mockup-body { grid-template-columns: 1fr; }
-  .hero-mockup-sidebar { display: none; }
-}
+
 
 /* ---------- feature grid ---------- */
 .landing-proof {
@@ -675,12 +533,6 @@ p.hero-word, div.hero-word { display: block; }
   margin: 40px auto 0;
   padding: 80px 24px 56px;
   text-align: center;
-}
-.landing-calm-cta-icon {
-  width: 26px;
-  height: 26px;
-  color: var(--accent);
-  margin-bottom: 18px;
 }
 .landing-calm-cta h2 {
   font-size: clamp(24px, 3.5vw, 32px);
