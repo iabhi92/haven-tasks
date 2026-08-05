@@ -765,6 +765,34 @@ body { display: flex; }
 .task-card.is-dragging {
   opacity: 0.4;
 }
+/* No punch-holes/ruled-paper texture for a burned-out card — the whole point
+   is that it doesn't look like a normal note anymore. Overrides the mask
+   from .task-card above by resetting it, not by fighting the mask directly. */
+.task-card.is-destructed {
+  background: var(--surface-sunken);
+  color: var(--text-faint);
+  mask: none;
+  filter: none;
+  border: 1px dashed var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  text-align: center;
+}
+.task-card.is-destructed:hover {
+  transform: none;
+  filter: none;
+}
+.destructed-label {
+  margin: 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-faint);
+}
+.list-row.is-destructed { color: var(--text-faint); }
+.list-row.is-destructed .destructed-label { font-style: italic; }
+
 .task-card.is-done .task-title {
   text-decoration: line-through;
   color: var(--paper-text-muted);
@@ -837,6 +865,11 @@ body { display: flex; }
 .badge-due.is-today {
   color: var(--warn);
   background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+.badge-self-destruct {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 /* ---------- reveal view ---------- */

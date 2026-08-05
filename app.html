@@ -20,7 +20,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-LiAobYp0XGMvUNW1Wwh54v/hcLhTgxuo9CJB7bD4DCHc7mI3sYhmJCov1V2iSBkh" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-t5+lrgfF7eDDbAEIWlUfD1NMHXvDFoCzjw6UCtT94QJ0motgmws2SRsNxxLjkCR2" crossorigin="anonymous">
 </head>
 <body>
 
@@ -434,6 +434,8 @@
         </div>
       </div>
 
+      <p class="modal-help" id="editSelfDestructNote" hidden></p>
+
       <div class="modal-actions">
         <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
         <button type="button" class="btn btn-ghost" id="editShareBtn">Share link&hellip;</button>
@@ -564,6 +566,22 @@
           <input type="text" id="addSubtaskInput" placeholder="Add a subtask" maxlength="200">
           <button type="button" class="btn btn-ghost btn-sm" id="addSubtaskAddBtn">Add</button>
         </div>
+      </div>
+
+      <div class="field">
+        <label for="addSelfDestructMode">Self-destruct</label>
+        <select id="addSelfDestructMode">
+          <option value="">Never — a normal task</option>
+          <option value="1h">Burns in 1 hour</option>
+          <option value="1d">Burns in 1 day</option>
+          <option value="7d">Burns in 7 days</option>
+          <option value="views">Burns after being opened once</option>
+        </select>
+        <p class="modal-help">
+          Encrypted under its own key, not the shared one. Once it burns, the key is deleted — not
+          even a passphrase can bring the content back. Can't be changed once created, and doesn't
+          sync to other devices.
+        </p>
       </div>
 
       <p class="reveal-intro add-reveal-intro">Watch this get encrypted as you type — the exact
@@ -759,6 +777,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json" hidden>
 
-<script src="js/app.js?v=20260804p" integrity="sha384-EePb+HxIKiPLp81PJQEZPG6GN2J06roR9bDmcHCtsBjULRTZg49wnp0Bm/i7G7/F" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260804p" integrity="sha384-r9OeTtFBHNSiWvuhrkYfudTjPGiwEE8DxO3yBqgBf/1SW180fmM96eHv2hxashZg" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

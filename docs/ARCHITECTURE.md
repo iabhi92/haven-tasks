@@ -310,6 +310,59 @@ functional and is not weakened or bypassed; this is an additional door, not a re
   both loses their passphrase *and* uses a passkey regularly could hit. Re-registering the passkey
   after any recovery-code reset avoids this; not automated in v1.
 
+## 4d. Ephemeral tasks (Layer 3)
+
+Self-destructing tasks, via cryptographic erasure rather than a deletion flag a bug or a
+malicious sync server could ignore: once the fuse goes off, the content is not just *marked*
+gone, it's *actually* unrecoverable — including by us.
+
+- **Per-task key, not the shared DEK.** A self-destructing task is encrypted under a fresh
+  256-bit key generated just for it (`generateDek()`), which is itself wrapped under the vault
+  DEK (`wrapDek()`, identical mechanism to how the DEK itself is wrapped under `KEK` in §1) and
+  stored alongside the ciphertext as `selfDestruct.wrappedTaskKey`/`taskKeyWrapIv`. Every other
+  task keeps using the shared DEK directly, same as before this feature existed.
+- **Erasure = deleting the wrapped key, not the ciphertext.** "Burning" a task sets
+  `wrappedTaskKey`/`taskKeyWrapIv` to `null` and leaves the ciphertext row in place. AES-GCM
+  ciphertext without its key is already indistinguishable from random bytes — there's no
+  separate "secure wipe" step to get right, because there was never a second copy of the key to
+  chase down. Verified with a test vector (`js/crypto.test.mjs`) confirming a task encrypted
+  under one key cannot be decrypted under any other. Leaving the ciphertext in place (rather than
+  also deleting the row) is deliberate: it lets the board show a "this task self-destructed"
+  placeholder in its original column, and gives the history-log entry below a real payload hash
+  to point at instead of nothing.
+- **Two triggers.** A time-based fuse (`selfDestruct.expiresAt`) checked lazily against the
+  in-memory task list every time the board re-renders — which in practice means "on basically
+  every user action" — plus a 20-second backstop `setInterval` for a tab left open and idle past
+  expiry with no other trigger to catch it. "Burn after reading" (`selfDestruct.maxViews`)
+  increments a view counter when the task is opened and erases once the counter is reached — the
+  content is still shown in full on the view that burns it, matching "burns after being opened,"
+  not "blocks the view that would burn it."
+- **A signed history entry, same as any other mutation** (§5c) — `op: "selfDestruct"`, hashing
+  the ciphertext exactly like a normal update — so "when did this get erased" is itself part of
+  the tamper-evident log, not a side effect that happens outside it.
+- **Honest scope limits:**
+  - **Local-only — never synced.** A self-destructing task's storage record is filtered out of
+    every push to the optional sync server (`syncNow()`, `js/app.js`). Without this, the erasure
+    guarantee would have to account for a copy of the wrapped key already sitting on a second
+    device or the sync server before the fuse went off — local key-deletion alone can't reach
+    those. Simplest honest fix: it never leaves the device that created it.
+  - **Not shareable.** Sharing a task (§5b) snapshots its currently-decrypted fields into an
+    independent, separately-encrypted copy on the share server, with its own lifetime — that copy
+    would not be touched by the original task's fuse going off, quietly breaking "burns and is
+    gone." The "Share link…" button is disabled for a self-destructing task rather than shipping
+    a share link that could outlive the task it came from.
+  - **Not a defense against a forensic disk/memory snapshot taken before the fuse fires.** If an
+    attacker captures the device's storage (or a live copy of `dek`/the per-task key in memory)
+    *before* erasure, they have what they need regardless of what happens afterward — the same
+    limitation every local-first, no-server-side-copy design has. This feature deletes the *only*
+    copy that would otherwise remain accessible through the app itself; it isn't a claim about
+    forensic recovery from raw storage.
+  - **The fuse itself isn't tamper-evident.** Nothing stops a user (or malware with local access)
+    from directly editing `expiresAt` in IndexedDB, same as nothing stops direct tampering with
+    any other local record — the history log would show the resulting erasure (or lack of one)
+    happened, but doesn't prevent the tampering itself. Out of scope for a client-side-only trust
+    model; see docs/THREAT_MODEL.md.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

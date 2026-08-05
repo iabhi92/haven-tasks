@@ -1,5 +1,6 @@
 import {
   getAllTasks,
+  getTask,
   putTask,
   deleteTask,
   getKeyring,
@@ -112,6 +113,18 @@ let historySigningPublicKeyB64 = null; // this device's *current* public key
 // IndexedDB on every mutation; (re)initialized from the real last entry at
 // unlock via primeHistoryChainTip().
 let historyChainTip = "GENESIS";
+
+// ---------- ephemeral / self-destructing tasks (Layer 3) ----------
+// Each self-destructing task is encrypted under its own per-task key (not the
+// shared vault DEK), which is itself wrapped under the DEK and stored
+// alongside the ciphertext. "Erasing" a task means deleting the wrapped
+// per-task key — the ciphertext can be left in place (or removed later) but
+// is permanently undecryptable either way, since there's no copy of the raw
+// key left anywhere. See docs/ARCHITECTURE.md "Ephemeral tasks".
+// Non-extractable CryptoKeys, held only while unlocked — never the source of
+// a repeat export, same discipline as the main `dek`.
+const ephemeralTaskKeys = new Map(); // taskId -> CryptoKey
+let ephemeralSweepInterval = null;
 
 // Projects are a lightweight client-side grouping — a plain string field on
 // each task (default "Inbox"), same encrypted envelope as everything else.
@@ -352,7 +365,18 @@ function render() {
   // may just be hidden behind the empty state, not absent, and stale nodes left over
   // from before the last item was removed should never linger in the DOM.
   const handlers = {
-    onOpen: (task) => {
+    onOpen: async (task) => {
+      if (task.destructed) {
+        showInfoToast("This task self-destructed and can no longer be opened.");
+        return;
+      }
+      // Registers this view (and erases the task if it just burned its last
+      // one) *before* opening the modal — but still opens with the content
+      // already decrypted into `task`, so a "burns after 1 view" task is
+      // fully readable on the view that burns it, not blocked from it.
+      if (task.selfDestruct && task.selfDestruct.mode === "views") {
+        await registerEphemeralView(task.id);
+      }
       editSubtasksDraft = (task.subtasks || []).map((s) => ({ ...s }));
       renderEditSubtasks();
       openEditModal(task);
@@ -382,6 +406,21 @@ function render() {
   syncTagFilterOptions();
   syncProjectUI();
   syncBulkActionBar();
+  scheduleEphemeralSweep();
+}
+
+// render() runs far too often to await an async sweep inline (and
+// sweepExpiredEphemeralTasks() itself calls render() again once it erases
+// something) — this fire-and-forget wrapper with a reentrancy guard is what
+// keeps that from turning into overlapping IndexedDB writes. Converges after
+// one extra pass: an erased task no longer matches the sweep's own filter.
+let sweepInProgress = false;
+function scheduleEphemeralSweep() {
+  if (sweepInProgress || !dek) return;
+  sweepInProgress = true;
+  sweepExpiredEphemeralTasks().finally(() => {
+    sweepInProgress = false;
+  });
 }
 
 function syncBulkActionBar() {
@@ -402,10 +441,126 @@ function nextOrder(status) {
 // else about the task lives only inside the ciphertext. `op`/`logHistory` feed the
 // tamper-evident history log below — logHistory:false is for writes (like reorders)
 // that aren't meaningful audit events, not a way to skip signing for content changes.
-async function persistTask(task, op = "update", logHistory = true) {
-  const { iv, ciphertext } = await encryptTask(task, dek);
-  await putTask({ id: task.id, iv, ciphertext, updatedAt: task.updatedAt });
+//
+// `newSelfDestructSpec` (only passed from addTask, at creation) turns this
+// into a fresh ephemeral task: `{mode: "time", expiresAt} | {mode: "views",
+// maxViews}`. It's the one case persistTask generates a *new* per-task key
+// rather than reusing whatever's already wrapped for this id — see
+// docs/ARCHITECTURE.md "Ephemeral tasks".
+async function persistTask(task, op = "update", logHistory = true, newSelfDestructSpec = null) {
+  // selfDestruct/destructed are record-level metadata the UI attaches to the
+  // in-memory task (see loadAndDecryptTasks/addTask) — stripped here so they
+  // never end up duplicated inside the encrypted payload itself.
+  const { selfDestruct: _sd, destructed: _d, erasedAt: _ea, ...content } = task;
+  let iv, ciphertext;
+  let selfDestruct = null;
+
+  if (newSelfDestructSpec) {
+    const rawTaskKey = await generateDek(); // extractable — only to wrap it, once
+    const rawTaskKeyBytes = await crypto.subtle.exportKey("raw", rawTaskKey);
+    const { wrappedDek: wrappedTaskKey, wrapIv: taskKeyWrapIv } = await wrapDek(rawTaskKey, dek);
+    const taskKey = await importDek(rawTaskKeyBytes, false); // non-extractable for actual use
+    ephemeralTaskKeys.set(task.id, taskKey);
+    ({ iv, ciphertext } = await encryptTask(content, taskKey));
+    selfDestruct = { ...newSelfDestructSpec, status: task.status, viewsUsed: 0, wrappedTaskKey, taskKeyWrapIv, erasedAt: null };
+  } else if (ephemeralTaskKeys.has(task.id)) {
+    const taskKey = ephemeralTaskKeys.get(task.id);
+    ({ iv, ciphertext } = await encryptTask(content, taskKey));
+    const existing = await getTask(task.id);
+    if (existing && existing.selfDestruct) selfDestruct = { ...existing.selfDestruct, status: task.status };
+  } else {
+    ({ iv, ciphertext } = await encryptTask(content, dek));
+  }
+
+  const record = { id: task.id, iv, ciphertext, updatedAt: task.updatedAt };
+  if (selfDestruct) record.selfDestruct = selfDestruct;
+  await putTask(record);
   if (logHistory) await appendSignedHistoryEntry(task.id, op, iv, ciphertext);
+}
+
+// Deletes just the wrapped per-task key — see the module-level comment above
+// `ephemeralTaskKeys` for why that alone makes the ciphertext permanently
+// undecryptable. Safe to call on a task that's already erased or was never
+// ephemeral (no-ops). Leaves the ciphertext row in place so the board can
+// still show a "this task self-destructed" placeholder in its original
+// column, and so the history entry below has a real payload hash to point
+// at — see docs/ARCHITECTURE.md "Ephemeral tasks" for the honest scope note
+// on what erasure does and doesn't guarantee.
+async function eraseEphemeralTaskKey(taskId) {
+  const record = await getTask(taskId);
+  if (!record || !record.selfDestruct || !record.selfDestruct.wrappedTaskKey) return;
+
+  const erasedRecord = {
+    ...record,
+    selfDestruct: { ...record.selfDestruct, wrappedTaskKey: null, taskKeyWrapIv: null, erasedAt: now() },
+  };
+  await putTask(erasedRecord);
+  ephemeralTaskKeys.delete(taskId);
+  await appendSignedHistoryEntry(taskId, "selfDestruct", record.iv, record.ciphertext);
+
+  const idx = tasks.findIndex((t) => t.id === taskId);
+  if (idx !== -1) {
+    tasks[idx] = destructedTaskStub(tasks[idx], erasedRecord.selfDestruct.erasedAt);
+    render(); // otherwise the board keeps showing stale content until some unrelated action re-renders it
+  }
+}
+
+// The in-memory placeholder for an erased task — enough fields for every
+// existing filter/sort/group/render path to treat it like any other task
+// (empty title/notes/tags rather than missing ones), plus `destructed: true`
+// so the UI can render it distinctly and refuse to open it for editing.
+function destructedTaskStub(previous, erasedAt) {
+  return {
+    id: previous.id,
+    title: "",
+    project: previous.project,
+    notes: "",
+    status: previous.status,
+    priority: previous.priority,
+    dueDate: null,
+    tags: [],
+    subtasks: [],
+    recurrence: null,
+    order: previous.order,
+    createdAt: previous.createdAt,
+    updatedAt: now(),
+    destructed: true,
+    erasedAt,
+  };
+}
+
+// Time-based fuses: checked against the in-memory task list (cheap — no IO
+// unless something's actually expired) whenever render() runs, plus a coarse
+// backstop interval for an idle tab left open past a task's expiry with no
+// other interaction to trigger a render. View-based ("burn after reading")
+// fuses are handled separately, at the point a task is opened — see
+// registerEphemeralView().
+async function sweepExpiredEphemeralTasks() {
+  const expired = tasks.filter(
+    (t) => !t.destructed && t.selfDestruct && t.selfDestruct.mode === "time" && t.selfDestruct.expiresAt <= now()
+  );
+  if (expired.length === 0) return;
+  for (const t of expired) await eraseEphemeralTaskKey(t.id);
+  render();
+}
+
+// Called when a "burn after reading" task is opened. Registers the view
+// *before* showing the content (matches "burns after being opened" rather
+// than "burns after being closed") — the task is still fully readable for
+// this one view; erasure only blocks every view after it.
+async function registerEphemeralView(taskId) {
+  const record = await getTask(taskId);
+  if (!record || !record.selfDestruct || record.selfDestruct.mode !== "views") return;
+  if (!record.selfDestruct.wrappedTaskKey) return; // already erased
+
+  const viewsUsed = record.selfDestruct.viewsUsed + 1;
+  const updated = { ...record, selfDestruct: { ...record.selfDestruct, viewsUsed } };
+  await putTask(updated);
+
+  const idx = tasks.findIndex((t) => t.id === taskId);
+  if (idx !== -1 && tasks[idx].selfDestruct) tasks[idx] = { ...tasks[idx], selfDestruct: { ...tasks[idx].selfDestruct, viewsUsed } };
+
+  if (viewsUsed >= record.selfDestruct.maxViews) await eraseEphemeralTaskKey(taskId);
 }
 
 // ---------- tamper-evident history log ----------
@@ -543,13 +698,31 @@ async function verifyHistoryChain() {
 
 // Decrypt-on-load: a record that fails to decrypt under the current DEK (corrupted,
 // or somehow from a different keyring) is unrecoverable — skip it rather than let one
-// bad record crash loading every other task.
+// bad record crash loading every other task. Ephemeral records (selfDestruct present)
+// branch three ways: already erased -> a destructed placeholder stub, not yet erased
+// -> decrypt under the per-task key (cached for future edits/erasure) with the
+// selfDestruct metadata attached so the UI can show a countdown/views-remaining badge.
 async function loadAndDecryptTasks() {
   const records = await getAllTasks();
   const decrypted = [];
+  ephemeralTaskKeys.clear();
   for (const record of records) {
     try {
-      decrypted.push(await decryptTask(record, dek));
+      if (record.selfDestruct) {
+        if (!record.selfDestruct.wrappedTaskKey) {
+          decrypted.push(
+            destructedTaskStub({ id: record.id, status: record.selfDestruct.status, ...emptyTaskDefaults() }, record.selfDestruct.erasedAt)
+          );
+          continue;
+        }
+        const rawTaskKeyBytes = await unwrapDek(record.selfDestruct.wrappedTaskKey, record.selfDestruct.taskKeyWrapIv, dek);
+        const taskKey = await importDek(rawTaskKeyBytes, false);
+        ephemeralTaskKeys.set(record.id, taskKey);
+        const task = await decryptTask(record, taskKey);
+        decrypted.push({ ...task, selfDestruct: { ...record.selfDestruct } });
+      } else {
+        decrypted.push(await decryptTask(record, dek));
+      }
     } catch (err) {
       console.error("Skipping a task record that failed to decrypt:", record.id, err);
     }
@@ -557,7 +730,14 @@ async function loadAndDecryptTasks() {
   return decrypted;
 }
 
-async function addTask({ title, project, notes, status, priority, dueDate, tags, subtasks, recurrence }) {
+// Placeholder field values for a destructed stub built straight from a
+// storage record (loadAndDecryptTasks) rather than from an in-memory task
+// that already has them (eraseEphemeralTaskKey) — see destructedTaskStub().
+function emptyTaskDefaults() {
+  return { project: "Inbox", priority: "medium", order: 0, createdAt: null };
+}
+
+async function addTask({ title, project, notes, status, priority, dueDate, tags, subtasks, recurrence, selfDestruct }) {
   const resolvedStatus = status || "todo";
   const task = {
     id: uuid(),
@@ -574,9 +754,10 @@ async function addTask({ title, project, notes, status, priority, dueDate, tags,
     createdAt: now(),
     updatedAt: now(),
   };
-  tasks.push(task);
+  const displayTask = selfDestruct ? { ...task, selfDestruct: { ...selfDestruct, status: task.status, viewsUsed: 0 } } : task;
+  tasks.push(displayTask);
   render();
-  await persistTask(task, "create");
+  await persistTask(task, "create", true, selfDestruct || null);
 }
 
 // "YYYY-MM-DD" from a Date using local calendar fields, not toISOString()
@@ -811,7 +992,13 @@ async function syncNow() {
   if (!config) throw new Error("Sync is not configured");
 
   const localRecords = await getAllTasks();
-  await pushRecords(config.server, config.token, localRecords);
+  // Self-destructing tasks are local-only — never pushed. Otherwise the
+  // erasure guarantee would have to account for a copy of the wrapped
+  // per-task key already sitting on the sync server or a second device
+  // before the fuse goes off, which local key-deletion alone can't cover.
+  // See docs/ARCHITECTURE.md "Ephemeral tasks".
+  const syncableRecords = localRecords.filter((r) => !r.selfDestruct);
+  await pushRecords(config.server, config.token, syncableRecords);
 
   const since = Number(localStorage.getItem(SYNC_LAST_KEY) || "0");
   const remoteRecords = await pullRecords(config.server, config.token, since);
@@ -831,7 +1018,7 @@ async function syncNow() {
   tasks = await loadAndDecryptTasks();
   render();
 
-  return { pushed: localRecords.length, pulled: remoteRecords.length };
+  return { pushed: syncableRecords.length, pulled: remoteRecords.length };
 }
 
 function refreshSyncModalState() {
@@ -2022,6 +2209,13 @@ async function afterUnlock() {
   render();
   showApp();
   document.getElementById("quickAddInput").focus();
+
+  // Backstop for a tab left open with no other interaction past a task's
+  // expiry — render() itself already sweeps on every real user action, this
+  // just covers the idle case. Cleared on lock (see the lock-screen code)
+  // rather than left running against a null `dek`.
+  if (ephemeralSweepInterval) clearInterval(ephemeralSweepInterval);
+  ephemeralSweepInterval = setInterval(() => scheduleEphemeralSweep(), 20000);
 }
 
 // Shared by both the direct "enter your recovery code" form and the
@@ -2357,6 +2551,11 @@ function wireLockButton() {
     historySigningPublicKeyB64 = null;
     historyChainTip = "GENESIS";
     tasks = [];
+    ephemeralTaskKeys.clear();
+    if (ephemeralSweepInterval) {
+      clearInterval(ephemeralSweepInterval);
+      ephemeralSweepInterval = null;
+    }
     document.getElementById("unlockPassphrase").value = "";
     setUnlockError("");
     showLockScreen();

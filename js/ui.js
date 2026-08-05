@@ -47,6 +47,26 @@ function recurrenceBadge(recurrence) {
   return el("span", "task-recurrence", `↻ ${label}`);
 }
 
+function formatRemaining(ms) {
+  const mins = Math.round(ms / 60000);
+  if (mins <= 1) return "burning out";
+  if (mins < 60) return `${mins}m left`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h left`;
+  return `${Math.round(hours / 24)}d left`;
+}
+
+// Not shown for a destructed task (there's a dedicated placeholder card for
+// that instead) — only for an active fuse still counting down.
+function selfDestructBadge(selfDestruct) {
+  if (!selfDestruct) return null;
+  const label =
+    selfDestruct.mode === "time"
+      ? `🔥 ${formatRemaining(selfDestruct.expiresAt - Date.now())}`
+      : `🔥 ${selfDestruct.maxViews - selfDestruct.viewsUsed} view${selfDestruct.maxViews - selfDestruct.viewsUsed === 1 ? "" : "s"} left`;
+  return el("span", "badge badge-self-destruct", label);
+}
+
 function tagChips(tags) {
   if (!tags || tags.length === 0) return null;
   const wrap = el("div", "task-tags");
@@ -64,8 +84,9 @@ function dueBadge(dueDate) {
 
 export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selectionMode, selectedIds, onToggleSelect }) {
   const selected = !!(selectedIds && selectedIds.has(task.id));
-  const card = el("div", "task-card" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : ""));
-  card.draggable = !selectionMode;
+  const destructedCls = task.destructed ? " is-destructed" : "";
+  const card = el("div", "task-card" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : "") + destructedCls);
+  card.draggable = !selectionMode && !task.destructed;
   card.dataset.id = task.id;
   card.setAttribute("role", "listitem");
   card.tabIndex = 0;
@@ -78,6 +99,15 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selection
     checkbox.addEventListener("click", (e) => e.stopPropagation());
     checkbox.addEventListener("change", () => onToggleSelect(task.id));
     card.appendChild(checkbox);
+  }
+
+  if (task.destructed) {
+    // No title/notes/tags to show — they're permanently gone, not just
+    // hidden. A dedicated placeholder rather than trying to fit "erased" into
+    // the normal card layout, so it can't be mistaken for a blank task.
+    card.appendChild(el("p", "destructed-label", "🔥 This task self-destructed"));
+    card.addEventListener("click", () => (selectionMode ? onToggleSelect(task.id) : onOpen(task)));
+    return card;
   }
 
   card.appendChild(el("h3", "task-title", task.title));
@@ -93,6 +123,8 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selection
   if (progress) meta.appendChild(progress);
   const recurrence = recurrenceBadge(task.recurrence);
   if (recurrence) meta.appendChild(recurrence);
+  const fuse = selfDestructBadge(task.selfDestruct);
+  if (fuse) meta.appendChild(fuse);
   card.appendChild(meta);
 
   const tags = tagChips(task.tags);
@@ -118,7 +150,8 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selection
 
 export function createListRow(task, { onOpen, onDelete, selectionMode, selectedIds, onToggleSelect }) {
   const selected = !!(selectedIds && selectedIds.has(task.id));
-  const row = el("div", "list-row" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : ""));
+  const destructedCls = task.destructed ? " is-destructed" : "";
+  const row = el("div", "list-row" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : "") + destructedCls);
   row.dataset.id = task.id;
 
   const titleCell = el("span", "list-row-title-cell");
@@ -132,11 +165,31 @@ export function createListRow(task, { onOpen, onDelete, selectionMode, selectedI
     checkbox.addEventListener("change", () => onToggleSelect(task.id));
     titleRow.appendChild(checkbox);
   }
+
+  if (task.destructed) {
+    titleRow.appendChild(el("span", "list-row-title destructed-label", "🔥 This task self-destructed"));
+    titleCell.appendChild(titleRow);
+    row.appendChild(titleCell);
+    const actions = el("span", "list-row-actions");
+    const delBtn = el("button", "list-row-delete", "Delete");
+    delBtn.type = "button";
+    delBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onDelete(task);
+    });
+    actions.appendChild(delBtn);
+    row.appendChild(actions);
+    row.addEventListener("click", () => (selectionMode ? onToggleSelect(task.id) : onOpen(task)));
+    return row;
+  }
+
   titleRow.appendChild(el("span", "list-row-title", task.title));
   const progress = subtaskProgressBadge(task.subtasks);
   if (progress) titleRow.appendChild(progress);
   const recurrence = recurrenceBadge(task.recurrence);
   if (recurrence) titleRow.appendChild(recurrence);
+  const fuse = selfDestructBadge(task.selfDestruct);
+  if (fuse) titleRow.appendChild(fuse);
   titleCell.appendChild(titleRow);
   const tags = tagChips(task.tags);
   if (tags) titleCell.appendChild(tags);
@@ -290,6 +343,28 @@ export function openEditModal(task) {
   document.getElementById("editDueDate").value = task.dueDate || "";
   document.getElementById("editTags").value = (task.tags || []).join(", ");
   document.getElementById("editRecurrence").value = task.recurrence || "";
+
+  // Self-destruct isn't editable after creation (no UI to change or cancel a
+  // fuse once set) — just a read-only note of the current state, since the
+  // form fields above are still real and still get saved normally.
+  const note = document.getElementById("editSelfDestructNote");
+  note.textContent = task.selfDestruct
+    ? task.selfDestruct.mode === "time"
+      ? `🔥 This task self-destructs at ${new Date(task.selfDestruct.expiresAt).toLocaleString()}.`
+      : `🔥 This task self-destructs after ${task.selfDestruct.maxViews - task.selfDestruct.viewsUsed} more view${task.selfDestruct.maxViews - task.selfDestruct.viewsUsed === 1 ? "" : "s"}.`
+    : "";
+  note.hidden = !task.selfDestruct;
+
+  // Sharing snapshots the currently-decrypted fields into an independent,
+  // separately-encrypted copy on the share server (docs/ARCHITECTURE.md
+  // "Fragment-key share links") — that copy has its own lifetime and
+  // wouldn't be touched by this task's fuse going off, which would quietly
+  // break the "burns and is gone" premise. Simplest honest fix: no sharing
+  // an ephemeral task at all, rather than a share link that outlives it.
+  const shareBtn = document.getElementById("editShareBtn");
+  shareBtn.disabled = !!task.selfDestruct;
+  shareBtn.title = task.selfDestruct ? "Self-destructing tasks can't be shared — a share link would outlive the fuse." : "";
+
   document.getElementById("editModal").hidden = false;
   document.getElementById("editTitle").focus();
 }
@@ -322,6 +397,17 @@ export function closeAddModal() {
   document.getElementById("addModal").hidden = true;
 }
 
+const SELF_DESTRUCT_DURATIONS_MS = { "1h": 3600000, "1d": 86400000, "7d": 604800000 };
+
+// Parses the addSelfDestructMode <select> into the spec shape app.js's
+// addTask()/persistTask() expect — null for "never" (a normal task).
+function readSelfDestructMode() {
+  const value = document.getElementById("addSelfDestructMode").value;
+  if (!value) return null;
+  if (value === "views") return { mode: "views", maxViews: 1 };
+  return { mode: "time", expiresAt: Date.now() + SELF_DESTRUCT_DURATIONS_MS[value] };
+}
+
 export function readAddForm() {
   return {
     title: document.getElementById("addTitle").value.trim(),
@@ -332,6 +418,7 @@ export function readAddForm() {
     dueDate: document.getElementById("addDueDate").value || null,
     tags: parseTagsInput(document.getElementById("addTags").value),
     recurrence: document.getElementById("addRecurrence").value || null,
+    selfDestruct: readSelfDestructMode(),
   };
 }
 

@@ -48,6 +48,16 @@ export async function getAllTasks() {
   });
 }
 
+export async function getTask(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const req = tx.objectStore(STORE_NAME).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export async function putTask(task) {
   const db = await openDB();
   return new Promise((resolve, reject) => {

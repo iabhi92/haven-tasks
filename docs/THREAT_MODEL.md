@@ -157,6 +157,27 @@
     signing key — see docs/ARCHITECTURE.md §4c's own stated residual limitation for the exact
     mechanics; re-registering the passkey after a reset avoids it.
 
+### A4e. Someone who obtains a self-destructing task's ciphertext *after* it burns
+- **Capability:** read access to the local database, at any point after the fuse has gone off —
+  a stolen device, a forensic dump, or just opening IndexedDB in devtools.
+- **Defense:** the per-task key that ciphertext was encrypted under is deleted, not merely
+  unreferenced — `selfDestruct.wrappedTaskKey`/`taskKeyWrapIv` are overwritten to `null` in the
+  same write that marks the task burned. There is no second copy of that key anywhere else the
+  app ever wrote one (see docs/ARCHITECTURE.md §4d) — a `putTask()` reading the record back gets
+  AES-GCM ciphertext with no way to derive the key that produced it, the same as any other
+  ciphertext an attacker who's never held the key is looking at.
+- **Residual risk, stated plainly:**
+  - **Timing matters.** An attacker who captures the database (or the per-task key in memory)
+    *before* the fuse fires gets a normal, fully-readable task — cryptographic erasure only
+    protects what happens after it runs, not a snapshot taken before it.
+  - **Local-only by design, not by oversight.** These tasks never sync (§4d), so this defense
+    doesn't have to additionally cover a copy on the sync server or a second device — there isn't
+    one. That's a scope decision that trades "syncs across devices" for "erasure is actually
+    complete," not an accident.
+  - **No defense against tampering with the fuse itself before it fires** — see §4d's own stated
+    limitation; that's the general "attacker with local write access" case (A3b), not specific to
+    this feature.
+
 ### A5. XSS — the existential threat
 - **Capability:** if an attacker can run JavaScript in the app's origin, they can read the DEK and
   plaintext directly from memory before encryption, defeating the entire scheme.

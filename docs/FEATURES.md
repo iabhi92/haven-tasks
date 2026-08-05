@@ -153,7 +153,18 @@ data."*
       unprovable — Med · Signal: high
 - [ ] Time-locked tasks — encrypted to unlock at a future date — High
 - [ ] Dead-man's-switch — reveal a task to a designated person after inactivity — High
-- [ ] Ephemeral / self-destructing tasks via key erasure — Med
+- [x] Ephemeral / self-destructing tasks via key erasure — Med. Shipped: each
+      self-destructing task is encrypted under its own per-task key (not the
+      shared vault DEK), itself wrapped under the DEK; "burning" deletes just
+      that wrapped key, which AES-GCM's own construction makes enough to
+      make the ciphertext permanently undecryptable — no separate secure-wipe
+      step needed. Two triggers: a time-based fuse (checked lazily whenever
+      the board re-renders, plus a 20s backstop interval for an idle tab) and
+      "burn after reading" (erases once opened). **Local-only** — excluded
+      from sync entirely, so the erasure guarantee never has to account for a
+      copy of the wrapped key already sitting on a second device or the sync
+      server — see docs/ARCHITECTURE.md "Ephemeral tasks" for the honest
+      scope note on what this does and doesn't guarantee.
 - [ ] Post-quantum hybrid key wrapping (harvest-now-decrypt-later defense) — High · Signal: high
 - [ ] Selective disclosure / per-field encryption (share title, not notes) — High
 - [ ] Proof-of-completion — prove you finished N tasks without revealing which — Research
