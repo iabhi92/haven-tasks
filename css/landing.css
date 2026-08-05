@@ -515,22 +515,46 @@ p.hero-word, div.hero-word { display: block; }
 }
 
 /* ---------- minimal feature intro (calm direction) ---------- */
+/* A full-bleed tinted band, not text floating on the page background —
+   the earlier borderless/backgroundless version read as sparse and
+   unfinished at full desktop width rather than calm. Each item gets a
+   little visual weight (icon badge, contained card) so the section reads
+   as a designed part of the product, not a placeholder. */
+.landing-proof {
+  padding: 64px 24px 72px;
+  background: var(--surface-sunken);
+}
 .landing-minimal-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 32px;
-  max-width: 960px;
+  gap: 20px;
+  max-width: 1000px;
   margin: 0 auto;
 }
 .landing-minimal-grid .reveal-up.is-visible:nth-child(1) { transition-delay: 0s; }
 .landing-minimal-grid .reveal-up.is-visible:nth-child(2) { transition-delay: 0.08s; }
 .landing-minimal-grid .reveal-up.is-visible:nth-child(3) { transition-delay: 0.16s; }
 .landing-minimal-grid .reveal-up.is-visible:nth-child(4) { transition-delay: 0.24s; }
-.landing-minimal-item svg {
-  width: 22px;
-  height: 22px;
-  color: var(--accent);
+.landing-minimal-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+}
+.landing-minimal-item-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 14px;
+}
+.landing-minimal-item svg {
+  width: 19px;
+  height: 19px;
+  color: var(--accent);
 }
 .landing-minimal-item h3 {
   margin: 0 0 6px;
@@ -543,7 +567,7 @@ p.hero-word, div.hero-word { display: block; }
   line-height: 1.6;
 }
 @media (max-width: 700px) {
-  .landing-minimal-grid { grid-template-columns: repeat(2, 1fr); gap: 28px 20px; }
+  .landing-minimal-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
 }
 .landing-proof-card p {
   margin: 0;
@@ -601,7 +625,7 @@ p.hero-word, div.hero-word { display: block; }
 
 /* ---------- privacy / reveal demo ---------- */
 .landing-reveal-section {
-  padding: 56px 0;
+  padding: 56px 24px;
   text-align: center;
   border-top: 1px solid var(--border);
 }
@@ -610,6 +634,18 @@ p.hero-word, div.hero-word { display: block; }
   font-weight: 800;
   letter-spacing: -0.015em;
   margin: 0 0 12px;
+}
+/* .landing-sub is also used left-aligned in the hero's text column (see
+   above) — text-align:center on the parent doesn't center a block-level
+   child that has its own fixed max-width and no auto margins, so this
+   section needs its own override rather than inheriting the hero's rules.
+   Without this, the paragraph hugs the left edge inside a centered
+   heading — a real regression found from a live screenshot, not a
+   hypothetical. */
+.landing-reveal-section .landing-sub {
+  max-width: 620px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .landing-reveal-demo {
   max-width: 620px;
