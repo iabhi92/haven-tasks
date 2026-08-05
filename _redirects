@@ -1,8 +1,0 @@
-# Cloudflare reads this the same way it reads _headers (both custom domains,
-# taskhavens.com and www.taskhavens.com, were serving identical content at
-# 200 with no redirect between them — a real duplicate-content problem for
-# search ranking, found by checking live response codes directly, not
-# assumed). Every canonical/og:url tag across the site already points at the
-# bare domain, so this 301 makes the actual serving behavior match what
-# those tags have been claiming all along.
-https://www.taskhavens.com/* https://taskhavens.com/:splat 301
