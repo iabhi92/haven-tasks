@@ -4,7 +4,7 @@
 
 const DB_NAME = "haven";
 const DECOY_DB_NAME = "haven-decoy"; // see docs/ARCHITECTURE.md "Duress / decoy vault"
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_NAME = "tasks";
 const KEYRING_STORE = "keyring";
 const KEYRING_KEY = "main";
@@ -13,11 +13,18 @@ const KEYRING_KEY = "main";
 // key would sort lexicographically, breaking the hash chain's notion of
 // "previous entry". See docs/ARCHITECTURE.md "Tamper-evident signed history".
 const HISTORY_STORE = "historyLog";
+// Encrypted the same way tasks are (see js/app.js's loadAutomationRules/
+// addAutomationRule) — a rule's trigger/action values (tag names, project
+// names) are just as much user content as a task title. See
+// docs/ARCHITECTURE.md "Local automation rules".
+const RULES_STORE = "rules";
 
 // Same object-store layout for both databases — the decoy DB just never
 // happens to have anything in `keyring` (that always lives in the main "haven"
 // DB, readable before either passphrase has been tried, since nothing knows
 // yet which vault is being unlocked). Harmless unused store, not a schema fork.
+// The decoy vault DOES get its own real `rules`/`tasks`/`historyLog` — every
+// vault is fully functional, not a stripped-down second-class one.
 function upgrade(db) {
   if (!db.objectStoreNames.contains(STORE_NAME)) {
     db.createObjectStore(STORE_NAME, { keyPath: "id" });
@@ -28,6 +35,9 @@ function upgrade(db) {
   }
   if (!db.objectStoreNames.contains(HISTORY_STORE)) {
     db.createObjectStore(HISTORY_STORE, { keyPath: "seq", autoIncrement: true });
+  }
+  if (!db.objectStoreNames.contains(RULES_STORE)) {
+    db.createObjectStore(RULES_STORE, { keyPath: "id" });
   }
 }
 
@@ -168,5 +178,35 @@ export async function getLastHistoryEntry() {
     const req = tx.objectStore(HISTORY_STORE).openCursor(null, "prev");
     req.onsuccess = () => resolve(req.result ? req.result.value : null);
     req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getAllRules() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RULES_STORE, "readonly");
+    const req = tx.objectStore(RULES_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function putRule(rule) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RULES_STORE, "readwrite");
+    tx.objectStore(RULES_STORE).put(rule);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteRule(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RULES_STORE, "readwrite");
+    tx.objectStore(RULES_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }

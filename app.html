@@ -25,7 +25,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-t5+lrgfF7eDDbAEIWlUfD1NMHXvDFoCzjw6UCtT94QJ0motgmws2SRsNxxLjkCR2" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-e+3WlAF+cXqfuqArQMoA9GKcqiRKN9o9BtBIXMeA3s0OSUWqVZoyDQbEbKM/9pcf" crossorigin="anonymous">
 </head>
 <body>
 
@@ -746,6 +746,60 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="automationModal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="automationModalTitle">
+    <h2 id="automationModalTitle">Automation rules</h2>
+    <p class="modal-help">
+      Runs entirely on your device, checked whenever the board updates — nothing is ever sent
+      anywhere to evaluate a rule. Rules don't trigger other rules (no chains), so there's no way
+      for one to set off an endless loop of another.
+    </p>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="automationTrigger">When</label>
+        <select id="automationTrigger">
+          <option value="onDone">a task is marked Done</option>
+          <option value="onOverdue">a task's due date passes (and it's not Done)</option>
+          <option value="onCreateWithTag">a task is created with a tag</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="automationTriggerTag">Tag (only used for "created with a tag")</label>
+        <input type="text" id="automationTriggerTag" placeholder="e.g. urgent" maxlength="60">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="automationAction">Then</label>
+        <select id="automationAction">
+          <option value="addTag">Add tag</option>
+          <option value="removeTag">Remove tag</option>
+          <option value="setPriority">Set priority (low / medium / high)</option>
+          <option value="setStatus">Set status (todo / in-progress / done)</option>
+          <option value="moveToProject">Move to project</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="automationActionValue">Value</label>
+        <input type="text" id="automationActionValue" placeholder="e.g. archived" maxlength="60">
+      </div>
+    </div>
+
+    <p class="lock-error" id="automationError" role="alert"></p>
+    <div class="modal-actions-right sync-close-row">
+      <button type="button" class="btn btn-primary" id="automationAddRuleBtn">Add rule</button>
+    </div>
+
+    <div id="automationRulesList" class="automation-rules-list"></div>
+
+    <div class="modal-actions-right sync-close-row">
+      <button type="button" class="btn btn-ghost" id="automationCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="syncModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <h2 id="syncModalTitle">Sync (optional)</h2>
@@ -812,6 +866,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json" hidden>
 
-<script src="js/app.js?v=20260804p" integrity="sha384-hVTYPft0DXjn+GG35Gqtf0vqgWHcW8nQWa1+xCanM9mPcsvT+EE02cCjviNV0NEL" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260804p" integrity="sha384-dcTQRGlbmUfhoFQVwEk9BAK+zZE0PsHYp8IhbCIooeNCxeSiP4iwOo4Zybdc5Yr8" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

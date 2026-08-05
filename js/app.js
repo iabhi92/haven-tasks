@@ -9,7 +9,11 @@ import {
   getAllHistoryEntries,
   getLastHistoryEntry,
   setActiveVault,
+  getAllRules,
+  putRule,
+  deleteRule,
 } from "./store.js?v=20260804p";
+import { evaluateTask } from "./automation.js?v=20260805a";
 import {
   renderBoard,
   renderList,
@@ -27,6 +31,7 @@ import {
   getDragAfterElement,
   renderStats,
   renderHistoryReport,
+  renderAutomationRulesList,
   setPageSubtitle,
   openCmdk,
   closeCmdk,
@@ -126,6 +131,14 @@ let historyChainTip = "GENESIS";
 // a repeat export, same discipline as the main `dek`.
 const ephemeralTaskKeys = new Map(); // taskId -> CryptoKey
 let ephemeralSweepInterval = null;
+
+// ---------- local automation rules (Layer 3) ----------
+// Runs entirely client-side against the already-decrypted in-memory task
+// list — no server involved, ever. See docs/ARCHITECTURE.md "Local
+// automation rules" and js/automation.js for the (deliberately non-chaining)
+// evaluator itself.
+let automationRules = [];
+let automationSweepInProgress = false;
 
 // ---------- duress / decoy vault (Layer 3) ----------
 // Whichever passphrase the unlock form is given, it either opens the real
@@ -416,6 +429,7 @@ function render() {
   syncProjectUI();
   syncBulkActionBar();
   scheduleEphemeralSweep();
+  scheduleAutomationSweep();
 }
 
 // render() runs far too often to await an async sweep inline (and
@@ -570,6 +584,67 @@ async function registerEphemeralView(taskId) {
   if (idx !== -1 && tasks[idx].selfDestruct) tasks[idx] = { ...tasks[idx], selfDestruct: { ...tasks[idx].selfDestruct, viewsUsed } };
 
   if (viewsUsed >= record.selfDestruct.maxViews) await eraseEphemeralTaskKey(taskId);
+}
+
+// ---------- local automation rules (Layer 3) ----------
+
+async function loadAutomationRules() {
+  const records = await getAllRules();
+  const decrypted = [];
+  for (const record of records) {
+    try {
+      // Reuses encryptTask/decryptTask as-is — they're already generic
+      // AES-GCM-encrypt/decrypt-a-JSON-object, not actually task-specific.
+      decrypted.push(await decryptTask(record, dek));
+    } catch (err) {
+      console.error("Skipping an automation rule that failed to decrypt:", record.id, err);
+    }
+  }
+  automationRules = decrypted;
+}
+
+function renderAutomationModal() {
+  renderAutomationRulesList(automationRules, { onDelete: removeAutomationRule });
+}
+
+async function addAutomationRule(trigger, action) {
+  const rule = { id: uuid(), trigger, action, enabled: true, createdAt: now() };
+  const { iv, ciphertext } = await encryptTask(rule, dek);
+  await putRule({ id: rule.id, iv, ciphertext });
+  automationRules.push(rule);
+  renderAutomationModal();
+  render(); // an onOverdue rule may match tasks that are already overdue — react now, not on the next unrelated render
+}
+
+async function removeAutomationRule(id) {
+  automationRules = automationRules.filter((r) => r.id !== id);
+  await deleteRule(id);
+  renderAutomationModal();
+}
+
+// Same lazy-on-render + reentrancy-guard pattern as the ephemeral-task sweep
+// above, and for the same reason: cheap to check on every render (a plain
+// array filter, no IO, when there are no overdue matches — the common case),
+// so there's no need for a dedicated polling loop.
+async function sweepOverdueAutomationRules() {
+  if (automationRules.length === 0) return;
+  let anyChanged = false;
+  for (let i = 0; i < tasks.length; i++) {
+    const ruled = evaluateTask(automationRules, "onOverdue", tasks[i]);
+    if (!ruled) continue;
+    tasks[i] = { ...ruled, updatedAt: now() };
+    await persistTask(tasks[i], "update");
+    anyChanged = true;
+  }
+  if (anyChanged) render();
+}
+
+function scheduleAutomationSweep() {
+  if (automationSweepInProgress || !dek) return;
+  automationSweepInProgress = true;
+  sweepOverdueAutomationRules().finally(() => {
+    automationSweepInProgress = false;
+  });
 }
 
 // ---------- tamper-evident history log ----------
@@ -754,7 +829,7 @@ function emptyTaskDefaults() {
 
 async function addTask({ title, project, notes, status, priority, dueDate, tags, subtasks, recurrence, selfDestruct }) {
   const resolvedStatus = status || "todo";
-  const task = {
+  let task = {
     id: uuid(),
     title: title.trim(),
     project: (project || activeProject || "Inbox").trim() || "Inbox",
@@ -769,6 +844,12 @@ async function addTask({ title, project, notes, status, priority, dueDate, tags,
     createdAt: now(),
     updatedAt: now(),
   };
+  // Applied before the first persist, so the "create" history entry already
+  // reflects any rule's effect rather than needing a second "update" entry
+  // immediately after.
+  const ruled = evaluateTask(automationRules, "onCreateWithTag", task);
+  if (ruled) task = { ...ruled, updatedAt: now() };
+
   const displayTask = selfDestruct ? { ...task, selfDestruct: { ...selfDestruct, status: task.status, viewsUsed: 0 } } : task;
   tasks.push(displayTask);
   render();
@@ -828,6 +909,10 @@ async function updateTask(partial) {
   if (!task) return;
   const becameDone = partial.status === "done" && task.status !== "done";
   Object.assign(task, partial, { updatedAt: now() });
+  if (becameDone) {
+    const ruled = evaluateTask(automationRules, "onDone", task);
+    if (ruled) Object.assign(task, ruled, { updatedAt: now() });
+  }
   render();
   await persistTask(task, "update");
   if (becameDone) {
@@ -1343,6 +1428,58 @@ function wireDecoyVaultModal() {
     document.getElementById("decoyVaultPassphraseConfirm").value = "";
     closeDecoyVaultModal();
     showInfoToast("Decoy vault ready — its passphrase opens it from the lock screen, same as this one.");
+  });
+}
+
+function openAutomationModal() {
+  document.getElementById("automationError").textContent = "";
+  document.getElementById("automationModal").hidden = false;
+  renderAutomationModal();
+}
+
+function closeAutomationModal() {
+  document.getElementById("automationModal").hidden = true;
+}
+
+function wireAutomationModal() {
+  const overlay = document.getElementById("automationModal");
+  const errorEl = document.getElementById("automationError");
+
+  document.getElementById("automationCloseBtn").addEventListener("click", () => closeAutomationModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeAutomationModal();
+  });
+
+  document.getElementById("automationAddRuleBtn").addEventListener("click", async () => {
+    errorEl.textContent = "";
+    const triggerType = document.getElementById("automationTrigger").value;
+    const triggerTag = document.getElementById("automationTriggerTag").value.trim();
+    const actionType = document.getElementById("automationAction").value;
+    const actionValue = document.getElementById("automationActionValue").value.trim();
+
+    if (triggerType === "onCreateWithTag" && !triggerTag) {
+      errorEl.textContent = 'This trigger needs a tag — fill in the "Tag" field above.';
+      return;
+    }
+    if (["addTag", "removeTag", "moveToProject"].includes(actionType) && !actionValue) {
+      errorEl.textContent = "This action needs a value.";
+      return;
+    }
+    if (actionType === "setPriority" && !["low", "medium", "high"].includes(actionValue)) {
+      errorEl.textContent = 'Priority must be exactly "low", "medium", or "high".';
+      return;
+    }
+    if (actionType === "setStatus" && !["todo", "in-progress", "done"].includes(actionValue)) {
+      errorEl.textContent = 'Status must be exactly "todo", "in-progress", or "done".';
+      return;
+    }
+
+    const trigger = triggerType === "onCreateWithTag" ? { type: triggerType, tag: triggerTag } : { type: triggerType };
+    const action = { type: actionType, value: actionValue };
+    await addAutomationRule(trigger, action);
+
+    document.getElementById("automationTriggerTag").value = "";
+    document.getElementById("automationActionValue").value = "";
   });
 }
 
@@ -2199,6 +2336,10 @@ function wireDragAndDrop() {
       const becameDone = status === "done" && sourceStatus !== "done";
 
       applyDropOrder(status, orderedIds);
+      if (becameDone && sourceTask) {
+        const ruled = evaluateTask(automationRules, "onDone", sourceTask);
+        if (ruled) Object.assign(sourceTask, ruled, { updatedAt: now() });
+      }
       render();
 
       await persistReorder(status);
@@ -2236,6 +2377,7 @@ function getCmdkItems() {
     { label: "Set up social recovery", action: openSocialRecoveryModal },
     { label: "Add a passkey", action: openPasskeyModal },
     { label: "Set up a decoy vault", action: openDecoyVaultModal },
+    { label: "Automation rules", action: openAutomationModal },
   ];
 }
 
@@ -2310,6 +2452,7 @@ function wireCommandPalette() {
 
 async function afterUnlock() {
   tasks = await loadAndDecryptTasks();
+  await loadAutomationRules();
   render();
   showApp();
   document.getElementById("quickAddInput").focus();
@@ -2682,6 +2825,7 @@ function wireLockButton() {
     historyChainTip = "GENESIS";
     tasks = [];
     ephemeralTaskKeys.clear();
+    automationRules = [];
     if (ephemeralSweepInterval) {
       clearInterval(ephemeralSweepInterval);
       ephemeralSweepInterval = null;
@@ -2730,6 +2874,7 @@ async function boot() {
   wireSocialRecoveryModal();
   wirePasskeyModal();
   wireDecoyVaultModal();
+  wireAutomationModal();
 }
 
 wireThemeToggle();

@@ -586,7 +586,7 @@ const HISTORY_BREAK_REASON_SHORT = {
   "bad-signature": "Bad signature",
 };
 
-const HISTORY_OP_LABEL = { create: "Created", update: "Updated", delete: "Deleted" };
+const HISTORY_OP_LABEL = { create: "Created", update: "Updated", delete: "Deleted", selfDestruct: "Self-destructed" };
 
 export function renderHistoryReport(report) {
   const container = document.getElementById("historyReport");
@@ -702,6 +702,56 @@ export function renderCmdkItems(items, activeIndex) {
     if (item.hint) row.appendChild(el("kbd", "cmdk-item-hint", item.hint));
     list.appendChild(row);
   });
+}
+
+const AUTOMATION_TRIGGER_LABEL = {
+  onDone: "a task is marked Done",
+  onOverdue: "a task's due date passes (and it's not Done)",
+  onCreateWithTag: (rule) => `a task is created with tag "${rule.trigger.tag}"`,
+};
+const AUTOMATION_ACTION_LABEL = {
+  addTag: (rule) => `add tag "${rule.action.value}"`,
+  removeTag: (rule) => `remove tag "${rule.action.value}"`,
+  setPriority: (rule) => `set priority to ${rule.action.value}`,
+  setStatus: (rule) => `set status to ${rule.action.value}`,
+  moveToProject: (rule) => `move to project "${rule.action.value}"`,
+};
+
+function describeAutomationRule(rule) {
+  const triggerLabel = AUTOMATION_TRIGGER_LABEL[rule.trigger.type];
+  const actionLabel = AUTOMATION_ACTION_LABEL[rule.action.type];
+  const when = typeof triggerLabel === "function" ? triggerLabel(rule) : triggerLabel;
+  const then = typeof actionLabel === "function" ? actionLabel(rule) : actionLabel;
+  return { when, then };
+}
+
+export function renderAutomationRulesList(rules, { onDelete } = {}) {
+  const container = document.getElementById("automationRulesList");
+  container.textContent = "";
+
+  if (rules.length === 0) {
+    container.appendChild(el("p", "modal-help", "No rules yet — add one above."));
+    return;
+  }
+
+  for (const rule of rules) {
+    const { when, then } = describeAutomationRule(rule);
+    const row = el("div", "automation-rule-row");
+    const text = el("span", "automation-rule-text");
+    text.appendChild(el("span", "", "When "));
+    text.appendChild(el("strong", "", when));
+    text.appendChild(el("span", "", ", "));
+    text.appendChild(el("strong", "", then));
+    text.appendChild(el("span", "", "."));
+    row.appendChild(text);
+
+    const delBtn = el("button", "list-row-delete", "Delete");
+    delBtn.type = "button";
+    delBtn.addEventListener("click", () => onDelete && onDelete(rule.id));
+    row.appendChild(delBtn);
+
+    container.appendChild(row);
+  }
 }
 
 export function getDragAfterElement(container, y) {

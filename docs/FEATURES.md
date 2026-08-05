@@ -144,7 +144,17 @@ data."*
 - [ ] On-device AI assistant — LLM via WebGPU that prioritises, breaks down, and plans, running
       locally so tasks never touch a cloud model; demo = zero network requests — Research ·
       Signal: very high
-- [ ] Local automation / rules engine — Med
+- [x] Local automation / rules engine — Med. Shipped: three triggers (task
+      marked Done, due date passes while not Done, task created with a
+      specific tag) × five actions (add/remove tag, set priority, set
+      status, move to project), evaluated entirely client-side against the
+      already-decrypted task list — no server involved. Rules are encrypted
+      and stored the same way tasks are, and (like ephemeral tasks and the
+      decoy vault) never sync. Deliberately non-chaining: a rule's own
+      effect is never itself fed back in as a trigger for another rule in
+      the same pass, closing off the entire "rule A sets off rule B sets
+      off rule A" class of bug rather than trying to detect it at runtime.
+      See docs/ARCHITECTURE.md "Local automation rules".
 - [ ] Private on-device productivity analytics — Med
 
 ### Cryptographically novel

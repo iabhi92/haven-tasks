@@ -429,6 +429,49 @@ plausible, fully-usable vault to hand over instead of the real one.
   decoy existed (a "manage" view, a status indicator) would itself be a tell to anyone skimming the
   app after a forced unlock, which is exactly the scenario this feature is for.
 
+## 4f. Local automation rules (Layer 3)
+
+"If X, then Y" rules that run entirely on-device against the already-decrypted task list — no
+server involved at any point, not even to evaluate a condition.
+
+- **Three triggers, five actions, no chaining.** `trigger.type` is one of `onDone` (status just
+  became `"done"`), `onOverdue` (a non-done task's due date is in the past), or
+  `onCreateWithTag` (a task was just created already carrying a given tag). `action.type` is one
+  of `addTag`/`removeTag`/`setPriority`/`setStatus`/`moveToProject`. `js/automation.js`'s
+  `evaluateTask(rules, eventType, task)` is the entire engine — a pure function, no IO, called
+  once per event with the event type it's reacting to, checked against `js/automation.test.mjs`'s
+  14 vectors. Deliberately **no rule chaining**: a rule's own action is never re-fed into the
+  evaluator as a new trigger for another rule within the same call. Two rules that would
+  otherwise set each other off forever (an `onOverdue` rule that sets status to done, feeding an
+  `onDone` rule that changes something the first rule's condition depends on) simply can't reach
+  each other — not detected and blocked, structurally impossible, because each call only ever
+  looks at rules matching the one `eventType` it was given.
+- **Where each trigger is called from** (`js/app.js`): `onCreateWithTag` — inside `addTask()`,
+  against the just-created task, before its first persist (so the "create" history entry already
+  reflects the rule's effect, no separate "update" entry immediately after). `onDone` — inside
+  `updateTask()` (the edit-form save path) and inside the board's drag-and-drop `drop` handler
+  separately, since dragging a card to the Done column never goes through `updateTask()` at all.
+  `onOverdue` — the same lazy-sweep-on-render pattern ephemeral tasks use (§4d): a cheap array
+  scan on every `render()` call (no IO when nothing matches, the common case) plus a coarse
+  interval backstop for an idle tab.
+- **Rules are encrypted the same way tasks are** — `js/crypto.js`'s `encryptTask()`/
+  `decryptTask()` are reused as-is (they were already generic AES-GCM-encrypt-a-JSON-object
+  functions, not task-schema-specific), stored in their own `rules` IndexedDB object store
+  (`DB_VERSION` 3→4). A rule's trigger tag or action value is just as much user content as a task
+  title — there's no reason for it to sit in cleartext.
+- **Local-only, like ephemeral tasks and the decoy vault, and for a related reason** — not
+  included in `syncNow()`'s push (rules aren't task records at all, so this is automatic rather
+  than a filter to remember), and not something a second device would want inherited silently
+  anyway: automation is a per-device preference, not shared task data.
+- **The decoy vault gets its own independent rules**, same as its own tasks/history — `rules` is
+  part of the same per-database object-store layout `js/store.js`'s `upgrade()` creates for both
+  `haven` and `haven-decoy`.
+- **Honest scope limit:** five actions and three triggers is a deliberately small, fixed catalog,
+  not an extensible rule language — no custom conditions, no combining multiple trigger conditions
+  with AND/OR, no scheduling beyond "due date passed." Covers real, common cases (auto-archive on
+  completion, auto-escalate priority when overdue, auto-tag on creation) without building a
+  general-purpose scripting surface this app doesn't need.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

@@ -923,6 +923,29 @@ body { display: flex; }
   color: var(--text-muted);
   max-width: 640px;
 }
+.automation-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+.automation-rule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.automation-rule-text {
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.automation-rule-text strong { color: var(--accent); font-weight: 700; }
+
 .history-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);
