@@ -14,6 +14,7 @@ import {
   deleteRule,
 } from "./store.js?v=20260804p";
 import { evaluateTask } from "./automation.js?v=20260805a";
+import { computeInsights } from "./insights.js?v=20260805a";
 import {
   renderBoard,
   renderList,
@@ -32,6 +33,7 @@ import {
   renderStats,
   renderHistoryReport,
   renderAutomationRulesList,
+  renderInsights,
   setPageSubtitle,
   openCmdk,
   closeCmdk,
@@ -428,6 +430,7 @@ function render() {
   syncTagFilterOptions();
   syncProjectUI();
   syncBulkActionBar();
+  if (view === "insights") renderInsights(computeInsights(tasks));
   scheduleEphemeralSweep();
   scheduleAutomationSweep();
 }
@@ -1961,6 +1964,11 @@ function wireViewToggle() {
     setView(view);
     render();
   });
+  document.getElementById("viewInsightsBtn").addEventListener("click", () => {
+    view = "insights";
+    setView(view);
+    render(); // render() itself calls renderInsights() when view === "insights"
+  });
 }
 
 // Live plaintext/ciphertext demo — runs the exact same encryptTask() every real
@@ -2370,6 +2378,10 @@ function getCmdkItems() {
     {
       label: "Verify task history",
       action: () => { view = "history"; setView(view); render(); },
+    },
+    {
+      label: "Insights",
+      action: () => { view = "insights"; setView(view); render(); },
     },
     { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
     { label: "Import tasks from JSON", action: () => document.getElementById("importFileInput").click() },

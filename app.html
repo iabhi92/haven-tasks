@@ -25,7 +25,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-e+3WlAF+cXqfuqArQMoA9GKcqiRKN9o9BtBIXMeA3s0OSUWqVZoyDQbEbKM/9pcf" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-/L351vIlpib+h4eOvTZsUobReX2VupE2mVty8XBk6oyDKYC7ANDXrrtszOGVBvpl" crossorigin="anonymous">
 </head>
 <body>
 
@@ -146,6 +146,11 @@
         <path d="M4 6a6 6 0 1 1 1.5 5.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
         <path d="M4 3.5V6.5H7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
         <path d="M10 6.5v3.7l2.6 1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </button>
+    <button type="button" class="rail-btn" id="viewInsightsBtn" role="tab" aria-selected="false" aria-label="Insights" title="Insights">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M4 16.5V10M10 16.5V4.5M16 16.5V8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
       </svg>
     </button>
   </nav>
@@ -346,6 +351,37 @@
           your local history — nothing is uploaded to check it.</p>
         <button type="button" class="btn btn-primary" id="verifyHistoryBtn">Verify now</button>
         <div id="historyReport" class="history-report"></div>
+      </section>
+    </div>
+
+    <div id="insightsView" class="reveal-view" hidden>
+      <section class="reveal-section">
+        <h2>Insights</h2>
+        <p class="reveal-intro">Computed instantly from the tasks already decrypted in your
+          browser's memory — nothing here is tracked over time, logged, or sent anywhere. Close
+          the tab and it's gone; reopen it and it's recomputed fresh from what's actually on your
+          board right now.</p>
+
+        <div class="insights-stat-grid" id="insightsStatGrid"></div>
+
+        <div class="insights-grid">
+          <div class="insights-card">
+            <h3>By status</h3>
+            <div id="insightsByStatus" class="insights-bars"></div>
+          </div>
+          <div class="insights-card">
+            <h3>By priority</h3>
+            <div id="insightsByPriority" class="insights-bars"></div>
+          </div>
+          <div class="insights-card">
+            <h3>By project</h3>
+            <div id="insightsByProject" class="insights-bars"></div>
+          </div>
+          <div class="insights-card">
+            <h3>Top tags</h3>
+            <div id="insightsTopTags" class="insights-tag-list"></div>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -866,6 +902,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json" hidden>
 
-<script src="js/app.js?v=20260804p" integrity="sha384-dcTQRGlbmUfhoFQVwEk9BAK+zZE0PsHYp8IhbCIooeNCxeSiP4iwOo4Zybdc5Yr8" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260804p" integrity="sha384-ts5TqnZJbUZRPxfZKxDA66W1mPKpbQS41QvT119BlTudWDi2Z+r3wLmRu0txMrcq" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

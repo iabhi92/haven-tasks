@@ -155,7 +155,18 @@ data."*
       the same pass, closing off the entire "rule A sets off rule B sets
       off rule A" class of bug rather than trying to detect it at runtime.
       See docs/ARCHITECTURE.md "Local automation rules".
-- [ ] Private on-device productivity analytics — Med
+- [x] Private on-device productivity analytics — Med. Shipped as a snapshot,
+      not a history-over-time view: total tasks, completion rate, overdue
+      count, by-status/by-priority/by-project breakdowns, top tags, and
+      subtask completion rate, all computed instantly from the task list
+      already decrypted in memory (`js/insights.js`, a pure function, no
+      IO). **Deliberately doesn't show trends over time** (tasks completed
+      per day, streaks) — that would need a `completedAt` field this app
+      doesn't track, and approximating it from `updatedAt` (bumped on *any*
+      edit, not just completion) would silently misdate a task edited after
+      it was finished. Shipping an honest snapshot beat shipping a
+      time-series chart quietly built on a wrong assumption. See
+      docs/ARCHITECTURE.md "On-device insights".
 
 ### Cryptographically novel
 

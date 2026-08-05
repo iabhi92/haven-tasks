@@ -472,6 +472,31 @@ server involved at any point, not even to evaluate a condition.
   completion, auto-escalate priority when overdue, auto-tag on creation) without building a
   general-purpose scripting surface this app doesn't need.
 
+## 4g. On-device insights (Layer 3)
+
+A stats panel — total tasks, completion rate, overdue count, breakdowns by status/priority/
+project, top tags, subtask completion rate — computed by `js/insights.js`'s `computeInsights()`,
+a pure function over whatever's currently in `js/app.js`'s in-memory `tasks` array. No network
+request, no logging, no state kept between page loads: closing the tab and reopening it
+recomputes everything fresh from the current board, same as every other view in this app.
+
+- **A snapshot, not a history.** Every stat here answers "what does my board look like right
+  now," never "how has it changed over time." That's not a corner cut for time — it's what's
+  honestly computable. Tasks carry `createdAt` and `updatedAt`, but no `completedAt`: `updatedAt`
+  is bumped on *any* edit, so a task finished on Monday and re-tagged on Friday would misreport as
+  "completed Friday" if used to approximate a completion date. Rather than ship a "tasks completed
+  this week" chart quietly built on that wrong assumption, this feature stops at what the current
+  data actually supports. Adding real time-series stats later needs a dedicated `completedAt`
+  field set at the point of completion — a real (small) schema change, not a computation change,
+  and not done here.
+- **Destructed placeholders (§4d) are excluded from every count.** They have no real content left
+  to measure, and counting an empty shell would silently under- or over-state a stat depending on
+  what it used to be.
+- **Verified with 8 unit tests** against the pure function (`js/insights.test.mjs` — empty-board
+  behavior, exclusion of destructed tasks, overdue logic, sort order for tags/projects, combined
+  vs. per-task subtask completion rate) plus Playwright coverage of the panel updating live as
+  tasks are added/completed.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

@@ -245,8 +245,8 @@ export function renderList(tasks, handlers) {
   }
 }
 
-const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView" };
-const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn" };
+const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView", insights: "insightsView" };
+const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn", insights: "viewInsightsBtn" };
 
 export function setView(view) {
   for (const key of Object.keys(VIEW_PANEL_IDS)) {
@@ -268,9 +268,10 @@ export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
   const empty = document.getElementById("emptyState");
   const noResults = document.getElementById("noResultsState");
 
-  // The reveal and history pages don't depend on whether any real tasks exist —
-  // both must stay reachable even on a genuinely empty board.
-  if (view === "reveal" || view === "history") {
+  // The reveal, history, and insights pages don't depend on whether any real
+  // tasks exist — all three must stay reachable even on a genuinely empty
+  // board (insights just shows all-zero stats rather than being unreachable).
+  if (view === "reveal" || view === "history" || view === "insights") {
     empty.hidden = true;
     noResults.hidden = true;
     setView(view);
@@ -751,6 +752,70 @@ export function renderAutomationRulesList(rules, { onDelete } = {}) {
     row.appendChild(delBtn);
 
     container.appendChild(row);
+  }
+}
+
+const INSIGHTS_STATUS_LABEL = { todo: "To Do", "in-progress": "In Progress", done: "Done" };
+const INSIGHTS_PRIORITY_LABEL = { low: "Low", medium: "Medium", high: "High" };
+
+function insightsStatCard(value, label) {
+  const card = el("div", "insights-stat-card");
+  card.appendChild(el("div", "insights-stat-value", String(value)));
+  card.appendChild(el("div", "insights-stat-label", label));
+  return card;
+}
+
+function renderBarList(containerId, entries) {
+  const container = document.getElementById(containerId);
+  container.textContent = "";
+  const max = Math.max(1, ...entries.map(([, count]) => count));
+  if (entries.length === 0 || entries.every(([, count]) => count === 0)) {
+    container.appendChild(el("p", "modal-help", "Nothing here yet."));
+    return;
+  }
+  for (const [label, count] of entries) {
+    const row = el("div", "insights-bar-row");
+    row.appendChild(el("span", "insights-bar-label", label));
+    const track = el("div", "insights-bar-track");
+    const fill = el("div", "insights-bar-fill");
+    fill.style.width = `${Math.round((count / max) * 100)}%`;
+    track.appendChild(fill);
+    row.appendChild(track);
+    row.appendChild(el("span", "insights-bar-count", String(count)));
+    container.appendChild(row);
+  }
+}
+
+export function renderInsights(stats) {
+  const grid = document.getElementById("insightsStatGrid");
+  grid.textContent = "";
+  grid.appendChild(insightsStatCard(stats.total, stats.total === 1 ? "task" : "tasks"));
+  grid.appendChild(insightsStatCard(`${stats.completionRate}%`, "completion rate"));
+  grid.appendChild(insightsStatCard(stats.overdue, "overdue"));
+  grid.appendChild(insightsStatCard(stats.recurringCount, "recurring"));
+  if (stats.subtaskCompletionRate !== null) {
+    grid.appendChild(insightsStatCard(`${stats.subtaskCompletionRate}%`, `subtasks done (${stats.subtasksDone}/${stats.subtasksTotal})`));
+  }
+
+  renderBarList(
+    "insightsByStatus",
+    Object.keys(INSIGHTS_STATUS_LABEL).map((k) => [INSIGHTS_STATUS_LABEL[k], stats.byStatus[k] || 0])
+  );
+  renderBarList(
+    "insightsByPriority",
+    Object.keys(INSIGHTS_PRIORITY_LABEL).map((k) => [INSIGHTS_PRIORITY_LABEL[k], stats.byPriority[k] || 0])
+  );
+  renderBarList("insightsByProject", stats.byProject);
+
+  const tagContainer = document.getElementById("insightsTopTags");
+  tagContainer.textContent = "";
+  if (stats.topTags.length === 0) {
+    tagContainer.appendChild(el("p", "modal-help", "No tags used yet."));
+  } else {
+    for (const [tag, count] of stats.topTags) {
+      const chip = el("span", "tag-chip", `${tag} · ${count}`);
+      tagContainer.appendChild(chip);
+    }
   }
 }
 
