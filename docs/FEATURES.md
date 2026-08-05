@@ -149,8 +149,18 @@ data."*
 
 ### Cryptographically novel
 
-- [ ] Duress / decoy vault — a second passphrase opens a plausible decoy set; hidden vault is
-      unprovable — Med · Signal: high
+- [x] Duress / decoy vault — a second passphrase opens a plausible decoy set — Med · Signal: high.
+      Shipped: the decoy vault is a fully independent vault (own DEK, own IndexedDB database, own
+      tamper-evident history signing identity) selected by which passphrase the unlock form
+      accepts — the app behaves identically either way, no visible "you're in the decoy" state
+      anywhere. **Scope correction from this line's original wording:** "hidden vault is
+      unprovable" overclaims what a Med-effort implementation actually delivers — someone with
+      raw access to the local IndexedDB (or reading this project's own published source) can tell
+      a decoy is *configured*, just not what's in it or its passphrase. True existence-unprovable
+      deniability under forensic examination is the harder thing Layer 5's "Cryptographically
+      deniable encryption" item is for; see docs/ARCHITECTURE.md "Duress / decoy vault" for
+      the full honest scope, including a real timing side-channel on unlock that a sufficiently
+      careful adversary could exploit.
 - [ ] Time-locked tasks — encrypted to unlock at a future date — High
 - [ ] Dead-man's-switch — reveal a task to a designated person after inactivity — High
 - [x] Ephemeral / self-destructing tasks via key erasure — Med. Shipped: each

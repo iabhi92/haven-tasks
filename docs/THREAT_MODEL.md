@@ -178,6 +178,32 @@
     limitation; that's the general "attacker with local write access" case (A3b), not specific to
     this feature.
 
+### A4f. Someone coercing a forced unlock (device seizure, border stop, physical threat)
+- **Capability:** the ability to compel the device owner to unlock the app while watching, but not
+  independent knowledge of either the real or decoy passphrase.
+- **Defense:** if a decoy vault is configured (docs/ARCHITECTURE.md "Duress / decoy vault"), giving
+  up the decoy passphrase instead of the real one opens a fully functional, ordinary-looking vault
+  — same UI, same behavior, nothing about the unlock itself distinguishes it from the real one.
+- **Residual risk, stated plainly — this is the feature where the gap between "helps" and "solves
+  it" matters most:**
+  - **This defends against a casual/social check, not a technical or forensic one.** An adversary
+    who only watches the unlock and looks around the app sees nothing unusual. An adversary who
+    also has (or takes) the device and inspects raw IndexedDB, or who has read this project's own
+    published source (a core feature — §5d), can see whether a decoy is *configured* before ever
+    obtaining a passphrase for it — see docs/ARCHITECTURE.md's own honest scope note. Being asked
+    "is there a second vault" after that observation is a materially worse position than the
+    feature's name might suggest.
+  - **A timing side-channel exists** on repeated wrong-passphrase attempts when a decoy is
+    configured (docs/ARCHITECTURE.md, same section) — not defended against, by a deliberate
+    effort/latency trade-off stated there.
+  - **Nothing here protects against continued coercion.** If an adversary doesn't believe the decoy
+    vault is the real one, or already knows a decoy exists and demands the real passphrase too,
+    this feature provides no further protection — it's a plausible first answer, not a technical
+    barrier to being compelled further.
+  - **The decoy is only as convincing as what's put in it.** An empty or obviously-fake decoy vault
+    doesn't hold up to any real scrutiny; this is a UX/content responsibility on the user's side,
+    not something the app can guarantee.
+
 ### A5. XSS — the existential threat
 - **Capability:** if an attacker can run JavaScript in the app's origin, they can read the DEK and
   plaintext directly from memory before encryption, defeating the entire scheme.

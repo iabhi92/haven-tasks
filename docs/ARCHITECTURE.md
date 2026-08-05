@@ -363,6 +363,72 @@ gone, it's *actually* unrecoverable — including by us.
     happened, but doesn't prevent the tampering itself. Out of scope for a client-side-only trust
     model; see docs/THREAT_MODEL.md.
 
+## 4e. Duress / decoy vault (Layer 3)
+
+A second passphrase that opens a completely separate, fully-functional vault instead of the real
+one — for the specific, narrow case of being made to unlock the app in front of someone. The
+honest framing matters here more than for most features, so it comes before the mechanics.
+
+**What this actually provides:** whichever passphrase the lock screen is given, it either opens
+the real vault or the decoy — same form, same success animation, same `afterUnlock()` call,
+nothing in the app's own behavior tells the two apart. That's real, and it's the whole point: a
+plausible, fully-usable vault to hand over instead of the real one.
+
+**What this does not provide — read before relying on it:**
+- **Existence isn't hidden from someone with local disk access or knowledge of this source.**
+  Haven publishes its source (§5d, "Verifiable frontend" is the whole reason to). Anyone who reads
+  `js/store.js`/`js/app.js`, or who gets raw access to the "haven" IndexedDB database, can see a
+  `saltDecoy`/`wrappedDekDecoy` field either is or isn't present in the keyring record — which
+  tells them a decoy is configured, before they have any passphrase for it. That's a materially
+  weaker guarantee than "hidden vault is unprovable" (the phrase this feature was originally
+  scoped under in docs/FEATURES.md — corrected there to describe what's actually shipped). True
+  existence-deniability under forensic examination would mean every wrapped-DEK slot looking
+  identically random whether populated or not, which is a full storage-layer redesign, not a Med
+  effort — that's docs/FEATURES.md Layer 5's "Cryptographically deniable encryption," listed
+  separately and explicitly as the harder version of this.
+- **A timing side-channel on unlock, not fixed.** Deriving a KEK is a 600,000-iteration PBKDF2,
+  deliberately slow. A wrong passphrase against a device *with* a decoy configured costs two such
+  derivations (try main, fail, try decoy, fail); against a device with none, it costs one. A
+  patient adversary timing repeated unlock attempts could infer "a decoy exists" from that gap
+  alone, never needing to guess either passphrase. Not fixed here: doing so would mean *every*
+  unlock — including the common case of a device with no decoy at all — always burning a second
+  dummy PBKDF2 derivation, roughly doubling perceived unlock latency for every user to protect a
+  feature only some will configure. Documented instead of silently accepted.
+- **No recovery code, no passkey, no sync.** The decoy vault has exactly one way in — its own
+  passphrase — and if it's forgotten, the decoy and everything in it is unrecoverable, permanently,
+  same floor as losing both the real vault's passphrase and recovery code. It also never syncs
+  (see below) and can't be unlocked via a registered passkey; passkey unlock (§4c) always targets
+  the main vault only, by design, not by oversight.
+
+**Mechanics:**
+- **A third parallel wrap, alongside the passphrase- and recovery-code-wrapped DEKs (§1, §4).**
+  `saltDecoy`/`wrappedDekDecoy`/`wrapIvDecoy` in the same keyring record, same
+  `deriveKek()`/`wrapDek()`/`unwrapDek()` machinery as every other KEK in this app — nothing
+  decoy-specific about the crypto itself, only about which fields it reads/writes.
+- **A fully independent signing identity too** (`wrappedSigningKeyDecoy`/`signingPublicKeyDecoy`/
+  `signingKeyLogDecoy`), so the decoy vault's own tamper-evident history (§5c) works exactly like
+  the real vault's — not a stripped-down version of the feature.
+- **Separate IndexedDB databases for tasks/history — `haven` vs `haven-decoy`** (`js/store.js`'s
+  `setActiveVault()`), switched the moment either passphrase is accepted. The **keyring itself
+  stays in one place** (`haven`, always) since it has to be readable before a passphrase attempt
+  reveals which vault (if either) it belongs to — there's no way to know which database to open
+  until after the wrap that lives in it has already been tried.
+- **The unlock form tries the main wrap first, then the decoy wrap on failure, before reporting
+  "Wrong passphrase."** Both failure paths — wrong against an existing decoy, and wrong with no
+  decoy configured at all — produce the identical error message and UI state.
+- **Never synced.** Sync config (server URL, bearer token) lives in plaintext `localStorage`,
+  entirely outside any vault's encryption boundary — it isn't scoped per-vault at all. Syncing
+  while the decoy vault is active would push decoy tasks into whatever bucket the *main* vault's
+  sync config points at, mixing the two and defeating the separation this feature exists for.
+  `syncNow()` refuses outright while the decoy vault is active, rather than trying to give the
+  decoy its own sync identity — same "just don't sync it" choice as ephemeral tasks (§4d), for a
+  related reason.
+- **Setup is deliberately state-blind.** "Set up a decoy vault" (command palette) shows the same
+  form whether or not one already exists, and running it again just replaces the existing decoy —
+  new passphrase, new DEK, old decoy content unreachable. A setup UI that changed shape once a
+  decoy existed (a "manage" view, a status indicator) would itself be a tell to anyone skimming the
+  app after a forced unlock, which is exactly the scenario this feature is for.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

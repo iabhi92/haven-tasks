@@ -3,6 +3,7 @@
 // itself doesn't know or care that encryption exists; it just stores records.
 
 const DB_NAME = "haven";
+const DECOY_DB_NAME = "haven-decoy"; // see docs/ARCHITECTURE.md "Duress / decoy vault"
 const DB_VERSION = 3;
 const STORE_NAME = "tasks";
 const KEYRING_STORE = "keyring";
@@ -13,29 +14,54 @@ const KEYRING_KEY = "main";
 // "previous entry". See docs/ARCHITECTURE.md "Tamper-evident signed history".
 const HISTORY_STORE = "historyLog";
 
-let dbPromise = null;
+// Same object-store layout for both databases — the decoy DB just never
+// happens to have anything in `keyring` (that always lives in the main "haven"
+// DB, readable before either passphrase has been tried, since nothing knows
+// yet which vault is being unlocked). Harmless unused store, not a schema fork.
+function upgrade(db) {
+  if (!db.objectStoreNames.contains(STORE_NAME)) {
+    db.createObjectStore(STORE_NAME, { keyPath: "id" });
+  }
+  if (!db.objectStoreNames.contains(KEYRING_STORE)) {
+    // Out-of-line key: there is only ever one keyring record (KEYRING_KEY).
+    db.createObjectStore(KEYRING_STORE);
+  }
+  if (!db.objectStoreNames.contains(HISTORY_STORE)) {
+    db.createObjectStore(HISTORY_STORE, { keyPath: "seq", autoIncrement: true });
+  }
+}
 
-function openDB() {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains(KEYRING_STORE)) {
-        // Out-of-line key: there is only ever one keyring record (KEYRING_KEY).
-        db.createObjectStore(KEYRING_STORE);
-      }
-      if (!db.objectStoreNames.contains(HISTORY_STORE)) {
-        db.createObjectStore(HISTORY_STORE, { keyPath: "seq", autoIncrement: true });
-      }
-    };
+function openNamedDB(name) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(name, DB_VERSION);
+    req.onupgradeneeded = () => upgrade(req.result);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+// Tasks/history live in whichever vault's database is currently active — the
+// main "haven" DB by default, or "haven-decoy" once a decoy-passphrase unlock
+// switches it (see setActiveVault()). The keyring, below, is a separate
+// connection that's always the main DB regardless — see its own comment.
+let activeDbName = DB_NAME;
+let dbPromise = null;
+
+function openDB() {
+  if (!dbPromise) dbPromise = openNamedDB(activeDbName);
   return dbPromise;
+}
+
+// Called once, right after an unlock succeeds against either the main or the
+// decoy wrapped-DEK, before anything reads/writes tasks or history — so every
+// call in this module for the rest of the session resolves against the right
+// database. A no-op if the vault didn't actually change (avoids dropping and
+// reopening the same connection on every normal-passphrase unlock).
+export function setActiveVault(isDecoy) {
+  const name = isDecoy ? DECOY_DB_NAME : DB_NAME;
+  if (name === activeDbName) return;
+  activeDbName = name;
+  dbPromise = null;
 }
 
 export async function getAllTasks() {
@@ -78,8 +104,20 @@ export async function deleteTask(id) {
   });
 }
 
+// Deliberately its own connection, always to the main "haven" DB — the
+// keyring holds every vault's wrapped-DEK material (main, recovery, hardware,
+// and decoy), and has to be readable *before* a passphrase attempt tells us
+// which vault (if any) it unlocks. See docs/ARCHITECTURE.md "Duress / decoy
+// vault" for why the decoy's wrapped copy lives here too, not off in
+// "haven-decoy" where it'd be unreachable until we already knew to look.
+let keyringDbPromise = null;
+function openKeyringDB() {
+  if (!keyringDbPromise) keyringDbPromise = openNamedDB(DB_NAME);
+  return keyringDbPromise;
+}
+
 export async function getKeyring() {
-  const db = await openDB();
+  const db = await openKeyringDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(KEYRING_STORE, "readonly");
     const req = tx.objectStore(KEYRING_STORE).get(KEYRING_KEY);
@@ -89,7 +127,7 @@ export async function getKeyring() {
 }
 
 export async function putKeyring(record) {
-  const db = await openDB();
+  const db = await openKeyringDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(KEYRING_STORE, "readwrite");
     tx.objectStore(KEYRING_STORE).put(record, KEYRING_KEY);

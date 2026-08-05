@@ -716,6 +716,36 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="decoyVaultModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="decoyVaultModalTitle">
+    <h2 id="decoyVaultModalTitle">Set up a decoy vault</h2>
+    <p class="modal-help">
+      Pick a second passphrase. Entering it on the lock screen opens a completely separate,
+      normal-looking vault instead of this one — nothing in the app shows which one is open, so
+      it's worth adding a few plausible tasks to the decoy so it holds up to a glance.
+    </p>
+    <div class="field">
+      <label for="decoyVaultPassphrase">Decoy passphrase</label>
+      <input type="password" id="decoyVaultPassphrase" autocomplete="new-password" minlength="10">
+    </div>
+    <div class="field">
+      <label for="decoyVaultPassphraseConfirm">Confirm decoy passphrase</label>
+      <input type="password" id="decoyVaultPassphraseConfirm" autocomplete="new-password" minlength="10">
+    </div>
+    <p class="modal-help">
+      Use a different passphrase than your real one. This doesn't sync to other devices and has no
+      recovery code — lose this passphrase and the decoy vault's contents are gone for good, same
+      as losing both your real passphrase and recovery code would be for this vault. Running this
+      again replaces the decoy vault entirely, including anything already in it.
+    </p>
+    <p class="lock-error" id="decoyVaultError" role="alert"></p>
+    <div class="modal-actions-right sync-close-row">
+      <button type="button" class="btn btn-ghost" id="decoyVaultCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-primary" id="decoyVaultCreateBtn">Set up decoy vault</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="syncModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <h2 id="syncModalTitle">Sync (optional)</h2>
@@ -782,6 +812,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json" hidden>
 
-<script src="js/app.js?v=20260804p" integrity="sha384-r9OeTtFBHNSiWvuhrkYfudTjPGiwEE8DxO3yBqgBf/1SW180fmM96eHv2hxashZg" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260804p" integrity="sha384-hVTYPft0DXjn+GG35Gqtf0vqgWHcW8nQWa1+xCanM9mPcsvT+EE02cCjviNV0NEL" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

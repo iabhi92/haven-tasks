@@ -8,6 +8,7 @@ import {
   appendHistoryEntry,
   getAllHistoryEntries,
   getLastHistoryEntry,
+  setActiveVault,
 } from "./store.js?v=20260804p";
 import {
   renderBoard,
@@ -125,6 +126,14 @@ let historyChainTip = "GENESIS";
 // a repeat export, same discipline as the main `dek`.
 const ephemeralTaskKeys = new Map(); // taskId -> CryptoKey
 let ephemeralSweepInterval = null;
+
+// ---------- duress / decoy vault (Layer 3) ----------
+// Whichever passphrase the unlock form is given, it either opens the real
+// vault or (if a decoy is configured and the main vault's passphrase didn't
+// match) the decoy one — same form, same success behavior, same error on
+// double failure. See docs/ARCHITECTURE.md "Duress / decoy vault" for what
+// this does and doesn't guarantee.
+let activeVaultIsDecoy = false;
 
 // Projects are a lightweight client-side grouping — a plain string field on
 // each task (default "Inbox"), same encrypted envelope as everything else.
@@ -594,10 +603,15 @@ async function primeHistoryChainTip() {
 // Normal-unlock path: reuse the existing signing key if the keyring has one,
 // or transparently create one if it doesn't — covers accounts created before
 // this feature shipped, as a one-time local migration on their next unlock.
-async function ensureLocalSigningKeyOnUnlock(keyring, kek) {
-  if (keyring.wrappedSigningKey) {
-    historySigningKey = await unwrapSigningKey(keyring.wrappedSigningKey, keyring.signingKeyWrapIv, kek);
-    historySigningPublicKeyB64 = keyring.signingPublicKey;
+// `isDecoy` switches every field this reads/writes to its "...Decoy" twin —
+// the decoy vault gets its own fully working signing identity and history
+// chain, not a second-class version of the feature. See docs/ARCHITECTURE.md
+// "Duress / decoy vault".
+async function ensureLocalSigningKeyOnUnlock(keyring, kek, isDecoy = false) {
+  const f = (name) => name + (isDecoy ? "Decoy" : "");
+  if (keyring[f("wrappedSigningKey")]) {
+    historySigningKey = await unwrapSigningKey(keyring[f("wrappedSigningKey")], keyring[f("signingKeyWrapIv")], kek);
+    historySigningPublicKeyB64 = keyring[f("signingPublicKey")];
     await primeHistoryChainTip();
     return;
   }
@@ -606,10 +620,10 @@ async function ensureLocalSigningKeyOnUnlock(keyring, kek) {
   const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, kek);
   await putKeyring({
     ...keyring,
-    signingPublicKey: signingPublicKeyB64,
-    wrappedSigningKey,
-    signingKeyWrapIv,
-    signingKeyLog: [{ publicKey: signingPublicKeyB64, startedAt: now() }],
+    [f("signingPublicKey")]: signingPublicKeyB64,
+    [f("wrappedSigningKey")]: wrappedSigningKey,
+    [f("signingKeyWrapIv")]: signingKeyWrapIv,
+    [f("signingKeyLog")]: [{ publicKey: signingPublicKeyB64, startedAt: now() }],
   });
   historySigningKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, kek);
   historySigningPublicKeyB64 = signingPublicKeyB64;
@@ -644,9 +658,10 @@ async function appendSignedHistoryEntry(taskId, op, iv, ciphertext) {
 // hashPrefix, ok} for each — so "Chain intact" is something a user can
 // inspect entry-by-entry, not a bare claim asked to be taken on faith.
 async function verifyHistoryChain() {
-  const rawEntries = await getAllHistoryEntries();
+  const rawEntries = await getAllHistoryEntries(); // already vault-aware — see store.js setActiveVault()
   const keyring = await getKeyring();
-  const trustedKeys = new Set((keyring?.signingKeyLog || []).map((k) => k.publicKey));
+  const signingKeyLog = activeVaultIsDecoy ? keyring?.signingKeyLogDecoy : keyring?.signingKeyLog;
+  const trustedKeys = new Set((signingKeyLog || []).map((k) => k.publicKey));
 
   let expectedPrevHash = "GENESIS";
   let firstBreak = null;
@@ -988,6 +1003,16 @@ function clearSyncConfig() {
 // upsert is idempotent, so a redundant push of an unchanged record is harmless,
 // just not maximally efficient.
 async function syncNow() {
+  // Sync config (server URL + token) lives in plaintext localStorage, outside
+  // any vault's own encryption boundary — it isn't per-vault. Without this
+  // guard, syncing while the decoy vault is active would push decoy tasks
+  // into the *main* vault's sync bucket (whatever config was set up while
+  // unlocked normally), mixing the two and defeating the whole point of
+  // keeping the decoy separate. See docs/ARCHITECTURE.md "Duress / decoy
+  // vault" — the decoy vault doesn't sync, full stop, same as ephemeral
+  // tasks and for a related reason.
+  if (activeVaultIsDecoy) throw new Error("Sync isn't available in this vault.");
+
   const config = getSyncConfig();
   if (!config) throw new Error("Sync is not configured");
 
@@ -1240,6 +1265,84 @@ function wirePasskeyModal() {
     await putKeyring(rest);
     await refreshPasskeyModalState();
     document.getElementById("passkeyUnlockBtn").hidden = true;
+  });
+}
+
+// ---------- duress / decoy vault setup (while unlocked) ----------
+// Deliberately not conditional on whether a decoy already exists — same
+// modal, same copy, same button, every time. A UI that changed shape once a
+// decoy was configured (a "manage" view instead of a "set up" one, a status
+// line, anything) would itself be a tell to anyone skimming the app after a
+// forced unlock. Running this again just replaces whatever decoy vault was
+// there before, passphrase and all — a rotate, not an edit.
+async function setupDecoyVault(decoyPassphrase) {
+  const keyring = await getKeyring();
+  const saltDecoyBytes = generateSalt();
+  const kekDecoy = await deriveKek(decoyPassphrase, saltDecoyBytes);
+  const dekDecoy = await generateDek();
+  const { wrappedDek: wrappedDekDecoy, wrapIv: wrapIvDecoy } = await wrapDek(dekDecoy, kekDecoy);
+
+  // A fully independent signing identity, not a second-class one — the decoy
+  // vault's own "Verify task history" panel works exactly like the real
+  // vault's, because it's backed by real, separate key material.
+  const signingKeypair = await generateSigningKeypair();
+  const signingPublicKeyDecoyB64 = bufToBase64(await exportSigningPublicKey(signingKeypair.publicKey));
+  const { wrappedSigningKey: wrappedSigningKeyDecoy, signingKeyWrapIv: signingKeyWrapIvDecoy } = await wrapSigningKey(
+    signingKeypair.privateKey,
+    kekDecoy
+  );
+
+  await putKeyring({
+    ...keyring,
+    saltDecoy: bufToBase64(saltDecoyBytes),
+    wrappedDekDecoy,
+    wrapIvDecoy,
+    signingPublicKeyDecoy: signingPublicKeyDecoyB64,
+    wrappedSigningKeyDecoy,
+    signingKeyWrapIvDecoy,
+    signingKeyLogDecoy: [{ publicKey: signingPublicKeyDecoyB64, startedAt: now() }],
+  });
+}
+
+function openDecoyVaultModal() {
+  document.getElementById("decoyVaultPassphrase").value = "";
+  document.getElementById("decoyVaultPassphraseConfirm").value = "";
+  document.getElementById("decoyVaultError").textContent = "";
+  document.getElementById("decoyVaultModal").hidden = false;
+}
+
+function closeDecoyVaultModal() {
+  document.getElementById("decoyVaultModal").hidden = true;
+}
+
+function wireDecoyVaultModal() {
+  const overlay = document.getElementById("decoyVaultModal");
+  const errorEl = document.getElementById("decoyVaultError");
+
+  document.getElementById("decoyVaultCancelBtn").addEventListener("click", () => closeDecoyVaultModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeDecoyVaultModal();
+  });
+
+  document.getElementById("decoyVaultCreateBtn").addEventListener("click", async () => {
+    errorEl.textContent = "";
+    const passphrase = document.getElementById("decoyVaultPassphrase").value;
+    const confirmValue = document.getElementById("decoyVaultPassphraseConfirm").value;
+
+    if (passphrase.length < 10) {
+      errorEl.textContent = "Must be at least 10 characters.";
+      return;
+    }
+    if (passphrase !== confirmValue) {
+      errorEl.textContent = "Passphrases don't match.";
+      return;
+    }
+
+    await setupDecoyVault(passphrase);
+    document.getElementById("decoyVaultPassphrase").value = "";
+    document.getElementById("decoyVaultPassphraseConfirm").value = "";
+    closeDecoyVaultModal();
+    showInfoToast("Decoy vault ready — its passphrase opens it from the lock screen, same as this one.");
   });
 }
 
@@ -2132,6 +2235,7 @@ function getCmdkItems() {
     { label: "Sync settings", action: openSyncModal },
     { label: "Set up social recovery", action: openSocialRecoveryModal },
     { label: "Add a passkey", action: openPasskeyModal },
+    { label: "Set up a decoy vault", action: openDecoyVaultModal },
   ];
 }
 
@@ -2430,10 +2534,34 @@ function wireLockScreen() {
     const keyring = await getKeyring();
     const kek = await deriveKek(passphraseInput.value, base64ToBuf(keyring.salt));
 
+    let unlockedAsDecoy = false;
+    let activeKek = kek;
     try {
       const rawDekBytes = await unwrapDek(keyring.wrappedDek, keyring.wrapIv, kek);
       dek = await importDek(rawDekBytes);
     } catch {
+      dek = null;
+    }
+
+    // Wrong against the main vault — try the decoy vault, if one is
+    // configured, before reporting failure. Whichever one the passphrase
+    // actually opens, everything from here on is identical: same unlock
+    // animation, same afterUnlock() call, nothing in this app's own behavior
+    // distinguishes "opened the real vault" from "opened the decoy" for
+    // anyone watching over a shoulder. See docs/ARCHITECTURE.md.
+    if (!dek && keyring.saltDecoy) {
+      try {
+        const kekDecoy = await deriveKek(passphraseInput.value, base64ToBuf(keyring.saltDecoy));
+        const rawDekBytes = await unwrapDek(keyring.wrappedDekDecoy, keyring.wrapIvDecoy, kekDecoy);
+        dek = await importDek(rawDekBytes);
+        unlockedAsDecoy = true;
+        activeKek = kekDecoy;
+      } catch {
+        dek = null;
+      }
+    }
+
+    if (!dek) {
       // AES-GCM auth-tag failure on a wrong KEK — fails closed, never a garbage DEK.
       setUnlockError("Wrong passphrase.");
       passphraseInput.value = "";
@@ -2441,7 +2569,9 @@ function wireLockScreen() {
       return;
     }
 
-    await ensureLocalSigningKeyOnUnlock(keyring, kek);
+    activeVaultIsDecoy = unlockedAsDecoy;
+    setActiveVault(unlockedAsDecoy);
+    await ensureLocalSigningKeyOnUnlock(keyring, activeKek, unlockedAsDecoy);
 
     // Same reasoning as the setup path — the passphrase's job is done once it's
     // derived the KEK above, so it shouldn't keep sitting in the DOM.
@@ -2556,6 +2686,11 @@ function wireLockButton() {
       clearInterval(ephemeralSweepInterval);
       ephemeralSweepInterval = null;
     }
+    // Reset to the main vault so the *next* unlock attempt always tries the
+    // real passphrase first again — nothing should remember which vault was
+    // open last across a lock.
+    activeVaultIsDecoy = false;
+    setActiveVault(false);
     document.getElementById("unlockPassphrase").value = "";
     setUnlockError("");
     showLockScreen();
@@ -2594,6 +2729,7 @@ async function boot() {
   wireSyncModal();
   wireSocialRecoveryModal();
   wirePasskeyModal();
+  wireDecoyVaultModal();
 }
 
 wireThemeToggle();
