@@ -1,266 +1,374 @@
-/* Landing page only. Reuses design tokens, .btn, and .reveal-* classes from
-   style.css so the marketing page and the app never visually drift apart. */
+/* Landing page only. Vendored fonts (Plus Jakarta Sans / Manrope / JetBrains
+   Mono) and GSAP live in vendor/ — see vendor/*/SOURCE.md for why they're
+   self-hosted instead of loaded from a CDN (the site's CSP is script-src
+   'self' / default-src 'self', so a third-party host would just get silently
+   blocked, and every asset needs a local SRI hash — see
+   docs/ARCHITECTURE.md "Verifiable frontend"). */
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("../vendor/fonts/plus-jakarta-sans/plus-jakarta-sans-latin-variable.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Manrope";
+  src: url("../vendor/fonts/manrope/manrope-latin-variable.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../vendor/fonts/jetbrains-mono/jetbrains-mono-latin-variable.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
 
 .landing-body {
+  --lp-bg: #f6f3eb;
+  --lp-bg-warm: #ecead4;
+  --lp-bg-deep: #e0ddc7;
+  --lp-ink: #0f0f0f;
+  --lp-ink-soft: #5a5a55;
+  --lp-ink-faint: #8a887f;
+  --lp-mint: #c8ecc8;
+  --lp-mint-light: #dcf5dc;
+  --lp-mint-deep: #95c598;
+  --lp-yellow: #fbc536;
+  --lp-yellow-light: #ffd96a;
+  --lp-yellow-deep: #d99c10;
+  --lp-purple: #dcd0ee;
+  --lp-purple-light: #ece2f8;
+  --lp-purple-deep: #ab9bd0;
+  --lp-border: rgba(15, 15, 15, 0.08);
+  --lp-heading-font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --lp-body-font: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  --lp-mono-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
   /* style.css sets body { display: flex } for the app's rail layout — override
-     it here since landing.html reuses the same stylesheet for tokens/buttons
-     but is a normal top-to-bottom page, not the app shell. */
+     it here since landing.html reuses the same stylesheet for tokens but is a
+     normal top-to-bottom page, not the app shell. */
   display: block;
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font);
+  background: var(--lp-bg);
+  color: var(--lp-ink);
+  font-family: var(--lp-body-font);
+  line-height: 1.5;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-.btn-sm { padding: 6px 12px; font-size: 12px; }
-.btn-lg {
-  padding: 14px 28px;
-  font-size: 15px;
-  border-radius: 999px;
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, background-color 0.15s ease;
-}
-/* Glossy pill treatment: outer drop shadow + inset top highlight + inset bottom
-   shadow, so buttons read as physically raised rather than flat color fills. */
-.landing-cta-row .btn-primary,
-.landing-calm-cta .btn-primary {
-  box-shadow:
-    0 14px 24px -8px rgba(79, 70, 229, 0.45),
-    0 4px 8px -2px rgba(79, 70, 229, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.15);
-}
-.landing-cta-row .btn-ghost {
-  box-shadow:
-    0 8px 16px -8px rgba(16, 18, 22, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-.btn-lg:hover { transform: translateY(-3px); }
-.btn-lg:active { transform: translateY(-1px) scale(0.98); }
+.landing-body * { box-sizing: border-box; }
 
-/* ---------- reveal-on-scroll (plain IntersectionObserver, no animation library) ---------- */
+.landing-ambient {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 0;
+}
+.landing-ambient-1 {
+  top: 8%;
+  right: -8%;
+  width: 560px;
+  height: 560px;
+  background: radial-gradient(circle, rgba(251, 197, 54, 0.14) 0%, transparent 60%);
+}
+.landing-ambient-2 {
+  bottom: -8%;
+  left: -6%;
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, rgba(220, 208, 238, 0.2) 0%, transparent 60%);
+}
+
+/* ---------- custom cursor (pointer devices only — never on touch, never
+   replacing focus-visible outlines for keyboard users) ---------- */
+.landing-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  background: var(--lp-ink);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: difference;
+  transform: translate(-50%, -50%);
+  transition: width 0.25s, height 0.25s;
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .landing-body.has-custom-cursor,
+  .landing-body.has-custom-cursor a,
+  .landing-body.has-custom-cursor button {
+    cursor: none;
+  }
+}
+@media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
+  .landing-cursor { display: none; }
+}
+
+.landing-body h1, .landing-body h2, .landing-body h3 {
+  font-family: var(--lp-heading-font);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.landing-body a { color: inherit; }
+
+/* ---------- reveal-on-scroll (GSAP ScrollTrigger where available, plain
+   IntersectionObserver fallback via .reveal-up if JS fails to load) ---------- */
 .reveal-up {
   opacity: 0;
-  transform: translateY(16px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
+  transform: translateY(20px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
 }
-.reveal-up.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-.landing-proof-grid .reveal-up.is-visible:nth-child(1) { transition-delay: 0s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(2) { transition-delay: 0.08s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(3) { transition-delay: 0.16s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(4) { transition-delay: 0.24s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(5) { transition-delay: 0.32s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(6) { transition-delay: 0.4s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(7) { transition-delay: 0.48s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(8) { transition-delay: 0.08s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(9) { transition-delay: 0.16s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(10) { transition-delay: 0.24s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(11) { transition-delay: 0.32s; }
-.landing-proof-grid .reveal-up.is-visible:nth-child(12) { transition-delay: 0.4s; }
+.reveal-up.is-visible { opacity: 1; transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
   .reveal-up { opacity: 1; transform: none; transition: none; }
 }
 
-/* ---------- word-by-word hero entrance (plain CSS keyframes, no JS timeline) ---------- */
-.hero-word {
-  display: inline-block;
-  opacity: 0;
-  animation: hero-word-in 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+/* split-word title reveal (populated by landing.js) */
+.lp-split-word { display: inline-block; overflow: hidden; padding-bottom: 0.12em; vertical-align: top; }
+.lp-split-word-inner { display: inline-block; will-change: transform; }
+
+/* ---------- buttons ---------- */
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 28px;
+  font-family: var(--lp-body-font);
+  font-size: 14.5px;
+  font-weight: 700;
+  border-radius: 14px;
+  text-decoration: none;
+  border: none;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s;
 }
-p.hero-word, div.hero-word { display: block; }
-/* CSS custom properties in inline style="" attributes are blocked by our CSP
-   (default-src 'self', no style-src exception — deliberately not adding
-   unsafe-inline for a cosmetic stagger effect), so delays are plain classes. */
-.hero-word-0 { animation-delay: 0s; }
-.hero-word-1 { animation-delay: 0.07s; }
-.hero-word-2 { animation-delay: 0.14s; }
-.hero-word-3 { animation-delay: 0.21s; }
-.hero-word-4 { animation-delay: 0.28s; }
-.hero-word-5 { animation-delay: 0.35s; }
-.hero-word-6 { animation-delay: 0.42s; }
-.hero-word-7 { animation-delay: 0.49s; }
-.hero-word-8 { animation-delay: 0.56s; }
-.hero-word-9 { animation-delay: 0.63s; }
-.hero-word-10 { animation-delay: 0.7s; }
-.hero-word-11 { animation-delay: 0.8s; }
-@keyframes hero-word-in {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+.lp-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transition: left 0.6s ease;
 }
-@media (prefers-reduced-motion: reduce) {
-  .hero-word { animation: none; opacity: 1; }
+.lp-btn:hover::before { left: 100%; }
+.lp-btn:hover { transform: translateY(-3px) scale(1.02); }
+.lp-btn:active { transform: translateY(0) scale(0.98); }
+.lp-btn-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  transition: transform 0.4s;
+  flex: 0 0 auto;
 }
+.lp-btn:hover .lp-btn-arrow { transform: translateX(4px); }
+.lp-btn-arrow svg { width: 13px; height: 13px; display: block; }
+
+.lp-btn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.4),
+    0 8px 16px rgba(0, 0, 0, 0.2),
+    0 16px 32px rgba(0, 0, 0, 0.1);
+}
+.lp-btn-primary:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.4),
+    0 14px 28px rgba(0, 0, 0, 0.28),
+    0 28px 56px rgba(0, 0, 0, 0.16);
+}
+.lp-btn-ghost {
+  color: var(--lp-ink);
+  background: transparent;
+  border: 1.5px solid var(--lp-ink);
+  box-shadow: 0 4px 0 var(--lp-ink);
+}
+.lp-btn-ghost:hover { transform: translateY(2px); box-shadow: 0 2px 0 var(--lp-ink); }
+.lp-btn-ghost:active { transform: translateY(4px); box-shadow: 0 0 0 var(--lp-ink); }
+.lp-btn-ghost .lp-btn-arrow { background: rgba(15, 15, 15, 0.08); }
+.lp-btn-sun {
+  color: var(--lp-ink);
+  background: linear-gradient(180deg, var(--lp-yellow-light) 0%, var(--lp-yellow-deep) 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.15),
+    0 10px 24px rgba(217, 156, 16, 0.4);
+}
+.lp-btn-sun .lp-btn-arrow { background: rgba(0, 0, 0, 0.12); }
+.lp-btn-sm { padding: 11px 20px; font-size: 13px; }
 
 /* ---------- nav ---------- */
 .landing-nav {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--bg-glass);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-bottom: 1px solid var(--border);
-  opacity: 0;
-  animation: hero-word-in 0.6s ease forwards;
-}
-.landing-nav-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 14px 24px;
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  padding: 22px 40px;
+  position: relative;
+  z-index: 10;
 }
 .landing-brand {
   display: flex;
   align-items: center;
   gap: 10px;
   text-decoration: none;
-}
-.landing-wordmark {
-  font-family: var(--font);
-  font-size: 18px;
-  font-weight: 700;
+  font-family: var(--lp-heading-font);
+  font-weight: 800;
+  font-size: 19px;
   letter-spacing: -0.01em;
-  color: var(--text);
+  color: var(--lp-ink);
+}
+.landing-brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(165deg, #3a3a3a 0%, #0a0a0a 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
 }
 .landing-nav-links {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 32px;
+  font-family: var(--lp-body-font);
   font-size: 14px;
+  font-weight: 600;
 }
-.landing-nav-links a:not(.btn) {
-  color: var(--text-muted);
+.landing-nav-links a:not(.lp-btn) {
+  color: var(--lp-ink-soft);
   text-decoration: none;
+  transition: color 0.2s;
 }
-.landing-nav-links a:not(.btn):hover {
-  color: var(--text);
-}
+.landing-nav-links a:not(.lp-btn):hover { color: var(--lp-ink); }
 
-.landing-main {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 24px;
+@media (max-width: 640px) {
+  .landing-nav { padding: 18px 20px; }
+  .landing-nav-links { gap: 14px; }
+  .landing-nav-links a:not(.lp-btn) { display: none; }
 }
 
 /* ---------- hero ---------- */
 .landing-hero {
-  position: relative;
-  padding: 88px 24px 80px;
-  overflow: hidden;
-  /* Calm, restrained background — a faint wash, not colorful floating
-     shapes. "Beautifully boring" is the goal, not decoration for its own
-     sake, since the product itself is the thing that should stand out. */
-  background: radial-gradient(ellipse 900px 500px at 15% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%);
-}
-.landing-hero-grid {
-  position: relative;
-  max-width: 1160px;
-  margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 40px;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  padding: 32px 40px 56px;
   align-items: center;
-}
-.landing-hero-text { text-align: left; }
-.landing-hero-visual {
   position: relative;
-  display: flex;
-  justify-content: center;
+  z-index: 5;
 }
+.landing-hero-text { padding-top: 12px; }
 
-.landing-eyebrow {
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin: 0 0 20px;
-}
 .landing-eyebrow-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 12.5px;
-  letter-spacing: 0.01em;
-  padding: 6px 14px 6px 10px;
+  gap: 7px;
+  font-family: var(--lp-mono-font);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--lp-ink-soft);
+  background: #fff;
+  border: 1px solid var(--lp-border);
+  padding: 7px 14px 7px 11px;
   border-radius: 999px;
-  margin: 0 0 22px;
+  margin: 0 0 24px;
+  opacity: 0;
 }
-.landing-eyebrow-pill svg { width: 13px; height: 13px; }
+.landing-eyebrow-pill svg { width: 13px; height: 13px; color: var(--lp-yellow-deep); }
+
 .landing-hero-h1 {
-  font-size: clamp(38px, 4.8vw, 60px);
-  line-height: 1.06;
-  letter-spacing: -0.025em;
-  font-weight: 800;
-  margin: 0 0 20px;
+  font-size: clamp(42px, 5.6vw, 76px);
+  line-height: 1;
+  letter-spacing: -0.035em;
+  margin-bottom: 28px;
 }
 .hero-word-line { display: block; }
-.landing-accent {
-  background: linear-gradient(100deg, var(--accent), #8b7cf6 60%, var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+.landing-accent { color: var(--lp-yellow-deep); }
+
 .landing-sub {
-  color: var(--text-muted);
-  font-size: 17px;
+  font-family: var(--lp-body-font);
+  font-size: 16.5px;
   line-height: 1.6;
-  max-width: 460px;
-  margin: 0 0 28px;
+  color: var(--lp-ink-soft);
+  max-width: 440px;
+  margin: 0 0 34px;
+  opacity: 0;
 }
 .landing-cta-row {
   display: flex;
-  justify-content: flex-start;
-  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 24px;
+  gap: 14px;
+  margin-bottom: 28px;
+  opacity: 0;
 }
-.landing-hero-note {
-  color: var(--text-faint);
-  font-size: 13px;
+.landing-trust-line {
+  font-family: var(--lp-mono-font);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--lp-ink-faint);
+  text-transform: uppercase;
+  margin: 0 0 32px;
+  opacity: 0;
 }
+.landing-trust-line span { color: var(--lp-ink-soft); }
 
-/* ---------- trust row + data-flow proof card ---------- */
-.landing-trust-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  list-style: none;
-  padding: 0;
-  margin: 0 0 28px;
+.landing-hero-visual { position: relative; display: flex; justify-content: center; opacity: 0; }
+.hero-showcase {
+  width: 100%;
+  max-width: 540px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--lp-border);
+  box-shadow:
+    0 30px 60px -20px rgba(15, 15, 15, 0.22),
+    0 12px 28px -10px rgba(15, 15, 15, 0.12);
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.landing-trust-row li {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-.landing-trust-row svg { width: 16px; height: 16px; color: var(--accent); flex: 0 0 auto; }
+.hero-showcase:hover { transform: translateY(-6px); }
+.hero-showcase img { display: block; width: 100%; height: auto; }
 
+/* ---------- data-flow card ---------- */
 .landing-dataflow-card {
-  max-width: 460px;
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px 20px;
+  max-width: 480px;
+  background: #fff;
+  border: 1px solid var(--lp-border);
+  border-radius: 18px;
+  padding: 20px 22px 22px;
+  margin-bottom: 16px;
+  opacity: 0;
 }
 .landing-dataflow-title {
-  margin: 0 0 14px;
-  font-size: 12px;
+  margin: 0 0 16px;
+  font-family: var(--lp-heading-font);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
+  font-size: 14px;
 }
 .landing-dataflow-row {
   display: flex;
@@ -272,305 +380,417 @@ p.hero-word, div.hero-word { display: block; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 12px 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text);
-}
-.landing-dataflow-node svg { width: 18px; height: 18px; color: var(--accent); }
-.landing-dataflow-node-lock { background: var(--accent-soft); border-color: transparent; }
-.landing-dataflow-node-lock svg { color: var(--accent); }
-.landing-dataflow-node-muted { color: var(--text-faint); }
-.landing-dataflow-node-muted svg { color: var(--text-faint); }
-.landing-dataflow-arrow {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-  font-size: 14px;
-}
-.landing-dataflow-arrow-blocked {
-  color: var(--danger);
-  font-size: 11px;
-  letter-spacing: -1px;
-}
-
-/* ---------- hero showcase visual ---------- */
-/* An actual screenshot of the real board view (img/hero-screenshot.png),
-   not a hand-drawn approximation — removes any doubt about whether the
-   hero matches the product, since it IS the product. Framed simply (a
-   border + soft shadow), since the app's own UI already has its own
-   chrome; wrapping it in a second fake browser window would be redundant. */
-.hero-showcase {
-  width: 100%;
-  max-width: 560px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow:
-    0 30px 60px -24px rgba(16, 18, 22, 0.16),
-    0 10px 24px -12px rgba(16, 18, 22, 0.08);
-}
-.hero-showcase img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-@media (max-width: 960px) {
-  .landing-hero { padding: 56px 20px 48px; }
-  .landing-hero-grid { grid-template-columns: 1fr; text-align: center; }
-  .landing-hero-text { text-align: center; }
-  .landing-sub { margin-inline: auto; }
-  .landing-cta-row { justify-content: center; }
-  .landing-trust-row { justify-content: center; }
-  .landing-dataflow-card { margin-inline: auto; }
-  .landing-hero-visual { margin-top: 40px; }
-}
-
-
-/* ---------- feature grid ---------- */
-.landing-proof {
-  padding: 40px 0 72px;
-}
-.landing-section-heading {
-  text-align: center;
-  font-size: clamp(24px, 3.5vw, 34px);
-  font-weight: 800;
-  letter-spacing: -0.015em;
-  margin: 0 0 40px;
-}
-.landing-proof-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px;
-}
-.landing-proof-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 26px;
-  transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.2), box-shadow 0.4s ease;
-}
-.landing-proof-card:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--shadow-md);
-}
-.landing-proof-card h3 {
-  margin: 0 0 8px;
-  font-size: 16px;
-}
-.landing-proof-more {
-  text-align: center;
-  max-width: 640px;
-  margin: 32px auto 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-muted);
-}
-
-/* ---------- minimal feature intro (calm direction) ---------- */
-/* A full-bleed tinted band, not text floating on the page background —
-   the earlier borderless/backgroundless version read as sparse and
-   unfinished at full desktop width rather than calm. Each item gets a
-   little visual weight (icon badge, contained card) so the section reads
-   as a designed part of the product, not a placeholder. */
-.landing-proof {
-  padding: 64px 24px 72px;
-  background: var(--surface-sunken);
-}
-.landing-minimal-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-.landing-minimal-grid .reveal-up.is-visible:nth-child(1) { transition-delay: 0s; }
-.landing-minimal-grid .reveal-up.is-visible:nth-child(2) { transition-delay: 0.08s; }
-.landing-minimal-grid .reveal-up.is-visible:nth-child(3) { transition-delay: 0.16s; }
-.landing-minimal-grid .reveal-up.is-visible:nth-child(4) { transition-delay: 0.24s; }
-.landing-minimal-item {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 22px 20px;
-}
-.landing-minimal-item-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-md);
-  background: var(--accent-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 14px;
-}
-.landing-minimal-item svg {
-  width: 19px;
-  height: 19px;
-  color: var(--accent);
-}
-.landing-minimal-item h3 {
-  margin: 0 0 6px;
-  font-size: 15px;
-}
-.landing-minimal-item p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 13.5px;
-  line-height: 1.6;
-}
-@media (max-width: 700px) {
-  .landing-minimal-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
-}
-.landing-proof-card p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1.6;
-}
-.landing-proof-card a { color: var(--accent); }
-
-.feat-icon {
-  width: 48px;
-  height: 48px;
   border-radius: 14px;
-  margin-bottom: 16px;
+  padding: 14px 6px;
+  font-family: var(--lp-mono-font);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.landing-dataflow-node svg { width: 19px; height: 19px; }
+.landing-dataflow-node-device { background: var(--lp-bg-warm); color: var(--lp-ink); }
+.landing-dataflow-node-lock { background: var(--lp-mint-light); color: #2f6b34; }
+.landing-dataflow-node-lock svg { color: var(--lp-mint-deep); }
+.landing-dataflow-node-sync { background: var(--lp-purple-light); color: #4b3d70; }
+.landing-dataflow-node-sync svg { color: var(--lp-purple-deep); }
+.landing-dataflow-arrow { flex: 0 0 auto; color: var(--lp-ink-faint); font-size: 15px; }
+.landing-dataflow-caption {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--lp-ink-soft);
+  line-height: 1.5;
+}
+.landing-dataflow-caption strong { color: var(--lp-ink); }
+
+@media (max-width: 980px) {
+  .landing-hero { grid-template-columns: 1fr; text-align: center; padding: 24px 24px 40px; }
+  .landing-hero-text { padding-top: 0; }
+  .landing-sub { margin-inline: auto; }
+  .landing-cta-row, .landing-trust-line { justify-content: center; }
+  .landing-dataflow-card { margin-inline: auto; }
+  .landing-hero-visual { margin-top: 36px; }
+}
+
+/* ---------- product pill row ---------- */
+.landing-pillbar {
+  padding: 8px 40px 64px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
   position: relative;
+  z-index: 5;
+}
+.landing-pillbar-label {
+  font-family: var(--lp-heading-font);
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.landing-pills {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lp-pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--lp-body-font);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 999px;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lp-pill:hover { transform: translateY(-3px) rotate(-2deg); }
+.lp-pill:nth-child(7n+1) { background: linear-gradient(165deg, var(--lp-mint-light), var(--lp-mint)); box-shadow: 0 8px 16px rgba(149, 197, 152, 0.35); }
+.lp-pill:nth-child(7n+2) { background: linear-gradient(165deg, var(--lp-yellow-light), var(--lp-yellow)); box-shadow: 0 8px 16px rgba(217, 156, 16, 0.3); }
+.lp-pill:nth-child(7n+3) { background: linear-gradient(165deg, var(--lp-purple-light), var(--lp-purple)); box-shadow: 0 8px 16px rgba(171, 155, 208, 0.35); }
+.lp-pill:nth-child(7n+4) { background: linear-gradient(165deg, var(--lp-yellow-light), var(--lp-yellow)); box-shadow: 0 8px 16px rgba(217, 156, 16, 0.3); }
+.lp-pill:nth-child(7n+5) { background: linear-gradient(165deg, var(--lp-mint-light), var(--lp-mint)); box-shadow: 0 8px 16px rgba(149, 197, 152, 0.35); }
+.lp-pill:nth-child(7n+6) { background: linear-gradient(165deg, var(--lp-purple-light), var(--lp-purple)); box-shadow: 0 8px 16px rgba(171, 155, 208, 0.35); }
+.lp-pill:nth-child(7n+7) { background: linear-gradient(165deg, var(--lp-yellow-light), var(--lp-yellow)); box-shadow: 0 8px 16px rgba(217, 156, 16, 0.3); }
+@media (max-width: 700px) {
+  .landing-pillbar { padding: 0 24px 48px; flex-direction: column; align-items: flex-start; gap: 16px; }
+}
+
+/* ---------- section shell ---------- */
+.landing-section {
+  padding: 96px 40px;
+  position: relative;
+  z-index: 5;
+}
+.landing-section-warm { background: var(--lp-bg-warm); border-radius: 44px; }
+.landing-section-eyebrow {
+  font-family: var(--lp-mono-font);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--lp-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 22px;
+}
+.landing-section-eyebrow::before { content: ""; width: 28px; height: 1.5px; background: var(--lp-ink); }
+.landing-section-title {
+  font-size: clamp(30px, 4.4vw, 52px);
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  max-width: 780px;
+  margin: 0 0 20px;
+}
+.landing-section-lede {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--lp-ink-soft);
+  max-width: 640px;
+  margin: 0 0 8px;
+}
+.landing-section-head { margin-bottom: 56px; }
+.landing-eyebrow-tight { margin-bottom: 16px; }
+.landing-lede-tight { margin-bottom: 20px; }
+@media (max-width: 700px) {
+  .landing-section { padding: 64px 22px; }
+}
+
+/* ---------- usefulness feature cards ---------- */
+.landing-feature-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.lp-fcard {
+  padding: 30px;
+  border-radius: 30px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lp-fcard:hover { transform: translateY(-10px); }
+.lp-fcard-mint { background: linear-gradient(165deg, var(--lp-mint-light) 0%, var(--lp-mint) 100%); box-shadow: 0 18px 36px rgba(149, 197, 152, 0.28), inset 0 3px 0 rgba(255, 255, 255, 0.6); }
+.lp-fcard-yellow { background: linear-gradient(165deg, var(--lp-yellow-light) 0%, var(--lp-yellow) 100%); box-shadow: 0 18px 36px rgba(217, 156, 16, 0.26), inset 0 3px 0 rgba(255, 255, 255, 0.5); }
+.lp-fcard-purple { background: linear-gradient(165deg, var(--lp-purple-light) 0%, var(--lp-purple) 100%); box-shadow: 0 18px 36px rgba(171, 155, 208, 0.28), inset 0 3px 0 rgba(255, 255, 255, 0.6); }
+.lp-fcard-num {
+  font-family: var(--lp-mono-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+  margin-bottom: 18px;
+}
+.lp-fcard h3 { font-size: 21px; margin: 0 0 10px; }
+.lp-fcard p { font-size: 13.5px; line-height: 1.55; opacity: 0.78; flex: 1; margin: 0; }
+.lp-fcard-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 10px 18px -6px rgba(16, 18, 22, 0.3),
-    inset 0 2px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -3px 6px rgba(0, 0, 0, 0.2);
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  margin-top: 18px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), inset 0 -2px 0 rgba(0, 0, 0, 0.08);
 }
-.feat-icon svg {
+.lp-fcard-icon svg { width: 21px; height: 21px; }
+.landing-feature-note {
+  margin: 32px 0 0;
+  font-size: 14px;
+  color: var(--lp-ink-soft);
+  line-height: 1.6;
+  max-width: 720px;
+}
+@media (max-width: 980px) {
+  .landing-feature-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .landing-feature-cards { grid-template-columns: 1fr; }
+}
+
+/* ---------- why-Haven transition band ---------- */
+.landing-why {
+  padding: 88px 40px;
+  text-align: center;
   position: relative;
-  z-index: 1;
-  width: 22px;
-  height: 22px;
-  color: #fff;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+  z-index: 5;
 }
-.landing-proof-card:hover .feat-icon {
-  transform: rotate(-8deg) scale(1.1);
+.landing-why h2 {
+  font-size: clamp(26px, 3.6vw, 40px);
+  letter-spacing: -0.025em;
+  max-width: 760px;
+  margin: 0 auto 18px;
 }
-.feat-icon::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.4), transparent 55%);
+.landing-why p {
+  max-width: 620px;
+  margin: 0 auto;
+  color: var(--lp-ink-soft);
+  font-size: 15.5px;
+  line-height: 1.65;
 }
-.feat-icon-1 { background: radial-gradient(circle at 32% 28%, #a5b4fc, #6366f1 45%, #4338ca); }
-.feat-icon-2 { background: radial-gradient(circle at 32% 28%, #6ee7b7, #10b981 45%, #047857); }
-.feat-icon-3 { background: radial-gradient(circle at 32% 28%, #fde68a, #f59e0b 45%, #b45309); }
-.feat-icon-4 { background: radial-gradient(circle at 32% 28%, #fbcfe8, #ec4899 45%, #be185d); }
-.feat-icon-5 { background: radial-gradient(circle at 32% 28%, #93c5fd, #3b82f6 45%, #1d4ed8); }
-.feat-icon-6 { background: radial-gradient(circle at 32% 28%, #ddd6fe, #8b5cf6 45%, #6d28d9); }
-.feat-icon-7 { background: radial-gradient(circle at 32% 28%, #99f6e4, #14b8a6 45%, #0f766e); }
-.feat-icon-8 { background: radial-gradient(circle at 32% 28%, #fed7aa, #f97316 45%, #c2410c); }
-.feat-icon-9 { background: radial-gradient(circle at 32% 28%, #bae6fd, #0ea5e9 45%, #0369a1); }
-.feat-icon-10 { background: radial-gradient(circle at 32% 28%, #d9f99d, #84cc16 45%, #4d7c0f); }
-.feat-icon-11 { background: radial-gradient(circle at 32% 28%, #fecaca, #ef4444 45%, #b91c1c); }
-.feat-icon-12 { background: radial-gradient(circle at 32% 28%, #e9d5ff, #a855f7 45%, #7e22ce); }
 
 /* ---------- privacy / reveal demo ---------- */
-.landing-reveal-section {
-  padding: 56px 24px;
-  text-align: center;
-  border-top: 1px solid var(--border);
-}
-.landing-reveal-section h2 {
-  font-size: clamp(24px, 3.5vw, 32px);
-  font-weight: 800;
-  letter-spacing: -0.015em;
-  margin: 0 0 12px;
-}
-/* .landing-sub is also used left-aligned in the hero's text column (see
-   above) — text-align:center on the parent doesn't center a block-level
-   child that has its own fixed max-width and no auto margins, so this
-   section needs its own override rather than inheriting the hero's rules.
-   Without this, the paragraph hugs the left edge inside a centered
-   heading — a real regression found from a live screenshot, not a
-   hypothetical. */
-.landing-reveal-section .landing-sub {
-  max-width: 620px;
-  margin-left: auto;
-  margin-right: auto;
+.landing-privacy-pullquote {
+  font-family: var(--lp-heading-font);
+  font-weight: 700;
+  font-size: clamp(20px, 2.6vw, 26px);
+  letter-spacing: -0.01em;
+  margin: 28px 0 40px;
 }
 .landing-reveal-demo {
-  max-width: 620px;
-  margin: 32px auto 0;
-  text-align: left;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
+  max-width: 660px;
+  background: #fff;
+  border: 1px solid var(--lp-border);
+  border-radius: 22px;
+  padding: 24px;
+  margin: 0 0 40px;
 }
-
-.landing-privacy-note {
-  max-width: 600px;
-  margin: 24px auto 0;
-  color: var(--text-faint);
-  font-size: 13px;
-  line-height: 1.6;
-}
-.landing-privacy-note a { color: var(--text-muted); }
-
-/* ---------- calm final CTA + light footer ----------
-   Deliberately not a dark, glossy band — "beautifully boring" was the
-   explicit direction: the same calm, light page all the way down, no
-   sudden dramatic section to manufacture excitement. */
-.landing-calm-cta {
-  max-width: 560px;
-  margin: 40px auto 0;
-  padding: 80px 24px 56px;
-  text-align: center;
-}
-.landing-calm-cta h2 {
-  font-size: clamp(24px, 3.5vw, 32px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+.reveal-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 14px; }
+.add-reveal-intro {
+  font-family: var(--lp-mono-font);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--lp-ink-faint);
   margin: 0 0 8px;
 }
-.landing-calm-cta-sub {
-  color: var(--text-muted);
-  font-size: 15px;
-  margin: 0 0 28px;
+.reveal-pre {
+  background: var(--lp-bg-warm);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-family: var(--lp-mono-font);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
 }
-.landing-calm-cta-note { margin-top: 16px; }
+.reveal-pre-compact { max-height: 230px; }
+.reveal-demo-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--lp-border);
+  font-family: var(--lp-body-font);
+  font-size: 14px;
+  background: var(--lp-bg);
+  color: var(--lp-ink);
+}
+.reveal-demo-input:focus { outline: 2px solid var(--lp-yellow-deep); outline-offset: 1px; }
+@media (max-width: 640px) {
+  .reveal-columns { grid-template-columns: 1fr; }
+}
 
-.landing-footer-light {
-  padding: 28px 24px 48px;
-  text-align: center;
-  color: var(--text-faint);
-  font-size: 13px;
-  border-top: 1px solid var(--border);
-  max-width: 1100px;
+.landing-proof-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+.lp-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: #fff;
+  border: 1px solid var(--lp-border);
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--lp-ink);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
+}
+.lp-link-chip:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(15, 15, 15, 0.12); }
+
+/* ---------- comparison teaser ---------- */
+.landing-compare-teaser {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.landing-compare-teaser-text { max-width: 560px; }
+.landing-compare-teaser h2 { font-size: clamp(24px, 3.2vw, 34px); margin: 0 0 12px; letter-spacing: -0.02em; }
+.landing-compare-teaser p { color: var(--lp-ink-soft); font-size: 15px; line-height: 1.6; margin: 0; }
+
+/* ---------- honest limitations ---------- */
+.landing-honest {
+  background: #fff;
+  border: 1px solid var(--lp-border);
+  border-radius: 26px;
+  padding: 34px 36px;
+}
+.landing-honest h2 { font-size: clamp(22px, 2.8vw, 28px); margin: 0 0 14px; letter-spacing: -0.02em; }
+.landing-honest ul { margin: 0 0 18px; padding-left: 20px; color: var(--lp-ink-soft); font-size: 14.5px; line-height: 1.8; }
+.landing-honest a { font-weight: 700; color: var(--lp-ink); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- final CTA ---------- */
+.landing-final-cta { padding: 20px 40px 96px; text-align: center; }
+.landing-final-cta-card {
+  max-width: 1080px;
   margin: 0 auto;
+  padding: 84px 48px;
+  border-radius: 44px;
+  background: linear-gradient(165deg, #2a2a2a 0%, #0a0a0a 100%);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -5px 0 rgba(0, 0, 0, 0.5),
+    0 30px 60px rgba(0, 0, 0, 0.28),
+    0 60px 120px rgba(0, 0, 0, 0.16);
 }
-.landing-footer-light a { color: var(--text-muted); }
-.landing-footer-light a:hover { color: var(--accent); }
-.landing-footer-contact { margin-top: 8px; }
-
+.landing-final-cta-orb { position: absolute; border-radius: 50%; pointer-events: none; }
+.landing-final-cta-orb-1 { width: 220px; height: 220px; top: -60px; left: -60px; background: radial-gradient(circle, rgba(251, 197, 54, 0.3) 0%, transparent 70%); filter: blur(40px); }
+.landing-final-cta-orb-2 { width: 260px; height: 260px; bottom: -80px; right: -80px; background: radial-gradient(circle, rgba(220, 208, 238, 0.22) 0%, transparent 70%); filter: blur(50px); }
+.landing-final-cta-card h2 {
+  font-size: clamp(32px, 5vw, 58px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin: 0 0 22px;
+  position: relative;
+}
+.landing-final-cta-sub {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 15.5px;
+  max-width: 480px;
+  margin: 0 auto 36px;
+  line-height: 1.6;
+  position: relative;
+}
+.landing-final-cta-note {
+  margin: 20px 0 0;
+  font-family: var(--lp-mono-font);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.55);
+  position: relative;
+}
+.landing-final-cta-code {
+  margin: 22px 0 0;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.6);
+  position: relative;
+}
+.landing-final-cta-code a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 700px) {
-  .landing-proof-grid { grid-template-columns: 1fr; }
-  .landing-calm-cta { padding: 56px 24px 40px; }
+  .landing-final-cta { padding: 12px 20px 64px; }
+  .landing-final-cta-card { padding: 56px 26px; }
 }
 
-/* Below ~520px the brand + 3 text links + CTA button no longer fit on one
-   row (neither side wraps or shrinks against `space-between`), and were
-   visibly overlapping — found on a real mobile-width screenshot, not
-   assumed. Standard mobile-nav pattern: keep the primary CTA, drop the
-   secondary text links rather than shrink everything to illegibility. */
-@media (max-width: 520px) {
-  .landing-nav-links a:not(.btn) { display: none; }
-  .landing-nav-links { gap: 0; }
+/* ---------- footer ---------- */
+.landing-footer {
+  padding: 64px 40px 40px;
+  border-top: 1px solid var(--lp-border);
+}
+.landing-footer-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 60px;
+  margin-bottom: 52px;
+  flex-wrap: wrap;
+}
+.landing-footer-brand h3 { font-size: 26px; margin: 0 0 10px; letter-spacing: -0.02em; }
+.landing-footer-brand p { color: var(--lp-ink-soft); font-size: 14px; max-width: 260px; margin: 0; }
+.landing-footer-cols { display: flex; gap: 56px; flex-wrap: wrap; }
+.landing-footer-col h4 {
+  font-family: var(--lp-mono-font);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--lp-ink-soft);
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+.landing-footer-col a {
+  display: block;
+  font-size: 14px;
+  color: var(--lp-ink);
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.landing-footer-col a:hover { text-decoration: underline; }
+.landing-footer-bottom {
+  padding-top: 28px;
+  border-top: 1px solid var(--lp-border);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: var(--lp-mono-font);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--lp-ink-faint);
+}
+@media (max-width: 700px) {
+  .landing-footer { padding: 48px 22px 32px; }
+  .landing-footer-top { flex-direction: column; gap: 36px; }
+}
+
+/* ---------- shared section-entry animation hooks (targeted by landing.js) --------- */
+.lp-anim-fade { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .lp-anim-fade,
+  .landing-nav,
+  .landing-eyebrow-pill,
+  .landing-sub,
+  .landing-cta-row,
+  .landing-trust-line,
+  .landing-hero-visual,
+  .landing-dataflow-card {
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }

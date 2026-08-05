@@ -31,6 +31,8 @@ const ENTRY_ASSETS = [
   { file: "js/app.js", htmlFiles: ["app.html"] },
   { file: "js/landing.js", htmlFiles: ["index.html"] },
   { file: "js/shared.js", htmlFiles: ["shared.html"] },
+  { file: "vendor/gsap/gsap.min.js", htmlFiles: ["index.html"] },
+  { file: "vendor/gsap/ScrollTrigger.min.js", htmlFiles: ["index.html"] },
 ];
 
 function listFiles(dir, ext) {

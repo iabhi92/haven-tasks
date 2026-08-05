@@ -1,58 +1,70 @@
-/* ---------- article page (compare.html) ---------- */
+/* ---------- article page (compare.html) — matches the landing page's design
+   system (css/landing.css): warm cream palette, Plus Jakarta Sans headings,
+   Manrope body, JetBrains Mono labels. */
 
 .article-main {
   max-width: 720px;
   margin: 0 auto;
-  padding: 56px 24px 80px;
+  padding: 64px 24px 96px;
+  position: relative;
+  z-index: 5;
 }
 
 .article-eyebrow {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-family: var(--lp-mono-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 12px;
+  color: var(--lp-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 22px;
 }
+.article-eyebrow::before { content: ""; width: 28px; height: 1.5px; background: var(--lp-ink); }
 
 .article-h1 {
-  font-size: 38px;
-  line-height: 1.15;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  margin: 0 0 16px;
+  font-family: var(--lp-heading-font);
+  font-size: clamp(32px, 4.4vw, 46px);
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0 0 18px;
 }
 
 .article-lede {
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.6;
-  color: var(--text-muted);
-  margin: 0 0 40px;
+  color: var(--lp-ink-soft);
+  margin: 0 0 44px;
 }
 
 .article-body h2 {
-  font-size: 24px;
+  font-family: var(--lp-heading-font);
+  font-size: clamp(22px, 2.8vw, 28px);
   font-weight: 700;
-  margin: 48px 0 14px;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.02em;
+  margin: 52px 0 16px;
 }
 
 .article-body h3 {
-  font-size: 17px;
+  font-family: var(--lp-heading-font);
+  font-size: 18px;
   font-weight: 700;
-  margin: 28px 0 10px;
+  margin: 30px 0 10px;
 }
 
 .article-body p {
   font-size: 16px;
   line-height: 1.7;
-  color: var(--text);
+  color: var(--lp-ink);
   margin: 0 0 18px;
 }
 
 .article-body p.article-muted {
-  color: var(--text-muted);
-  font-size: 14px;
+  color: var(--lp-ink-soft);
+  font-size: 13.5px;
 }
 
 .article-body ul,
@@ -65,84 +77,89 @@
   font-size: 16px;
   line-height: 1.7;
   margin-bottom: 8px;
+  color: var(--lp-ink);
 }
 
 .article-body strong { font-weight: 700; }
 
 .article-body a {
-  color: var(--accent);
+  color: var(--lp-ink);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-color: var(--lp-yellow-deep);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
 /* comparison table */
 .article-table-wrap {
   overflow-x: auto;
   margin: 0 0 28px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--lp-border);
+  border-radius: 16px;
+  background: #fff;
 }
 
 .article-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13.5px;
   min-width: 640px;
 }
 
 .article-table th,
 .article-table td {
-  padding: 12px 14px;
+  padding: 13px 15px;
   text-align: left;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--lp-border);
   vertical-align: top;
 }
 
 .article-table th {
-  background: var(--surface-sunken);
+  background: var(--lp-bg-warm);
   font-weight: 700;
   white-space: nowrap;
+  font-family: var(--lp-heading-font);
 }
 
 .article-table tbody tr:last-child td { border-bottom: none; }
 
 .article-table td.is-haven-col,
 .article-table th.is-haven-col {
-  background: var(--accent-soft);
-  font-weight: 600;
+  background: var(--lp-mint-light);
+  font-weight: 700;
 }
 
-.article-check { color: var(--success); font-weight: 700; }
-.article-cross { color: var(--text-faint); }
+.article-check { color: #2f6b34; font-weight: 700; }
+.article-cross { color: var(--lp-ink-faint); }
 
 /* callout boxes */
 .article-callout {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-md);
-  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid var(--lp-border);
+  border-left: 4px solid var(--lp-yellow-deep);
+  border-radius: 14px;
+  padding: 20px 22px;
   margin: 0 0 28px;
 }
 .article-callout p:last-child { margin-bottom: 0; }
 
 .article-callout-honest {
-  border-left-color: var(--warn);
+  border-left-color: var(--lp-purple-deep);
 }
 
 .article-cta {
-  margin-top: 48px;
-  padding: 32px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  margin-top: 56px;
+  padding: 40px 32px;
+  border-radius: 26px;
+  background: var(--lp-bg-warm);
+  border: 1px solid var(--lp-border);
   text-align: center;
 }
 .article-cta h2 {
   margin-top: 0 !important;
 }
 .article-cta p {
-  color: var(--text-muted);
+  color: var(--lp-ink-soft);
   max-width: 460px;
   margin: 0 auto 20px !important;
 }
@@ -150,14 +167,12 @@
 .article-footnote {
   margin-top: 56px;
   padding-top: 20px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--lp-border);
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-faint);
+  color: var(--lp-ink-faint);
 }
 
 @media (max-width: 640px) {
-  .article-main { padding: 40px 18px 60px; }
-  .article-h1 { font-size: 30px; }
-  .article-lede { font-size: 16px; }
+  .article-main { padding: 44px 18px 64px; }
 }

@@ -6,8 +6,8 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none';">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="index, follow">
-<meta name="theme-color" content="#4f46e5">
-<meta name="description" content="Haven is a free task manager for to-do lists and projects — board and list views, due dates, priorities, search, and drag-and-drop. Your tasks are also kept private automatically. No account needed.">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="description" content="Haven is a free, private task manager — boards, lists, due dates, priorities, search, and drag-and-drop. Your tasks are encrypted on your device before they're ever saved. No account needed.">
 <title>Haven — Free Task Manager & To-Do List App</title>
 <link rel="canonical" href="https://taskhavens.com/">
 
@@ -38,135 +38,188 @@
 }
 </script>
 
-<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-LiAobYp0XGMvUNW1Wwh54v/hcLhTgxuo9CJB7bD4DCHc7mI3sYhmJCov1V2iSBkh" crossorigin="anonymous">
-<link rel="stylesheet" href="css/landing.css?v=20260804p" integrity="sha384-6dt3hNTvlUo5+YtA/iMCiFxxsaPOzwzEaGPwm4FbM8WORBg4RtXOI/48tDC0fqLl" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260805a" integrity="sha384-LiAobYp0XGMvUNW1Wwh54v/hcLhTgxuo9CJB7bD4DCHc7mI3sYhmJCov1V2iSBkh" crossorigin="anonymous">
+<link rel="stylesheet" href="css/landing.css?v=20260805a" integrity="sha384-u7ZaZFCicD/pDNxmRSnsyt1RtNnaN2m1bbsLJ2LYc0fM+7Ssbc1ZyyFJHMW8nTj4" crossorigin="anonymous">
 </head>
 <body class="landing-body">
 
+<div class="landing-ambient landing-ambient-1" aria-hidden="true"></div>
+<div class="landing-ambient landing-ambient-2" aria-hidden="true"></div>
+<div class="landing-cursor" aria-hidden="true"></div>
+
 <header class="landing-nav">
-  <div class="landing-nav-inner">
-    <a href="index.html" class="landing-brand" aria-label="Haven home">
-      <span class="rail-logo" aria-hidden="true">H</span>
-      <span class="landing-wordmark">Haven</span>
+  <a href="index.html" class="landing-brand" aria-label="Haven home">
+    <span class="landing-brand-mark" aria-hidden="true">H</span>
+    Haven
+  </a>
+  <nav class="landing-nav-links">
+    <a href="#product">Features</a>
+    <a href="#privacy">Privacy</a>
+    <a href="compare.html">Compare</a>
+    <a href="app.html" class="lp-btn lp-btn-ghost lp-btn-sm">Open Haven
+      <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
     </a>
-    <nav class="landing-nav-links">
-      <a href="#features">Features</a>
-      <a href="#privacy">Privacy</a>
-      <a href="compare.html">Compare</a>
-      <a href="app.html" class="btn btn-primary btn-sm">Open Haven →</a>
-    </nav>
-  </div>
+  </nav>
 </header>
 
-<main class="landing-main">
+<main>
 
   <section class="landing-hero">
-    <div class="landing-hero-grid">
-      <div class="landing-hero-text">
-        <p class="landing-eyebrow-pill hero-word hero-word-0">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
-          Private by default
-        </p>
-        <h1 class="landing-hero-h1">
-          <span class="hero-word-line"><span class="hero-word hero-word-1">Your</span> <span class="hero-word hero-word-2">tasks.</span></span>
-          <span class="hero-word-line"><span class="hero-word hero-word-4 landing-accent">Stay</span> <span class="hero-word hero-word-6 landing-accent">yours.</span></span>
-        </h1>
-        <p class="landing-sub hero-word hero-word-8">
-          Haven is a local-first task manager. No account, no tracking — everything you write is
-          encrypted on your own device and stays there. We built it and we still can't read it.
-        </p>
-        <div class="landing-cta-row hero-word hero-word-9">
-          <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
-          <a href="#features" class="btn btn-ghost btn-lg">Explore features</a>
-        </div>
-        <ul class="landing-trust-row hero-word hero-word-10">
-          <li>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/></svg>
-            No account, ever
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M6.5 17a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-.8 2.6"/></svg>
-            Cloud sync is optional
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10" width="15" height="10" rx="2"/><path d="M7.5 10V7a4.5 4.5 0 0 1 9 0v3"/></svg>
-            End-to-end encrypted
-          </li>
-        </ul>
+    <div class="landing-hero-text">
+      <p class="landing-eyebrow-pill">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
+        Private by default
+      </p>
+      <h1 class="landing-hero-h1" id="heroTitle">
+        <span class="hero-word-line">Your tasks.</span>
+        <span class="hero-word-line landing-accent">Stay yours.</span>
+      </h1>
+      <p class="landing-sub">
+        Haven is a private, local-first task manager that keeps your tasks on your device. No
+        account required, no tracking, and no readable copy of your task list sitting on our
+        servers.
+      </p>
+      <div class="landing-cta-row">
+        <a href="app.html" class="lp-btn lp-btn-primary">Open Haven — it's free
+          <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <a href="#privacy" class="lp-btn lp-btn-ghost">See how it works</a>
+      </div>
+      <p class="landing-trust-line"><span>No account</span> · <span>Works offline</span> · <span>Encrypted locally</span></p>
 
-        <div class="landing-dataflow-card hero-word hero-word-11">
-          <p class="landing-dataflow-title">Your data stays here</p>
-          <div class="landing-dataflow-row">
-            <div class="landing-dataflow-node">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>
-              <span>Your device</span>
-            </div>
-            <div class="landing-dataflow-arrow">→</div>
-            <div class="landing-dataflow-node landing-dataflow-node-lock">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
-              <span>Encrypted</span>
-            </div>
-            <div class="landing-dataflow-arrow landing-dataflow-arrow-blocked">╌╌✕</div>
-            <div class="landing-dataflow-node landing-dataflow-node-muted">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-1.5 3.4"/></svg>
-              <span>No cloud</span>
-            </div>
+      <div class="landing-dataflow-card">
+        <p class="landing-dataflow-title">Your data starts here.</p>
+        <div class="landing-dataflow-row">
+          <div class="landing-dataflow-node landing-dataflow-node-device">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>
+            Your device
+          </div>
+          <div class="landing-dataflow-arrow">→</div>
+          <div class="landing-dataflow-node landing-dataflow-node-lock">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v2H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a4 4 0 0 0-4-4Zm0 2a2 2 0 0 1 2 2v2h-4V7a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
+            Encrypted
+          </div>
+          <div class="landing-dataflow-arrow">→</div>
+          <div class="landing-dataflow-node landing-dataflow-node-sync">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 17a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-1.5 3.4"/></svg>
+            Optional sync
           </div>
         </div>
+        <p class="landing-dataflow-caption">
+          <strong>Stored locally first. Encrypted before sync.</strong> You choose whether your
+          data ever leaves your device.
+        </p>
       </div>
+    </div>
 
-      <div class="landing-hero-visual hero-word hero-word-11">
-        <div class="hero-showcase">
-          <img
-            src="img/hero-screenshot.png"
-            alt="Haven's board view, showing a To Do, In Progress, and Done column with real tasks, priorities, due dates, and tags"
-            width="1088"
-            height="640"
-            loading="eager"
-          >
-        </div>
+    <div class="landing-hero-visual">
+      <div class="hero-showcase">
+        <img
+          src="img/hero-screenshot.png"
+          alt="Haven's board view, showing a To Do, In Progress, and Done column with real tasks, priorities, due dates, and tags"
+          width="1088"
+          height="640"
+          loading="eager"
+        >
       </div>
     </div>
   </section>
 
-  <section id="features" class="landing-proof">
-    <h2 class="landing-section-heading reveal-up">Everything you need. Nothing you don't.</h2>
-    <div class="landing-minimal-grid">
-      <div class="landing-minimal-item reveal-up">
-        <div class="landing-minimal-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h10M7 17h6"/></svg></div>
-        <h3>Organize</h3>
-        <p>Projects, tags, subtasks, and smart views to keep everything in its place.</p>
+  <section class="landing-pillbar">
+    <span class="landing-pillbar-label">Everything's in here</span>
+    <div class="landing-pills">
+      <span class="lp-pill">Tasks</span>
+      <span class="lp-pill">Projects</span>
+      <span class="lp-pill">Tags</span>
+      <span class="lp-pill">Priorities</span>
+      <span class="lp-pill">Recurring tasks</span>
+      <span class="lp-pill">Search</span>
+      <span class="lp-pill">Boards</span>
+    </div>
+  </section>
+
+  <section id="product" class="landing-section landing-section-warm">
+    <div class="landing-section-head reveal-up">
+      <p class="landing-section-eyebrow">01 / The task manager</p>
+      <h2 class="landing-section-title">Get the important stuff out of your head.</h2>
+      <p class="landing-section-lede">
+        Haven gives you a simple place to put everything you need to remember, from today's
+        errands to the project you've been putting off for three weeks.
+      </p>
+    </div>
+    <div class="landing-feature-cards">
+      <div class="lp-fcard lp-fcard-mint reveal-up">
+        <div class="lp-fcard-num">01 — Today</div>
+        <h3>See what's due, without digging</h3>
+        <p>Today, Upcoming, and Overdue smart views surface what needs attention without hunting through every project.</p>
+        <div class="lp-fcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
       </div>
-      <div class="landing-minimal-item reveal-up">
-        <div class="landing-minimal-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
-        <h3>Plan</h3>
-        <p>Due dates, priorities, and recurring tasks to help you stay on track.</p>
+      <div class="lp-fcard lp-fcard-yellow reveal-up">
+        <div class="lp-fcard-num">02 — Projects</div>
+        <h3>Keep work, study, and life separate</h3>
+        <p>Multiple boards and projects, so a work sprint and a grocery list never end up in the same list.</p>
+        <div class="lp-fcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h10M7 17h6"/></svg></div>
       </div>
-      <div class="landing-minimal-item reveal-up">
-        <div class="landing-minimal-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 17a4.5 4.5 0 0 1-1-8.9A5.5 5.5 0 0 1 16 7.6 4.5 4.5 0 0 1 20.5 12a4.5 4.5 0 0 1-.8 2.6"/><path d="M3 3l18 18"/></svg></div>
-        <h3>Focus</h3>
-        <p>Works fully offline. No connection, no problem — nothing waits on a server.</p>
+      <div class="lp-fcard lp-fcard-purple reveal-up">
+        <div class="lp-fcard-num">03 — Priorities</div>
+        <h3>Know what needs attention first</h3>
+        <p>High, medium, low — sort by priority or due date so the important thing doesn't get buried.</p>
+        <div class="lp-fcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M6 8l6-5 6 5M6 16l6 5 6-5"/></svg></div>
       </div>
-      <div class="landing-minimal-item reveal-up">
-        <div class="landing-minimal-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l5.5 5.5"/></svg></div>
-        <h3>Find</h3>
-        <p>Search that finds anything, instantly — parsed on your device, not a server.</p>
+      <div class="lp-fcard lp-fcard-yellow reveal-up">
+        <div class="lp-fcard-num">04 — Recurring</div>
+        <h3>Set it once. Let Haven remember it.</h3>
+        <p>Daily, weekly, or monthly recurring tasks spawn their next occurrence automatically when you finish one.</p>
+        <div class="lp-fcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M21 3v5h-5M3 21v-5h5"/></svg></div>
+      </div>
+      <div class="lp-fcard lp-fcard-mint reveal-up">
+        <div class="lp-fcard-num">05 — Search</div>
+        <h3>Find the thing you know you wrote down</h3>
+        <p>Instant search across every task and project — parsed on your device, never sent anywhere to be indexed.</p>
+        <div class="lp-fcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l5.5 5.5"/></svg></div>
+      </div>
+      <div class="lp-fcard lp-fcard-purple reveal-up">
+        <div class="lp-fcard-num">06 — Boards</div>
+        <h3>Drag, drop, done</h3>
+        <p>A real kanban board and list view, bulk actions with undo, and JSON export/import whenever you want your data out.</p>
+        <div class="lp-fcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="10" rx="1.5"/></svg></div>
       </div>
     </div>
-    <p class="landing-proof-more reveal-up">
-      Also included: multiple projects, drag-and-drop boards, bulk actions with undo, optional
-      cross-device sync, and JSON export/import — no lock-in, no upsells.
+    <p class="landing-feature-note reveal-up">
+      Also included: multiple projects, drag-and-drop boards, bulk actions with undo, and optional
+      cross-device sync. Your data is yours to export whenever you need it.
     </p>
   </section>
 
-  <section id="privacy" class="landing-reveal-section">
-    <h2 class="reveal-up">The part most task apps skip</h2>
-    <p class="landing-sub reveal-up">
-      Most "private" apps just mean nobody outside the company can see your data. The company
-      still can. Haven works differently: your tasks are scrambled on your own device before
-      they're ever saved, using the same kind of encryption banks use for financial data. We built
-      it, and we still can't read what you write — not because we promise not to, but because we
-      don't have a way to. Type something below and see it happen for yourself.
+  <section class="landing-why reveal-up">
+    <h2>You shouldn't need an account to remember something.</h2>
+    <p>
+      Most apps ask you to create an account before they'll let you write down a task. Haven
+      doesn't. Open it, add your tasks, keep going — your task list is yours, and you shouldn't
+      need to hand over your email address just to make one.
+    </p>
+  </section>
+
+  <section id="privacy" class="landing-section">
+    <div class="landing-section-head reveal-up">
+      <p class="landing-section-eyebrow">02 / The part most task apps skip</p>
+      <h2 class="landing-section-title">Your task list says more about you than you think.</h2>
+      <p class="landing-section-lede">
+        A task list doesn't look particularly sensitive — until it contains your doctor's
+        appointment, a client's name, a job you're applying for, a personal reminder, or something
+        you simply don't want sitting on somebody else's server.
+      </p>
+      <p class="landing-section-lede">
+        Haven encrypts your tasks on your device before it's saved. The server receives the
+        encrypted version, not the readable task. The encryption key stays with you, so we don't
+        have a readable copy of what you write.
+      </p>
+      <p class="landing-privacy-pullquote">We built Haven. We still can't read your tasks.</p>
+    </div>
+
+    <p class="landing-section-eyebrow landing-eyebrow-tight reveal-up">Want to see exactly how it works?</p>
+    <p class="landing-section-lede reveal-up">
+      Type something into Haven and see how your data is protected, right here, in your browser.
     </p>
     <div class="landing-reveal-demo reveal-up">
       <div class="reveal-columns">
@@ -188,33 +241,109 @@
         maxlength="200"
       >
     </div>
-    <p class="landing-privacy-note reveal-up">
-      If you're curious how this actually works under the hood, we wrote it all down —
-      <a href="docs/THREAT_MODEL.md" target="_blank" rel="noopener">what we protect against</a> and
-      <a href="docs/SECURITY.md" target="_blank" rel="noopener">how we tested it ourselves</a>, no
-      hand-waving.
+
+    <p class="landing-section-lede landing-lede-tight reveal-up">
+      We've also published the technical details, threat model, and security testing — so you
+      don't have to take our word for it.
     </p>
+    <div class="landing-proof-links reveal-up">
+      <a href="app.html" class="lp-link-chip">How your data is protected →</a>
+      <a href="docs/THREAT_MODEL.md" target="_blank" rel="noopener" class="lp-link-chip">Read the threat model →</a>
+      <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener" class="lp-link-chip">View the source code →</a>
+    </div>
+  </section>
+
+  <section class="landing-section landing-section-warm">
+    <div class="landing-compare-teaser reveal-up">
+      <div class="landing-compare-teaser-text">
+        <h2>Already using Todoist, TickTick, or Notion?</h2>
+        <p>
+          Haven isn't trying to out-feature them. It's a different trade: your tasks encrypted on
+          your device instead of stored readable on a server. See exactly where Haven wins, and
+          where the app you're already using is still the better choice.
+        </p>
+      </div>
+      <a href="compare.html" class="lp-btn lp-btn-sun">Read the comparison
+        <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+    </div>
+  </section>
+
+  <section class="landing-section">
+    <div class="landing-honest reveal-up">
+      <h2>Haven isn't for everyone.</h2>
+      <ul>
+        <li>No native mobile app yet — Haven runs great as a mobile web page, but there's no App Store/Play Store listing today.</li>
+        <li>Smaller ecosystem — no calendar integrations, no plugin marketplace, none of the years of polish Todoist or Things have.</li>
+        <li>No large-scale team collaboration — Haven is built for one person's tasks first.</li>
+        <li>Passphrase recovery has real consequences — lose your passphrase and your recovery code, and nobody, including us, can get your data back.</li>
+      </ul>
+      <a href="compare.html#honest">Read the full, honest comparison →</a>
+    </div>
   </section>
 
 </main>
 
-<section class="landing-calm-cta reveal-up">
-  <h2>You have enough accounts already.</h2>
-  <p class="landing-calm-cta-sub">Haven doesn't need another one. A private, local-first task manager that works right in your browser.</p>
-  <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free →</a>
-  <p class="landing-hero-note landing-calm-cta-note">No signup · No credit card · No nonsense</p>
+<section class="landing-final-cta">
+  <div class="landing-final-cta-card">
+    <div class="landing-final-cta-orb landing-final-cta-orb-1" aria-hidden="true"></div>
+    <div class="landing-final-cta-orb landing-final-cta-orb-2" aria-hidden="true"></div>
+    <h2 id="finalCtaTitle">
+      <span class="hero-word-line">You have enough accounts already.</span>
+      <span class="hero-word-line">Haven doesn't need another one.</span>
+    </h2>
+    <p class="landing-final-cta-sub">
+      A private task manager that works right in your browser. No signup, no subscription, no
+      complicated setup.
+    </p>
+    <a href="app.html" class="lp-btn lp-btn-sun">Open Haven — it's free
+      <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+    <p class="landing-final-cta-note">No account · No credit card · Your data stays yours</p>
+    <p class="landing-final-cta-code">
+      Just want to see what's under the hood? Haven is open source.
+      <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">View the code →</a>
+    </p>
+  </div>
 </section>
 
-<footer class="landing-footer-light">
-  <p>
-    Haven is free and open source.
-    <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">View the code</a>.
-  </p>
-  <p class="landing-footer-contact">
-    Questions, bugs, or feedback? Email <a href="mailto:pinku2c@gmail.com">pinku2c@gmail.com</a>.
-  </p>
+<footer class="landing-footer">
+  <div class="landing-footer-top">
+    <div class="landing-footer-brand">
+      <h3>Haven</h3>
+      <p>A private, local-first task manager.</p>
+    </div>
+    <div class="landing-footer-cols">
+      <div class="landing-footer-col">
+        <h4>Product</h4>
+        <a href="#product">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a href="compare.html">Compare</a>
+        <a href="https://github.com/iabhi92/haven-tasks/commits/main" target="_blank" rel="noopener">Changelog</a>
+      </div>
+      <div class="landing-footer-col">
+        <h4>Learn</h4>
+        <a href="app.html">How it works</a>
+        <a href="docs/SECURITY.md" target="_blank" rel="noopener">Security</a>
+        <a href="docs/THREAT_MODEL.md" target="_blank" rel="noopener">Threat model</a>
+        <a href="https://github.com/iabhi92/haven-tasks/tree/main/docs" target="_blank" rel="noopener">Documentation</a>
+      </div>
+      <div class="landing-footer-col">
+        <h4>Community</h4>
+        <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/iabhi92/haven-tasks/issues" target="_blank" rel="noopener">Report a bug</a>
+        <a href="mailto:pinku2c@gmail.com">Contact</a>
+      </div>
+    </div>
+  </div>
+  <div class="landing-footer-bottom">
+    <span>Haven is free and open source</span>
+    <span>© 2026 Haven</span>
+  </div>
 </footer>
 
-<script src="js/landing.js?v=20260804p" integrity="sha384-H8w9KC5mq69JuHFtzAy5Lhp8D8VVyox1woosS4OHR+hndy7JbguGEXb00ezLqxPe" crossorigin="anonymous" type="module"></script>
+<script src="vendor/gsap/gsap.min.js?v=20260805a" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+<script src="vendor/gsap/ScrollTrigger.min.js?v=20260805a" integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d" crossorigin="anonymous"></script>
+<script src="js/landing.js?v=20260805a" integrity="sha384-f8fB6BypxaMQzY0/5V0oSjvngtVooms4nIRG2rx1xVkH1keAkvO4JpAHsTFOdcyg" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

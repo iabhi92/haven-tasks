@@ -6,7 +6,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none';">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="index, follow">
-<meta name="theme-color" content="#4f46e5">
+<meta name="theme-color" content="#0f0f0f">
 <meta name="description" content="How Haven compares to Todoist, TickTick, Things, Notion, and Microsoft To Do — on privacy, price, accounts, and lock-in. An honest comparison, including where Haven isn't the right fit.">
 <title>Haven vs Todoist, TickTick, Notion & more — an honest comparison</title>
 <link rel="canonical" href="https://taskhavens.com/compare.html">
@@ -17,52 +17,70 @@
 <meta property="og:description" content="How Haven compares to the task apps you've probably already tried — on privacy, price, accounts, and lock-in. Including where Haven isn't the right fit.">
 <meta property="og:url" content="https://taskhavens.com/compare.html">
 
-<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-LiAobYp0XGMvUNW1Wwh54v/hcLhTgxuo9CJB7bD4DCHc7mI3sYhmJCov1V2iSBkh" crossorigin="anonymous">
-<link rel="stylesheet" href="css/landing.css?v=20260804p" integrity="sha384-6dt3hNTvlUo5+YtA/iMCiFxxsaPOzwzEaGPwm4FbM8WORBg4RtXOI/48tDC0fqLl" crossorigin="anonymous">
-<link rel="stylesheet" href="css/article.css?v=20260804a" integrity="sha384-RNkJC7Sva7On5yVhhZkuvVRS6BsoyZkRnvdSasgn/Yf7zaBb9JrgPILQER3GrvoJ" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260805a" integrity="sha384-LiAobYp0XGMvUNW1Wwh54v/hcLhTgxuo9CJB7bD4DCHc7mI3sYhmJCov1V2iSBkh" crossorigin="anonymous">
+<link rel="stylesheet" href="css/landing.css?v=20260805a" integrity="sha384-u7ZaZFCicD/pDNxmRSnsyt1RtNnaN2m1bbsLJ2LYc0fM+7Ssbc1ZyyFJHMW8nTj4" crossorigin="anonymous">
+<link rel="stylesheet" href="css/article.css?v=20260805a" integrity="sha384-PQ/5/GKLHVbfAqhnz91YsjNsRW5jDWtV0x7J7vOnNH0qLhMoRQyKDUtVQOBQ7+zW" crossorigin="anonymous">
 </head>
 <body class="landing-body">
 
+<div class="landing-ambient landing-ambient-1" aria-hidden="true"></div>
+<div class="landing-ambient landing-ambient-2" aria-hidden="true"></div>
+
 <header class="landing-nav">
-  <div class="landing-nav-inner">
-    <a href="index.html" class="landing-brand" aria-label="Haven home">
-      <span class="rail-logo" aria-hidden="true">H</span>
-      <span class="landing-wordmark">Haven</span>
+  <a href="index.html" class="landing-brand" aria-label="Haven home">
+    <span class="landing-brand-mark" aria-hidden="true">H</span>
+    Haven
+  </a>
+  <nav class="landing-nav-links">
+    <a href="index.html#product">Features</a>
+    <a href="index.html#privacy">Privacy</a>
+    <a href="compare.html">Compare</a>
+    <a href="app.html" class="lp-btn lp-btn-ghost lp-btn-sm">Open Haven
+      <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
     </a>
-    <nav class="landing-nav-links">
-      <a href="index.html#features">Features</a>
-      <a href="compare.html">Compare</a>
-      <a href="app.html" class="btn btn-primary btn-sm">Open Haven</a>
-    </nav>
-  </div>
+  </nav>
 </header>
 
 <main class="article-main">
   <p class="article-eyebrow">Comparison</p>
-  <h1 class="article-h1">Haven vs. the task app you're using right now</h1>
+  <h1 class="article-h1">Haven vs. Todoist, TickTick, Things, Notion, and Microsoft To Do</h1>
   <p class="article-lede">
-    You already have a task manager. Maybe it's Todoist, TickTick, Things, Notion, or the
-    Microsoft To Do app that came with your work account. This isn't a "10 reasons ours is better"
-    page — it's a straight comparison, including the parts where those apps win and Haven doesn't.
+    Looking for a private task manager, or a more secure alternative to the app you already use?
+    Haven is a local-first task manager built for people who want the convenience of modern task
+    management without giving a company readable access to their task list. But Haven isn't the
+    best task manager for everyone — Todoist, TickTick, Things, Notion, and Microsoft To Do are
+    established products with features Haven doesn't have. This comparison looks at the
+    differences honestly, including where Haven falls behind.
   </p>
 
   <div class="article-body">
 
-    <h2>The one real difference</h2>
+    <h2>The short version</h2>
     <p>
-      Almost everything else on this page is a feature checklist, and feature checklists mostly
-      even out — every mainstream task app has due dates, priorities, and a decent mobile app by
-      now. The actual difference is this: Todoist, TickTick, Notion, and Microsoft To Do all store
-      your tasks on their servers in a form the company can read. None of them advertise
-      end-to-end encryption, because none of them are built around it — that's not a knock on
-      them, it's just not the product they're building. Haven encrypts every task on your device
-      before it's ever saved, so the servers involved — including the one we run — only ever see
-      scrambled bytes. We built it and we still can't read what you write.
+      If you want the most features, the most integrations, or the most mature mobile apps,
+      another task manager is probably the better choice.
     </p>
     <p>
-      If that distinction doesn't matter for your grocery list, it genuinely might not need to.
-      If you're a therapist, lawyer, journalist, or anyone else whose task list could contain
-      something you have a duty to keep confidential, it's the whole point.
+      If you want a free, private task manager where your data is encrypted before it's ever
+      stored or synced, that's where Haven is different.
+    </p>
+
+    <h2>What makes Haven different from other task managers?</h2>
+    <p>
+      Most popular task management apps are built around cloud storage and account-based syncing.
+      That's convenient — sign in on another device and your tasks are already there. Haven takes
+      a local-first approach instead: your task data is encrypted on your device before it's ever
+      stored or synced. Your encryption key isn't sent to Haven, meaning Haven isn't designed to
+      have the ability to read the contents of your tasks.
+    </p>
+    <p>
+      In other words: your task manager doesn't need to know your tasks. That's the core idea
+      behind Haven.
+    </p>
+    <p>
+      For a grocery list, that might not matter much. For a lawyer managing confidential work, a
+      journalist protecting sources, a therapist organizing sensitive information, or anyone
+      keeping genuinely private notes in their task manager, it can matter a lot.
     </p>
 
     <h2>Side by side</h2>
@@ -80,47 +98,47 @@
         </thead>
         <tbody>
           <tr>
-            <td class="is-haven-col"><span class="article-check">✓</span> Encrypted so the provider can't read it</td>
-            <td><span class="article-cross">Not advertised</span></td>
-            <td><span class="article-cross">Not advertised</span></td>
-            <td><span class="article-cross">Not advertised</span></td>
-            <td><span class="article-cross">Not advertised</span></td>
-            <td><span class="article-cross">Not advertised</span></td>
+            <td class="is-haven-col"><span class="article-check">✓</span> Private / encrypted task storage</td>
+            <td><span class="article-cross">—</span></td>
+            <td><span class="article-cross">—</span></td>
+            <td><span class="article-cross">—</span></td>
+            <td><span class="article-cross">—</span></td>
+            <td><span class="article-cross">—</span></td>
           </tr>
           <tr>
             <td class="is-haven-col">Account required</td>
             <td>Yes</td>
             <td>Yes</td>
-            <td>No account, syncs via iCloud</td>
+            <td>No*</td>
             <td>Yes</td>
-            <td>Yes (Microsoft account)</td>
+            <td>Yes</td>
           </tr>
           <tr>
-            <td class="is-haven-col">Price</td>
-            <td>Free tier + paid Pro</td>
-            <td>Free tier + paid Premium</td>
-            <td>One-time purchase per platform</td>
-            <td>Free tier + paid plans</td>
-            <td>Free</td>
+            <td class="is-haven-col">Local-first</td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-cross">—</span></td>
+            <td><span class="article-cross">—</span></td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-cross">—</span></td>
           </tr>
           <tr>
-            <td class="is-haven-col">Platforms</td>
-            <td>Web, iOS, Android, desktop</td>
-            <td>Web, iOS, Android, desktop</td>
-            <td>Apple only (iOS/Mac)</td>
-            <td>Web, iOS, Android, desktop</td>
-            <td>Web, iOS, Android, desktop</td>
-          </tr>
-          <tr>
-            <td class="is-haven-col">Works fully offline</td>
+            <td class="is-haven-col">Offline support</td>
             <td>Partial</td>
             <td>Partial</td>
-            <td>Yes</td>
+            <td><span class="article-check">✓</span></td>
             <td>Partial</td>
             <td>Partial</td>
           </tr>
           <tr>
-            <td class="is-haven-col">Open source</td>
+            <td class="is-haven-col">Data export</td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="is-haven-col"><span class="article-check">✓</span> Open source</td>
             <td>No</td>
             <td>No</td>
             <td>No</td>
@@ -128,22 +146,36 @@
             <td>No</td>
           </tr>
           <tr>
-            <td class="is-haven-col">Export your data anytime</td>
-            <td>Yes</td>
-            <td>Yes</td>
-            <td>Yes</td>
-            <td>Yes</td>
-            <td>Yes</td>
+            <td class="is-haven-col">Web app</td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-cross">—</span></td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="is-haven-col">Desktop</td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-check">✓</span></td>
+            <td>Mac only</td>
+            <td><span class="article-check">✓</span></td>
+            <td><span class="article-check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="is-haven-col">Free to use</td>
+            <td>Free tier</td>
+            <td>Free tier</td>
+            <td>Paid</td>
+            <td>Free tier</td>
+            <td><span class="article-check">✓</span></td>
           </tr>
         </tbody>
       </table>
     </div>
     <p class="article-muted">
-      Pricing, platform, and feature details for other products change over time and are accurate
-      to the best of our knowledge as of writing — check each product's own site for current
-      specifics. "Not advertised" means exactly that: these products don't market end-to-end
-      encryption as a feature, which is the normal, standard way cloud task managers work, not a
-      claim about anyone's internal security practices.
+      * Things doesn't require a traditional account, though syncing relies on iCloud. Pricing,
+      platform, and feature details for other products change over time and are accurate to the
+      best of our knowledge as of writing — check each product's own site for current specifics.
     </p>
 
     <h2>What that encryption actually buys you</h2>
@@ -152,10 +184,9 @@
       Most apps that say "your data is encrypted" mean encrypted <em>in transit</em> (the
       connection to their server is HTTPS — table stakes, every app on this list has that) and
       <em>at rest</em> on their servers (the disk is encrypted, but the company holds the key, so
-      they can still read it whenever they want or need to). That protects you from someone
-      breaking into the data center. It does not protect you from the company itself, an employee
-      with access, a subpoena compelling them to hand over readable data, or a future acquisition
-      that changes what happens to your data.
+      they can still read it whenever they need to). That protects you from someone breaking into
+      the data center. It does not protect you from the company itself, an employee with access,
+      or a subpoena compelling them to hand over readable data.
     </p>
     <p>
       Haven's encryption happens before a task ever leaves your browser, using a key derived from
@@ -168,18 +199,82 @@
       on GitHub</a>.
     </p>
 
+    <h2>Haven vs. Todoist</h2>
+    <p>
+      Todoist is one of the most established task management apps, with excellent organization,
+      integrations, and natural-language task entry. It's a strong choice if you want a mature
+      productivity app with a large ecosystem.
+    </p>
+    <p>
+      Haven takes a different approach. If you're searching for a private Todoist alternative
+      because you don't want your task data stored in a readable form by a service provider, Haven
+      is built specifically for that — at the cost of Todoist's integrations, natural-language
+      parsing polish, and years of feature depth.
+    </p>
+
+    <h2>Haven vs. TickTick</h2>
+    <p>
+      TickTick packs in more than a task list — habit tracking, a Pomodoro timer, calendar
+      views — in a genuinely well-built app with a real free tier. If you want one app to cover
+      tasks and habits together, and provider-side privacy isn't the priority, TickTick is a
+      reasonable, mature choice.
+    </p>
+    <p>
+      Haven doesn't try to match that breadth. It's a focused task manager where the trade is
+      explicit: fewer built-in extras, but nothing you write is readable by the company running
+      the service.
+    </p>
+
+    <h2>Haven vs. Things</h2>
+    <p>
+      Things is the closest philosophical match to Haven on this list — genuinely local-first, no
+      account required for the app itself, and famous for its design. If you're all-in on Apple
+      hardware and want a beautifully designed native app you pay for once instead of monthly,
+      Things is hard to beat.
+    </p>
+    <p>
+      The differences: Things is Apple-only (no web, no Android), syncing runs through iCloud
+      rather than an app-run server, and it doesn't publish a threat model or self-attack test
+      results the way Haven does. Haven runs anywhere with a browser and is free.
+    </p>
+
+    <h2>Haven vs. Notion</h2>
+    <p>
+      Notion is a notes-and-docs workspace with a task list bolted on, not a dedicated task
+      manager — that's exactly why some people prefer it, and exactly why others find it slower
+      for a plain to-do list. If tasks are one piece of a bigger workspace you need, Notion's
+      breadth is the point.
+    </p>
+    <p>
+      Haven is a dedicated task manager, not a workspace, and everything you write is encrypted
+      before Notion (or anyone) would ever get a chance to see it. If you're only using Notion for
+      tasks and never touch the rest of it, Haven is worth trying.
+    </p>
+
+    <h2>Haven vs. Microsoft To Do</h2>
+    <p>
+      Microsoft To Do is free, simple, and integrates tightly with Outlook and Microsoft 365 —
+      genuinely the right choice if you already live in that ecosystem and want tasks to just show
+      up there.
+    </p>
+    <p>
+      It requires a Microsoft account, and like the others on this list, doesn't advertise
+      end-to-end encryption because that isn't the product it's building. Haven has no Outlook
+      integration at all today — a real gap if that's what you need.
+    </p>
+
     <h2>Where Haven wins</h2>
     <ul>
       <li><strong>No account, ever.</strong> Open the app, set a passphrase, start typing. There's
         no signup form, no email verification, no OAuth consent screen.</li>
-      <li><strong>Actually free.</strong> Not a free tier with a task limit that nudges you toward
+      <li><strong>Actually free.</strong> Not a free tier with a task limit nudging you toward
         upgrading — the whole thing, including sync across your own devices.</li>
       <li><strong>Nothing to leak, even in a worst case.</strong> If our sync server were ever
-        breached, an attacker would get ciphertext. That's a materially different incident than
-        "a task app got breached" usually means.</li>
+        breached, an attacker would get ciphertext — a materially different incident than "a task
+        app got breached" usually means.</li>
       <li><strong>You can read the code.</strong> Not "trust our privacy policy" — the actual
-        encryption implementation is public, and we've published our own threat model and
-        self-attack test results rather than just asserting the app is secure.</li>
+        encryption implementation is public, alongside a published threat model and self-attack
+        test results.</li>
       <li><strong>Real export, no lock-in.</strong> Your tasks leave as plain JSON whenever you
         want, and come back in the same format.</li>
     </ul>
@@ -194,20 +289,16 @@
     <ul>
       <li><strong>No native mobile app yet.</strong> Haven runs great as a mobile web page (add it
         to your home screen and it behaves like an app), but there's no App Store/Play Store
-        listing today. If you specifically want a native app icon and offline-first mobile
-        polish, Things or TickTick are further along here.</li>
+        listing today. Things or TickTick are further along here.</li>
       <li><strong>No calendar integration.</strong> If your workflow depends on due dates showing
-        up in Google Calendar or Outlook automatically, none of the apps here do that as well as a
-        dedicated calendar app, and Haven doesn't do it at all yet.</li>
+        up in Google Calendar or Outlook automatically, Haven doesn't do that at all yet.</li>
       <li><strong>No team collaboration at scale.</strong> Haven is built for one person's tasks
-        first. Notion and Todoist are meaningfully further along for teams sharing boards across
-        many people.</li>
-      <li><strong>Lose your passphrase and your recovery code, and it's gone.</strong> This is the
+        first. Notion and Todoist are meaningfully further along for teams sharing boards.</li>
+      <li><strong>Lose your passphrase and your recovery code, and it's gone.</strong> That's the
         direct cost of real encryption — there's no "forgot password" support ticket that gets you
-        back in, because there's no one on the other end who can unlock it for you. We've built
-        real recovery options (a one-time recovery code, and now splitting that code among people
-        you trust), but the honest floor is: lose both, and the data is unrecoverable by anyone,
-        including us.</li>
+        back in. We've built real recovery options (a one-time recovery code, and splitting that
+        code among people you trust), but the honest floor is: lose both, and the data is
+        unrecoverable by anyone, including us.</li>
       <li><strong>Younger project, smaller track record.</strong> Todoist and Things have years of
         production hardening behind them. Haven is newer — we've tried to be transparent about
         that by publishing our own security testing rather than asking you to just trust it, but
@@ -241,7 +332,9 @@
     <div class="article-cta">
       <h2>See it for yourself</h2>
       <p>No account, no credit card, no sales page walking you through it first. Just open it.</p>
-      <a href="app.html" class="btn btn-primary btn-lg">Open Haven — it's free</a>
+      <a href="app.html" class="lp-btn lp-btn-sun">Open Haven — it's free
+        <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
     </div>
 
     <p class="article-footnote">
@@ -253,14 +346,39 @@
   </div>
 </main>
 
-<footer class="landing-footer-light">
-  <p>
-    Haven is free and open source.
-    <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">View the code</a>.
-  </p>
-  <p class="landing-footer-contact">
-    Questions, bugs, or feedback? Email <a href="mailto:pinku2c@gmail.com">pinku2c@gmail.com</a>.
-  </p>
+<footer class="landing-footer">
+  <div class="landing-footer-top">
+    <div class="landing-footer-brand">
+      <h3>Haven</h3>
+      <p>A private, local-first task manager.</p>
+    </div>
+    <div class="landing-footer-cols">
+      <div class="landing-footer-col">
+        <h4>Product</h4>
+        <a href="index.html#product">Features</a>
+        <a href="index.html#privacy">Privacy</a>
+        <a href="compare.html">Compare</a>
+        <a href="https://github.com/iabhi92/haven-tasks/commits/main" target="_blank" rel="noopener">Changelog</a>
+      </div>
+      <div class="landing-footer-col">
+        <h4>Learn</h4>
+        <a href="app.html">How it works</a>
+        <a href="docs/SECURITY.md" target="_blank" rel="noopener">Security</a>
+        <a href="docs/THREAT_MODEL.md" target="_blank" rel="noopener">Threat model</a>
+        <a href="https://github.com/iabhi92/haven-tasks/tree/main/docs" target="_blank" rel="noopener">Documentation</a>
+      </div>
+      <div class="landing-footer-col">
+        <h4>Community</h4>
+        <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/iabhi92/haven-tasks/issues" target="_blank" rel="noopener">Report a bug</a>
+        <a href="mailto:pinku2c@gmail.com">Contact</a>
+      </div>
+    </div>
+  </div>
+  <div class="landing-footer-bottom">
+    <span>Haven is free and open source</span>
+    <span>© 2026 Haven</span>
+  </div>
 </footer>
 
 </body>
