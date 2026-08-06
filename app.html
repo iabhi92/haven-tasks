@@ -22,11 +22,15 @@
 <link rel="icon" type="image/png" sizes="192x192" href="img/favicon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="img/favicon-512.png">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Haven">
 <!-- No build step means no auto cache-busting either: the ?v= query string on this
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260804p" integrity="sha384-/L351vIlpib+h4eOvTZsUobReX2VupE2mVty8XBk6oyDKYC7ANDXrrtszOGVBvpl" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260806a" integrity="sha384-yYwhUOE6BLsw5Lvt72DrX7uWtITPCjrwlt8v9CbMH2kkMLneTyjK3d4qH9TSYMNU" crossorigin="anonymous">
 </head>
 <body>
 
@@ -152,6 +156,12 @@
     <button type="button" class="rail-btn" id="viewInsightsBtn" role="tab" aria-selected="false" aria-label="Insights" title="Insights">
       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path d="M4 16.5V10M10 16.5V4.5M16 16.5V8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </button>
+    <button type="button" class="rail-btn" id="viewCalendarBtn" role="tab" aria-selected="false" aria-label="Calendar" title="Calendar">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="3" y="4.5" width="14" height="12" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect>
+        <path d="M3 8h14M7 3v3M13 3v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
       </svg>
     </button>
   </nav>
@@ -386,6 +396,24 @@
       </section>
     </div>
 
+    <div id="calendarView" class="reveal-view" hidden>
+      <section class="reveal-section">
+        <div class="calendar-toolbar">
+          <div class="calendar-toolbar-nav">
+            <button type="button" class="btn btn-ghost btn-sm" id="calendarPrevBtn" aria-label="Previous month">←</button>
+            <h2 id="calendarMonthLabel" class="calendar-month-label"></h2>
+            <button type="button" class="btn btn-ghost btn-sm" id="calendarNextBtn" aria-label="Next month">→</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="calendarTodayBtn">Today</button>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="calendarExportBtn">Export .ics</button>
+        </div>
+        <p class="reveal-intro">Shows every task with a due date, across all your projects. Exporting
+          gives you a standard .ics file to import into Google Calendar, Apple Calendar, or Outlook —
+          a one-time copy, not a live sync back to Haven.</p>
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </section>
+    </div>
+
     <div id="emptyState" class="empty-state" hidden>
       <p class="empty-state-title">Nothing here yet</p>
       <p class="empty-state-sub">Type a task above and press <kbd>Enter</kbd> to get started.</p>
@@ -477,6 +505,17 @@
       </div>
 
       <p class="modal-help" id="editSelfDestructNote" hidden></p>
+
+      <div class="field pomodoro-field">
+        <label>Time tracking</label>
+        <div class="pomodoro-row">
+          <span class="pomodoro-display" id="pomodoroDisplay">25:00</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="pomodoroStartBtn">Start</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="pomodoroPauseBtn" hidden>Pause</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="pomodoroResetBtn">Reset</button>
+          <span class="pomodoro-total" id="pomodoroTotal">Total: 0m</span>
+        </div>
+      </div>
 
       <div class="modal-actions">
         <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
@@ -837,6 +876,28 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="templateModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="templateModalTitle">
+    <h2 id="templateModalTitle">New from template</h2>
+    <p class="modal-help">Adds a starter set of tasks to a project — each one created exactly like
+      typing it by hand, so it's encrypted, shows up in history, and triggers automation rules the
+      same as any other task.</p>
+    <div class="field">
+      <label for="templateSelect">Template</label>
+      <select id="templateSelect"></select>
+    </div>
+    <p class="modal-help" id="templateDescription"></p>
+    <div class="field">
+      <label for="templateProjectName">Project name</label>
+      <input type="text" id="templateProjectName" maxlength="60">
+    </div>
+    <div class="modal-actions-right sync-close-row">
+      <button type="button" class="btn btn-ghost" id="templateCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-primary" id="templateApplyBtn">Create tasks</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="syncModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <h2 id="syncModalTitle">Sync (optional)</h2>
@@ -901,8 +962,8 @@
 </div>
 
 <a id="exportLink" hidden></a>
-<input type="file" id="importFileInput" accept="application/json" hidden>
+<input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260804p" integrity="sha384-ts5TqnZJbUZRPxfZKxDA66W1mPKpbQS41QvT119BlTudWDi2Z+r3wLmRu0txMrcq" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260806a" integrity="sha384-0DuhTryK6vtgv1h/4YNkmUL6L2M/nZs/mkOcFDi1fUyLdrS2Z5OGQaDOIYyAI2nb" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

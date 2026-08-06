@@ -67,6 +67,14 @@ function selfDestructBadge(selfDestruct) {
   return el("span", "badge badge-self-destruct", label);
 }
 
+function timeSpentBadge(seconds) {
+  if (!seconds) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const label = h > 0 ? `⏱ ${h}h ${m}m` : `⏱ ${m}m`;
+  return el("span", "badge badge-time-spent", label);
+}
+
 function tagChips(tags) {
   if (!tags || tags.length === 0) return null;
   const wrap = el("div", "task-tags");
@@ -125,6 +133,8 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selection
   if (recurrence) meta.appendChild(recurrence);
   const fuse = selfDestructBadge(task.selfDestruct);
   if (fuse) meta.appendChild(fuse);
+  const timeSpent = timeSpentBadge(task.timeSpentSeconds);
+  if (timeSpent) meta.appendChild(timeSpent);
   card.appendChild(meta);
 
   const tags = tagChips(task.tags);
@@ -190,6 +200,8 @@ export function createListRow(task, { onOpen, onDelete, selectionMode, selectedI
   if (recurrence) titleRow.appendChild(recurrence);
   const fuse = selfDestructBadge(task.selfDestruct);
   if (fuse) titleRow.appendChild(fuse);
+  const timeSpent = timeSpentBadge(task.timeSpentSeconds);
+  if (timeSpent) titleRow.appendChild(timeSpent);
   titleCell.appendChild(titleRow);
   const tags = tagChips(task.tags);
   if (tags) titleCell.appendChild(tags);
@@ -245,8 +257,8 @@ export function renderList(tasks, handlers) {
   }
 }
 
-const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView", insights: "insightsView" };
-const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn", insights: "viewInsightsBtn" };
+const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView", insights: "insightsView", calendar: "calendarView" };
+const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn", insights: "viewInsightsBtn", calendar: "viewCalendarBtn" };
 
 export function setView(view) {
   for (const key of Object.keys(VIEW_PANEL_IDS)) {
@@ -268,10 +280,11 @@ export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
   const empty = document.getElementById("emptyState");
   const noResults = document.getElementById("noResultsState");
 
-  // The reveal, history, and insights pages don't depend on whether any real
-  // tasks exist — all three must stay reachable even on a genuinely empty
-  // board (insights just shows all-zero stats rather than being unreachable).
-  if (view === "reveal" || view === "history" || view === "insights") {
+  // The reveal, history, insights, and calendar pages don't depend on
+  // whether any real tasks exist — all four must stay reachable even on a
+  // genuinely empty board (insights/calendar just show an empty state
+  // rather than being unreachable).
+  if (view === "reveal" || view === "history" || view === "insights" || view === "calendar") {
     empty.hidden = true;
     noResults.hidden = true;
     setView(view);
@@ -816,6 +829,76 @@ export function renderInsights(stats) {
       const chip = el("span", "tag-chip", `${tag} · ${count}`);
       tagContainer.appendChild(chip);
     }
+  }
+}
+
+const CALENDAR_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const CALENDAR_MAX_CHIPS_PER_DAY = 3;
+
+function localDateToISO(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+// `monthDate` is any Date within the month to display — only its
+// year/month are read. Renders a 6-week (42-cell) grid starting on the
+// Sunday on/before the 1st, so partial leading/trailing weeks from
+// adjacent months fill out a consistent, non-jumping grid height.
+export function renderCalendar(monthDate, tasks, { onOpenTask } = {}) {
+  document.getElementById("calendarMonthLabel").textContent = monthDate.toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+
+  const tasksByDate = new Map();
+  for (const t of tasks) {
+    if (t.destructed || !t.dueDate) continue;
+    const key = t.dueDate.slice(0, 10);
+    if (!tasksByDate.has(key)) tasksByDate.set(key, []);
+    tasksByDate.get(key).push(t);
+  }
+
+  const grid = document.getElementById("calendarGrid");
+  grid.textContent = "";
+  for (const day of CALENDAR_WEEKDAYS) grid.appendChild(el("div", "calendar-weekday", day));
+
+  const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const gridStart = new Date(firstOfMonth);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+  const todayISO = localDateToISO(new Date());
+
+  for (let i = 0; i < 42; i++) {
+    const cellDate = new Date(gridStart);
+    cellDate.setDate(gridStart.getDate() + i);
+    const iso = localDateToISO(cellDate);
+    const isOutsideMonth = cellDate.getMonth() !== monthDate.getMonth();
+
+    const cell = el(
+      "div",
+      "calendar-day" + (isOutsideMonth ? " is-outside-month" : "") + (iso === todayISO ? " is-today" : "")
+    );
+    cell.appendChild(el("div", "calendar-day-number", String(cellDate.getDate())));
+
+    const dayTasks = (tasksByDate.get(iso) || []).sort((a, b) => a.title.localeCompare(b.title));
+    if (dayTasks.length > 0) {
+      const list = el("div", "calendar-day-tasks");
+      for (const t of dayTasks.slice(0, CALENDAR_MAX_CHIPS_PER_DAY)) {
+        const isOverdue = iso < todayISO && t.status !== "done";
+        const chip = el(
+          "button",
+          "calendar-task-chip" + (t.status === "done" ? " is-done" : "") + (isOverdue ? " is-overdue" : ""),
+          t.title
+        );
+        chip.type = "button";
+        chip.addEventListener("click", () => onOpenTask && onOpenTask(t));
+        list.appendChild(chip);
+      }
+      if (dayTasks.length > CALENDAR_MAX_CHIPS_PER_DAY) {
+        list.appendChild(el("div", "calendar-day-more", `+${dayTasks.length - CALENDAR_MAX_CHIPS_PER_DAY} more`));
+      }
+      cell.appendChild(list);
+    }
+
+    grid.appendChild(cell);
   }
 }
 

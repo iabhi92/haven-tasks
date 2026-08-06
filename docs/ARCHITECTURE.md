@@ -733,3 +733,40 @@ Before wiring `crypto.js` into anything, prove these in isolation:
 
 Use fixed, hardcoded salts/IVs only in tests. In production, salts and IVs are always freshly
 random.
+
+## 9. Ecosystem & polish
+
+Five smaller features, grouped here because none of them touch the key hierarchy — each is either
+a pure, IO-free module (tested in isolation the same way `crypto.js` is) or a thin UI layer over
+the existing `addTask()`/`persistTask()` pipeline.
+
+**PWA install** (`manifest.json`, `sw.js`) — a cache-first service worker for exactly the app-shell
+file list (`app.html` + its CSS/JS + icons), scoped to `app.html` only. Registered unconditionally
+at page load, not gated behind unlock, since it's about the *static assets* loading offline — the
+task *data* has been fully offline-capable since Phase 1 (IndexedDB). The precache list is
+hand-maintained the same way the `?v=` cache-bust query strings already are (no build step); bump
+`CACHE_NAME` when the list changes so old caches get cleaned up on the next `activate`.
+
+**Calendar view + iCal export** (`js/ical.js`, month-grid UI in `js/ui.js`'s `renderCalendar()`) —
+shows every task with a due date across all projects; exporting produces a standard RFC 5545 `.ics`
+file. One-way only: this is an export, not a live CalDAV sync, and says so in the UI copy rather
+than implying more than it does.
+
+**CSV import** (`js/csv.js`) — a hand-written RFC-4180-ish parser (quoted fields, embedded commas/
+newlines, escaped quotes) plus a header-aliasing layer that maps common column name variants
+(`Title`/`Content`/`Task`, `Due`/`Date`/`Deadline`, `Priority`, `Tags`/`Labels`, etc.) onto Haven's
+task schema. Unrecognized columns are ignored, not rejected — an export with extra app-specific
+columns still imports what Haven does recognize. Every imported row becomes a brand-new task via
+the normal `addTask()` path (CSV rows carry no id of their own to merge against, unlike Haven's own
+JSON export/import round-trip).
+
+**Time tracking + Pomodoro** (`js/app.js`, edit-modal UI) — a 25-minute countdown scoped to
+whichever task's edit modal is currently open; no background timer survives closing it. Elapsed
+time accumulates into a plain `timeSpentSeconds` task field — an ordinary encrypted field, no new
+crypto — persisted with `logHistory: false` (same reasoning as drag-and-drop reorders: a tick isn't
+a meaningful content-audit event the way a title/status change is).
+
+**Board / project templates** (`js/templates.js`) — five static starter task sets (sprint board,
+client onboarding, moving house, weekly review, freelance kickoff). Applying one calls `addTask()`
+once per starter task — a template-created task is indistinguishable afterward from a hand-typed
+one: same encryption, same history-log entry, same automation-rule triggers on creation.

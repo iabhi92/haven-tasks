@@ -215,12 +215,37 @@ data."*
 
 ### Ecosystem & polish (interleave as needed; mostly Layer 2+)
 
-- [ ] PWA install (feels native, offline) — Low
+- [x] PWA install (feels native, offline) — Low. Shipped: manifest.json +
+      sw.js caching the app shell (HTML/CSS/JS/icons) so a reload works
+      fully offline, not just incidentally when the browser's normal HTTP
+      cache happens to still have it. Scoped to app.html only — the
+      marketing pages don't offer an install prompt.
 - [ ] Native desktop/mobile wrappers (Tauri) — Med
-- [ ] Calendar view + CalDAV / iCal interop — Med
-- [ ] Import from other task apps — Med
-- [ ] Time-tracking + Pomodoro per task — Low
-- [ ] Board / project templates — Low
+- [x] Calendar view + CalDAV / iCal interop — Med. Shipped as a month-grid
+      view of every task with a due date, plus one-way .ics export
+      (js/ical.js) for importing into Google Calendar/Apple
+      Calendar/Outlook. **Not live two-way CalDAV sync** — that's a
+      materially bigger scope (a CalDAV server), and "Med" difficulty here
+      means the interop file format, not the protocol.
+- [x] Import from other task apps — Med. Shipped as CSV import
+      (js/csv.js) with alias-based column mapping (Title/Content/Task,
+      Due/Date/Deadline, Priority, Tags/Labels, etc.) covering common
+      Todoist/TickTick/generic spreadsheet export shapes. **Best-effort
+      aliasing, not a maintained per-app integration** — export schemas
+      vary and change without notice; unrecognized columns are silently
+      ignored rather than rejecting the whole file.
+- [x] Time-tracking + Pomodoro per task — Low. Shipped: a 25-minute
+      countdown timer scoped to whichever task's edit modal is open,
+      accumulating into a running `timeSpentSeconds` total that persists
+      and syncs like any other task field. No background timer survives
+      closing the modal — closing it (Cancel/Save/Delete/click-outside)
+      always saves whatever elapsed first, never discards it.
+- [x] Board / project templates — Low. Shipped: 5 starter task sets
+      (js/templates.js — sprint board, client onboarding, moving house,
+      weekly review, freelance kickoff) applied via the exact same
+      addTask() pipeline a hand-typed task goes through, so a
+      template-created task is indistinguishable afterward — same
+      encryption, same history entry, same automation-rule triggers.
 - [ ] On-device location reminders (geofencing, no phone-home) — High
 - [ ] Local voice capture, transcribed on-device — High
 - [ ] Plugin / extension API — High

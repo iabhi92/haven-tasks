@@ -12,9 +12,12 @@ import {
   getAllRules,
   putRule,
   deleteRule,
-} from "./store.js?v=20260804p";
-import { evaluateTask } from "./automation.js?v=20260805a";
-import { computeInsights } from "./insights.js?v=20260805a";
+} from "./store.js?v=20260806a";
+import { evaluateTask } from "./automation.js?v=20260806a";
+import { computeInsights } from "./insights.js?v=20260806a";
+import { generateICS } from "./ical.js?v=20260806a";
+import { parseCSVToTasks } from "./csv.js?v=20260806a";
+import { TEMPLATES, findTemplate } from "./templates.js?v=20260806a";
 import {
   renderBoard,
   renderList,
@@ -34,6 +37,7 @@ import {
   renderHistoryReport,
   renderAutomationRulesList,
   renderInsights,
+  renderCalendar,
   setPageSubtitle,
   openCmdk,
   closeCmdk,
@@ -49,7 +53,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260804p";
+} from "./ui.js?v=20260806a";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -82,13 +86,13 @@ import {
   decodeShare,
   generateHardwareSecret,
   wrapRawBytes,
-} from "./crypto.js?v=20260804p";
+} from "./crypto.js?v=20260806a";
 import {
   isWebAuthnAvailable,
   registerPasskey,
   writeLargeBlob,
   readLargeBlob,
-} from "./webauthn.js?v=20260804p";
+} from "./webauthn.js?v=20260806a";
 import {
   generateSyncToken,
   pushRecords,
@@ -97,12 +101,13 @@ import {
   pullKeyringBootstrap,
   pushShare,
   deleteShare,
-} from "./sync.js?v=20260804p";
+} from "./sync.js?v=20260806a";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
 let tasks = [];
 let view = "board";
+let calendarMonth = new Date(); // any Date within the currently-viewed month — only year/month read
 let searchQuery = "";
 let smartView = "all";
 let priorityFilter = "";
@@ -404,6 +409,7 @@ function render() {
       editSubtasksDraft = (task.subtasks || []).map((s) => ({ ...s }));
       renderEditSubtasks();
       openEditModal(task);
+      resetPomodoroStateForTask(task);
     },
     onDelete: (task) => deleteTasksWithUndo([task.id]),
     onDragStart: (task) => { draggedId = task.id; },
@@ -431,6 +437,16 @@ function render() {
   syncProjectUI();
   syncBulkActionBar();
   if (view === "insights") renderInsights(computeInsights(tasks));
+  if (view === "calendar") {
+    renderCalendar(calendarMonth, tasks, {
+      onOpenTask: (task) => {
+        editSubtasksDraft = (task.subtasks || []).map((s) => ({ ...s }));
+        renderEditSubtasks();
+        openEditModal(task);
+        resetPomodoroStateForTask(task);
+      },
+    });
+  }
   scheduleEphemeralSweep();
   scheduleAutomationSweep();
 }
@@ -1023,7 +1039,42 @@ function normalizeImportedTask(raw, fallbackStatus) {
 // last-write-wins rule the sync protocol uses (docs/ARCHITECTURE.md §5) —
 // so re-importing the same backup twice, or importing a slightly stale
 // backup over current data, can't silently destroy newer local edits.
-async function importTasksFromFile(file) {
+// CSV rows have no id/timestamps of their own (unlike Haven's JSON export),
+// so every row is always a brand-new task — there's nothing to merge
+// against, unlike the JSON path below where re-importing the same backup
+// is expected and must not create duplicates.
+async function importTasksFromCSV(file) {
+  const rows = parseCSVToTasks(await file.text());
+  if (rows.length === 0) {
+    showInfoToast("Import failed: no usable rows found. Expected a header row with a title/content column.");
+    return;
+  }
+
+  const items = rows.slice(0, MAX_IMPORT_RECORDS);
+  const created = items.map((row) => ({
+    id: uuid(),
+    ...row,
+    subtasks: [],
+    recurrence: null,
+    order: nextOrder(row.status || "todo"),
+    createdAt: now(),
+    updatedAt: now(),
+  }));
+
+  tasks.push(...created);
+  render();
+  for (const task of created) await persistTask(task, "create");
+
+  const skippedNote = rows.length > MAX_IMPORT_RECORDS ? ` (file had ${rows.length} rows, only the first ${MAX_IMPORT_RECORDS} were read)` : "";
+  showInfoToast(`Import done: ${created.length} tasks added from CSV${skippedNote}.`);
+}
+
+// Merge, not overwrite: an imported task with an id that already exists
+// locally only replaces the local copy if it's actually newer — the same
+// last-write-wins rule the sync protocol uses (docs/ARCHITECTURE.md §5) —
+// so re-importing the same backup twice, or importing a slightly stale
+// backup over current data, can't silently destroy newer local edits.
+async function importTasksFromJSON(file) {
   let parsed;
   try {
     parsed = JSON.parse(await file.text());
@@ -1062,6 +1113,12 @@ async function importTasksFromFile(file) {
 
   const skippedNote = parsed.length > MAX_IMPORT_RECORDS ? ` (file had ${parsed.length}, only the first ${MAX_IMPORT_RECORDS} were read)` : "";
   showInfoToast(`Import done: ${added} added, ${updated} updated, ${skipped} skipped${skippedNote}.`);
+}
+
+async function importTasksFromFile(file) {
+  const isCSV = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
+  if (isCSV) await importTasksFromCSV(file);
+  else await importTasksFromJSON(file);
 }
 
 // ---------- sync (Phase 6, optional) ----------
@@ -1483,6 +1540,65 @@ function wireAutomationModal() {
 
     document.getElementById("automationTriggerTag").value = "";
     document.getElementById("automationActionValue").value = "";
+  });
+}
+
+// ---------- board / project templates (Ecosystem & polish) ----------
+// Applying a template just calls addTask() once per starter task, so a
+// template-created task is completely indistinguishable afterward from one
+// typed by hand — same encryption, same history-log entry, same automation
+// rules triggered on creation. See docs/ARCHITECTURE.md.
+
+function populateTemplateSelect() {
+  const select = document.getElementById("templateSelect");
+  select.textContent = "";
+  for (const t of TEMPLATES) {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = t.name;
+    select.appendChild(opt);
+  }
+}
+
+function updateTemplatePreview() {
+  const template = findTemplate(document.getElementById("templateSelect").value);
+  if (!template) return;
+  document.getElementById("templateDescription").textContent =
+    `${template.description} (${template.tasks.length} task${template.tasks.length === 1 ? "" : "s"})`;
+  document.getElementById("templateProjectName").value = template.name;
+}
+
+function openTemplateModal() {
+  populateTemplateSelect();
+  updateTemplatePreview();
+  document.getElementById("templateModal").hidden = false;
+}
+
+function closeTemplateModal() {
+  document.getElementById("templateModal").hidden = true;
+}
+
+function wireTemplateModal() {
+  const overlay = document.getElementById("templateModal");
+  document.getElementById("templateSelect").addEventListener("change", () => updateTemplatePreview());
+  document.getElementById("templateCancelBtn").addEventListener("click", () => closeTemplateModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeTemplateModal();
+  });
+
+  document.getElementById("templateApplyBtn").addEventListener("click", async () => {
+    const template = findTemplate(document.getElementById("templateSelect").value);
+    if (!template) return;
+    const projectName = document.getElementById("templateProjectName").value.trim() || template.name;
+
+    for (const starterTask of template.tasks) {
+      await addTask({ ...starterTask, project: projectName });
+    }
+
+    activeProject = projectName;
+    closeTemplateModal();
+    render();
+    showInfoToast(`Added ${template.tasks.length} tasks from "${template.name}" to "${projectName}".`);
   });
 }
 
@@ -1969,6 +2085,36 @@ function wireViewToggle() {
     setView(view);
     render(); // render() itself calls renderInsights() when view === "insights"
   });
+  document.getElementById("viewCalendarBtn").addEventListener("click", () => {
+    view = "calendar";
+    setView(view);
+    render();
+  });
+}
+
+function wireCalendarView() {
+  document.getElementById("calendarPrevBtn").addEventListener("click", () => {
+    calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+    render();
+  });
+  document.getElementById("calendarNextBtn").addEventListener("click", () => {
+    calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+    render();
+  });
+  document.getElementById("calendarTodayBtn").addEventListener("click", () => {
+    calendarMonth = new Date();
+    render();
+  });
+  document.getElementById("calendarExportBtn").addEventListener("click", () => {
+    const ics = generateICS(tasks);
+    const blob = new Blob([ics], { type: "text/calendar" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "haven-tasks.ics";
+    link.click();
+    URL.revokeObjectURL(url);
+  });
 }
 
 // Live plaintext/ciphertext demo — runs the exact same encryptTask() every real
@@ -2143,6 +2289,97 @@ function wireAddModal() {
   });
 }
 
+// ---------- time tracking + Pomodoro (Ecosystem & polish) ----------
+// Scoped to whichever task's edit modal is currently open — there's no
+// background timer that keeps running once the modal closes. Closing the
+// modal (Cancel, Save, Delete, or clicking outside) always saves whatever
+// time has actually elapsed first, never discards it.
+const POMODORO_DURATION_SECONDS = 25 * 60;
+let pomodoroInterval = null;
+let pomodoroRemainingSeconds = POMODORO_DURATION_SECONDS;
+let pomodoroElapsedThisSession = 0;
+let pomodoroTaskId = null;
+
+function formatDuration(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function formatCountdown(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function updatePomodoroUI() {
+  document.getElementById("pomodoroDisplay").textContent = formatCountdown(pomodoroRemainingSeconds);
+  document.getElementById("pomodoroStartBtn").hidden = !!pomodoroInterval;
+  document.getElementById("pomodoroPauseBtn").hidden = !pomodoroInterval;
+}
+
+// Called whenever the edit modal opens, so the countdown/total always
+// reflect the task actually being viewed rather than a stale previous one.
+function resetPomodoroStateForTask(task) {
+  pomodoroRemainingSeconds = POMODORO_DURATION_SECONDS;
+  pomodoroElapsedThisSession = 0;
+  pomodoroTaskId = task.id;
+  updatePomodoroUI();
+  document.getElementById("pomodoroTotal").textContent = `Total: ${formatDuration(task.timeSpentSeconds || 0)}`;
+}
+
+function startPomodoro() {
+  if (pomodoroInterval) return;
+  pomodoroInterval = setInterval(() => {
+    pomodoroRemainingSeconds--;
+    pomodoroElapsedThisSession++;
+    updatePomodoroUI();
+    if (pomodoroRemainingSeconds <= 0) stopAndSavePomodoro({ resetCountdown: true });
+  }, 1000);
+  updatePomodoroUI();
+}
+
+function pausePomodoro() {
+  if (pomodoroInterval) {
+    clearInterval(pomodoroInterval);
+    pomodoroInterval = null;
+  }
+  updatePomodoroUI();
+}
+
+// Persists whatever elapsed this session (if any) onto the task's running
+// total, then clears the in-progress session state. `logHistory: false` —
+// same reasoning as reorders (docs comment on persistTask): a time-tracking
+// tick isn't a meaningful content-audit event the way a title/status change
+// is, so it doesn't need its own signed history entry.
+async function stopAndSavePomodoro({ resetCountdown } = {}) {
+  if (pomodoroInterval) {
+    clearInterval(pomodoroInterval);
+    pomodoroInterval = null;
+  }
+  if (pomodoroElapsedThisSession > 0 && pomodoroTaskId) {
+    const task = tasks.find((t) => t.id === pomodoroTaskId);
+    if (task) {
+      task.timeSpentSeconds = (task.timeSpentSeconds || 0) + pomodoroElapsedThisSession;
+      task.updatedAt = now();
+      await persistTask(task, "update", false);
+      const totalEl = document.getElementById("pomodoroTotal");
+      if (totalEl) totalEl.textContent = `Total: ${formatDuration(task.timeSpentSeconds)}`;
+      render(); // otherwise the card's time-spent badge stays stale until some unrelated render
+    }
+  }
+  pomodoroElapsedThisSession = 0;
+  if (resetCountdown) pomodoroRemainingSeconds = POMODORO_DURATION_SECONDS;
+  updatePomodoroUI();
+}
+
+function wirePomodoro() {
+  document.getElementById("pomodoroStartBtn").addEventListener("click", () => startPomodoro());
+  document.getElementById("pomodoroPauseBtn").addEventListener("click", () => pausePomodoro());
+  document.getElementById("pomodoroResetBtn").addEventListener("click", () => stopAndSavePomodoro({ resetCountdown: true }));
+}
+
 function wireEditModal() {
   const overlay = document.getElementById("editModal");
   const form = document.getElementById("editForm");
@@ -2170,15 +2407,15 @@ function wireEditModal() {
     const values = readEditForm();
     if (!values.title) return;
     updateTask({ ...values, subtasks: editSubtasksDraft });
-    closeEditModal();
+    closeEditModalAndSaveTimer();
   });
 
-  cancelBtn.addEventListener("click", () => closeEditModal());
+  cancelBtn.addEventListener("click", () => closeEditModalAndSaveTimer());
 
   deleteBtn.addEventListener("click", () => {
     const id = document.getElementById("editId").value;
     deleteTasksWithUndo([id]);
-    closeEditModal();
+    closeEditModalAndSaveTimer();
   });
 
   document.getElementById("editShareBtn").addEventListener("click", () => {
@@ -2188,8 +2425,15 @@ function wireEditModal() {
   });
 
   overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) closeEditModal();
+    if (e.target === overlay) closeEditModalAndSaveTimer();
   });
+}
+
+// Closing the edit modal by any path always stops and saves an in-progress
+// Pomodoro session first — see the module comment above wirePomodoro().
+function closeEditModalAndSaveTimer() {
+  stopAndSavePomodoro({ resetCountdown: true });
+  closeEditModal();
 }
 
 // ---------- share links (fresh-key, no account, Layer 2) ----------
@@ -2383,8 +2627,13 @@ function getCmdkItems() {
       label: "Insights",
       action: () => { view = "insights"; setView(view); render(); },
     },
+    {
+      label: "Calendar",
+      action: () => { view = "calendar"; setView(view); render(); },
+    },
     { label: "Export all tasks as JSON", hint: ".json", action: exportTasks },
-    { label: "Import tasks from JSON", action: () => document.getElementById("importFileInput").click() },
+    { label: "Import tasks from JSON or CSV", action: () => document.getElementById("importFileInput").click() },
+    { label: "New from template", action: openTemplateModal },
     { label: "Sync settings", action: openSyncModal },
     { label: "Set up social recovery", action: openSocialRecoveryModal },
     { label: "Add a passkey", action: openPasskeyModal },
@@ -2838,6 +3087,15 @@ function wireLockButton() {
     tasks = [];
     ephemeralTaskKeys.clear();
     automationRules = [];
+    // Locking mid-Pomodoro just drops the in-progress session rather than
+    // trying to persist against a `dek` that's about to become null — the
+    // same trade-off closing the tab mid-session already has.
+    if (pomodoroInterval) {
+      clearInterval(pomodoroInterval);
+      pomodoroInterval = null;
+    }
+    pomodoroElapsedThisSession = 0;
+    pomodoroRemainingSeconds = POMODORO_DURATION_SECONDS;
     if (ephemeralSweepInterval) {
       clearInterval(ephemeralSweepInterval);
       ephemeralSweepInterval = null;
@@ -2887,7 +3145,22 @@ async function boot() {
   wirePasskeyModal();
   wireDecoyVaultModal();
   wireAutomationModal();
+  wireCalendarView();
+  wirePomodoro();
+  wireTemplateModal();
 }
 
 wireThemeToggle();
 boot();
+
+// PWA app-shell offline cache — registered unconditionally at load, not
+// gated behind unlock, since it's about the static assets loading at all
+// while offline, not the (already-offline-capable) task data itself. See
+// docs/ARCHITECTURE.md "PWA install".
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((err) => {
+      console.error("Service worker registration failed (app still works fully online):", err);
+    });
+  });
+}
