@@ -141,9 +141,36 @@ data."*
 
 ### On-device AI (the genuinely current, distinctive one)
 
-- [ ] On-device AI assistant — LLM via WebGPU that prioritises, breaks down, and plans, running
-      locally so tasks never touch a cloud model; demo = zero network requests — Research ·
-      Signal: very high
+- [x] On-device AI assistant — Research · Signal: very high. Shipped: a real
+      instruction-tuned model (HuggingFaceTB/SmolLM2-135M-Instruct, int8
+      ONNX, ~140MB) running via transformers.js/onnxruntime-web, entirely
+      client-side, for two actions — "what should I focus on today"
+      (summarizes open tasks) and "break this task into subtasks"
+      (suggestions staged for review, never auto-added). Opt-in only:
+      nothing downloads until the user clicks Enable. **WASM, not
+      WebGPU** — the roadmap line's "via WebGPU" doesn't hold as written:
+      onnxruntime-web's WebGPU entry point has a static top-level import of
+      a bare module specifier (`onnxruntime-web/webgpu`) meant to be
+      resolved by a bundler, and this project ships zero build step by
+      design (see "Verifiable frontend," Layer 2). A browser import map
+      resolves it well enough to *load*, but forcing `device: "wasm"` was
+      still necessary and is the actual execution path — real GPU
+      acceleration would need either a bundler or a bespoke browser-native
+      WebGPU integration, neither of which fits this project's
+      no-build-step constraint today. **Model weights aren't vendored** —
+      fetched once from Hugging Face's CDN (a few hundred MB doesn't
+      belong in this git repo or a Cloudflare Pages deploy), then cached
+      via the browser's Cache API, so every use after the first is fully
+      offline. **Measured, not estimated, timing** (this machine, single-
+      threaded CPU WASM): ~25s model load, ~85s to generate a ~150-token
+      reply — genuinely slow, and the UI is built around that honestly
+      (a progress bar during download, explicit "this can take about a
+      minute" copy, and a capped `max_new_tokens` to bound the wait)
+      rather than pretending it's instant. See docs/ARCHITECTURE.md
+      "On-device AI assistant" for the full scope, including the Safari
+      gap (a different, non-vendored WASM binary is needed there) and why
+      the Playwright test for this feature mocks the model call instead
+      of running a real multi-hundred-MB download in the test suite.
 - [x] Local automation / rules engine — Med. Shipped: three triggers (task
       marked Done, due date passes while not Done, task created with a
       specific tag) × five actions (add/remove tag, set priority, set

@@ -38,6 +38,12 @@ import {
   renderAutomationRulesList,
   renderInsights,
   renderCalendar,
+  renderAssistantTaskOptions,
+  setAssistantProgress,
+  showAssistantEnabled,
+  setAssistantOutputText,
+  setAssistantSuggestions,
+  getSelectedAssistantSuggestions,
   setPageSubtitle,
   openCmdk,
   closeCmdk,
@@ -53,7 +59,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260806a";
+} from "./ui.js?v=20260807a";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -115,6 +121,19 @@ let tagFilter = "";
 let sortMode = "manual";
 let draggedId = null;
 let dek = null; // the in-memory DEK CryptoKey — null whenever locked
+
+// ---------- AI assistant (Layer 3, js/ai.js) ----------
+// js/ai.js is dynamically imported (not a static top-of-file import like
+// every other module here) specifically so nobody who never opens the AI
+// panel and clicks Enable ever fetches it — matching the "opt-in, nothing
+// downloads until you ask" claim in the panel's own copy and in
+// docs/ARCHITECTURE.md "On-device AI assistant".
+let assistantModule = null;
+let assistantEnabled = false;
+async function getAssistantModule() {
+  if (!assistantModule) assistantModule = await import("./ai.js?v=20260807a");
+  return assistantModule;
+}
 
 // Per-device Ed25519 identity for the tamper-evident history log (docs/
 // ARCHITECTURE.md "Tamper-evident signed task history") — distinct from the
@@ -447,6 +466,7 @@ function render() {
       },
     });
   }
+  if (view === "assistant") renderAssistantTaskOptions(tasks);
   scheduleEphemeralSweep();
   scheduleAutomationSweep();
 }
@@ -2090,6 +2110,91 @@ function wireViewToggle() {
     setView(view);
     render();
   });
+  document.getElementById("viewAssistantBtn").addEventListener("click", () => {
+    view = "assistant";
+    setView(view);
+    render();
+    if (assistantEnabled) showAssistantEnabled();
+  });
+}
+
+// ---------- AI assistant (Layer 3, js/ai.js) ----------
+
+function wireAssistantView() {
+  document.getElementById("assistantEnableBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("assistantEnableBtn");
+    btn.disabled = true;
+    setAssistantProgress(0, "Starting…");
+    try {
+      const { loadAssistant } = await getAssistantModule();
+      await loadAssistant((progress) => {
+        if (progress.status === "progress" && progress.total) {
+          const pct = Math.round((progress.loaded / progress.total) * 100);
+          setAssistantProgress(progress.loaded / progress.total, `Downloading model… ${pct}%`);
+        } else if (progress.status === "progress_total" && progress.total) {
+          setAssistantProgress(progress.progress / 100, `Downloading model… ${Math.round(progress.progress)}%`);
+        } else if (progress.status === "ready") {
+          setAssistantProgress(1, "Ready.");
+        }
+      });
+      assistantEnabled = true;
+      showAssistantEnabled();
+    } catch (err) {
+      setAssistantProgress(null, null);
+      btn.disabled = false;
+      showInfoToast("Couldn't load the AI assistant — check your connection and try again.");
+    }
+  });
+
+  document.getElementById("assistantFocusBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("assistantFocusBtn");
+    btn.disabled = true;
+    setAssistantOutputText("Thinking… this can take about a minute on your device.");
+    try {
+      const { generateFocusSummary } = await getAssistantModule();
+      const reply = await generateFocusSummary(tasks);
+      setAssistantOutputText(reply || "(no response)");
+    } catch (err) {
+      setAssistantOutputText("Something went wrong generating a response. Try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("assistantBreakdownBtn").addEventListener("click", async () => {
+    const select = document.getElementById("assistantTaskSelect");
+    const task = tasks.find((t) => t.id === select.value);
+    if (!task) {
+      showInfoToast("Add a task first, then pick it here.");
+      return;
+    }
+    const btn = document.getElementById("assistantBreakdownBtn");
+    btn.disabled = true;
+    setAssistantOutputText("Thinking… this can take about a minute on your device.");
+    try {
+      const { generateSubtaskSuggestions } = await getAssistantModule();
+      const suggestions = await generateSubtaskSuggestions(task);
+      if (suggestions.length === 0) setAssistantOutputText("No suggestions came back — try again or rephrase the task title.");
+      else setAssistantSuggestions(suggestions);
+    } catch (err) {
+      setAssistantOutputText("Something went wrong generating suggestions. Try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("assistantAddSubtasksBtn").addEventListener("click", async () => {
+    const select = document.getElementById("assistantTaskSelect");
+    const task = tasks.find((t) => t.id === select.value);
+    const selected = getSelectedAssistantSuggestions();
+    if (!task || selected.length === 0) return;
+    task.subtasks = [...(task.subtasks || []), ...selected.map((title) => ({ id: uuid(), title, done: false }))];
+    task.updatedAt = now();
+    await persistTask(task, "update");
+    render();
+    setAssistantOutputText(`Added ${selected.length} subtask${selected.length === 1 ? "" : "s"} to "${task.title}".`);
+    showInfoToast(`Added ${selected.length} subtask${selected.length === 1 ? "" : "s"}.`);
+  });
 }
 
 function wireCalendarView() {
@@ -3148,6 +3253,7 @@ async function boot() {
   wireCalendarView();
   wirePomodoro();
   wireTemplateModal();
+  wireAssistantView();
 }
 
 wireThemeToggle();

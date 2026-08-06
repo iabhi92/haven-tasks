@@ -497,6 +497,81 @@ recomputes everything fresh from the current board, same as every other view in 
   vs. per-task subtask completion rate) plus Playwright coverage of the panel updating live as
   tasks are added/completed.
 
+## 4h. On-device AI assistant (Layer 3)
+
+A real small language model — [HuggingFaceTB/SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct),
+int8-quantized ONNX, ~140MB — running entirely in the browser via
+[transformers.js](https://github.com/huggingface/transformers.js) on top of onnxruntime-web's WASM
+backend. `js/ai.js` is the whole interface: `loadAssistant()`, `generateFocusSummary(tasks)`,
+`generateSubtaskSuggestions(task)`. Two actions in the AI assistant panel (`app.html`'s
+`assistantView`, wired in `js/app.js`'s `wireAssistantView()`):
+
+- **"What should I focus on today?"** — sends the open (non-done) tasks' titles, due dates,
+  priorities, and statuses (not notes — kept out purely to keep the prompt short, not for privacy;
+  everything here runs on-device regardless) and asks for a short, specific answer.
+- **"Break a task into subtasks"** — asks for 3-6 concrete subtasks for a chosen task. Suggestions
+  are shown as a checklist for review; nothing is added to the task until the user picks which
+  ones and clicks "Add selected," going through the exact same `persistTask()` path a hand-typed
+  subtask would — same encryption, same tamper-evident history entry, same automation-rule
+  triggers. The model's output is a *suggestion staged for review*, structurally no different from
+  a template's starter tasks (§9) once accepted.
+
+**Nothing here ever leaves the device except the one-time model download.** Once
+`HuggingFaceTB/SmolLM2-135M-Instruct`'s files are fetched from Hugging Face's CDN — the only
+network request this feature ever makes — the browser's Cache API (`env.useBrowserCache = true`)
+keeps them, so every subsequent use, including offline, is a pure local WASM computation. Loading
+is opt-in: nothing downloads until the user clicks "Enable AI assistant" in the panel.
+
+**Why WASM, not WebGPU** — the roadmap line for this feature said "via WebGPU." That's not what
+shipped, for a concrete, discovered-not-assumed reason: `transformers.min.js` (the vendored
+browser build) contains a *static* top-level `import * as X from "onnxruntime-web/webgpu"` —
+executed unconditionally at module-load time regardless of which device you actually request at
+runtime. Bare specifiers like that are meant to be rewritten by a bundler (Vite, webpack, esbuild)
+into a real URL; this project ships zero build step by design (§5d, "Verifiable frontend"), so the
+browser can't resolve it natively. A native browser **import map** (`app.html`'s
+`<script type="importmap">`, mapping `onnxruntime-web/webgpu` and the further bare specifier it
+pulls in, `onnxruntime-common`, to vendored local files) fixes the *load* error — but the feature
+still explicitly forces `device: "wasm"` rather than `"auto"`, because getting the module graph to
+resolve is a different problem from onnxruntime-web's WebGPU execution provider actually working
+well in an unbundled page, which wasn't verified and wasn't the point of this pass. Real GPU
+acceleration here is future work, gated on either a bundler or a from-scratch browser-native WebGPU
+integration — see `vendor/transformers/SOURCE.md` for the exact import-map mechanics.
+
+**This required loosening the site's CSP — three specific, tested-not-assumed additions to
+`script-src`**, each hit and fixed in sequence while getting the pipeline to actually run under
+this site's real policy rather than an unrestricted scratch page: a `sha256-` hash for the one
+inline import map above (inline `<script>` tags need a matching hash or nonce under
+`script-src 'self'`; an external `<script type="importmap" src="...">` was tried first since it
+needs no hash at all, but didn't reliably apply before the module graph that needs it started
+resolving, so this shipped as inline instead); `blob:`, because onnxruntime-web's worker-loading
+path dynamically imports a `blob:` URL; and `'wasm-unsafe-eval'`, the CSP Level 3 token that
+permits `WebAssembly.instantiate()` specifically, without granting the general `eval()`/`Function()`
+access the broader `'unsafe-eval'` would. See docs/THREAT_MODEL.md's A5 entry for the honest
+security cost of this widening.
+
+**Measured, not estimated, performance** (single-threaded CPU WASM — threaded WASM needs
+`SharedArrayBuffer`, which needs cross-origin isolation headers this site doesn't set, so it's
+pinned off rather than silently failing at runtime): model load took ~25s, and generating a
+~150-token reply took ~85.6s in the standalone test this feature's design is based on. That's slow
+enough that pretending otherwise would make the feature feel broken, so the UI doesn't try:
+a visible progress bar during download, explicit "this can take about a minute" copy before every
+generation, and `MAX_NEW_TOKENS = 110` in `js/ai.js` to keep worst-case wait bounded rather than
+open-ended.
+
+**What isn't covered:**
+- **Safari.** The vendored WASM runtime pair (`ort-wasm-simd-threaded.asyncify.wasm/.mjs`) is the
+  one onnxruntime-web loads by default in non-Safari browsers; Safari uses a different pair
+  upstream that isn't vendored here. The feature will fail to load on Safari today.
+- **Answer quality.** 135M parameters is genuinely small — answers are plain and sometimes generic,
+  not the kind of reasoning a larger hosted model would give. That's the deliberate trade-off for
+  "small enough to download once and run on a phone-class CPU," not a bug.
+- **Test coverage.** Unlike this project's other pure-logic modules, there's no
+  `js/ai.test.mjs` and the Playwright coverage for this feature mocks `js/ai.js`'s exports rather
+  than running a real multi-hundred-MB download and a ~2-minute generation inside the test suite.
+  The standalone scratch test this section's numbers come from *did* run the real pipeline
+  end-to-end (real download, real model, real generation) — that's real evidence the feature
+  works, just not re-run on every test pass the way the rest of this codebase's claims are.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

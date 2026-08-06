@@ -211,7 +211,11 @@
   over.
 - **Defenses:**
   - Strict CSP: `default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none';
-    frame-ancestors 'none'`. No inline scripts, no `eval`, no third-party script origins.
+    frame-ancestors 'none'`. No third-party script origins, ever. `app.html` alone carries three
+    narrow, tested-not-assumed additions for the on-device AI assistant (`blob:`,
+    `'wasm-unsafe-eval'`, one fixed `sha256-` hash for its single inline import map) — see the
+    dedicated note below and docs/ARCHITECTURE.md §4h. No general `'unsafe-inline'` or
+    `'unsafe-eval'` anywhere.
   - **Never** render task content with `innerHTML`. Use `textContent` exclusively for anything
     user-supplied. (Enforced starting Phase 1 — see `js/ui.js`.)
   - No CDN dependencies — vendor everything locally.
@@ -227,6 +231,22 @@
   enables it isn't exposed to this — but it's a genuine widening of the blast radius the moment
   sync is turned on, not a cost-free feature. No mitigation beyond "don't let XSS happen" exists
   for this specific trade-off; noted here so it's an informed choice, not a hidden one.
+- **Widened by the on-device AI assistant (docs/ARCHITECTURE.md §4h):** `script-src` now also
+  allows `blob:`, `'wasm-unsafe-eval'`, and one specific `sha256-` hash. Each was added only after
+  testing showed it was actually required, not assumed up front: the hash permits exactly
+  `app.html`'s one inline `<script type="importmap">` element (needed because the AI runtime has
+  two bare module specifiers a no-build-step page can't otherwise resolve) and nothing else;
+  `blob:` lets onnxruntime-web's worker-loading pattern (a dynamic `import()` of a `blob:` URL)
+  run; `wasm-unsafe-eval` is the CSP Level 3 token that permits `WebAssembly.instantiate()`
+  specifically — a real, narrower grant than the general `'unsafe-eval'`, which would also enable
+  arbitrary `eval()`/`Function()` and wasn't added. **Real-world cost:** an attacker who already
+  has some script/HTML injection primitive gains a marginally wider toolkit — a same-origin-
+  constructed `blob:` URL is now loadable as a script, and WASM compilation is available where it
+  wasn't before. Neither token alone grants arbitrary JS execution the way `'unsafe-eval'` would,
+  and the hash permits nothing beyond this file's one fixed script. Like the sync widening above,
+  this is opt-in in spirit — someone who never opens the AI panel never causes this code to run —
+  but the CSP itself is a static, sitewide grant regardless of whether any individual visitor uses
+  the feature, so it's listed here as a real, informed trade-off, not a cost-free one.
 
 ### A6. Clickjacking / UI redress
 - **Defense:** `frame-ancestors 'none'` (CSP) and/or `X-Frame-Options: DENY`.

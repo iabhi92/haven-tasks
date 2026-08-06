@@ -10,8 +10,19 @@
      the whole policy. Documented as a real trade-off in docs/THREAT_MODEL.md,
      not a silent loosening: an XSS payload could now fetch() plaintext to an
      arbitrary origin, whereas without sync it could only reach this app's own
-     origin. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
+     origin.
+     script-src's three extra tokens all exist solely for the AI assistant's WASM
+     model runtime (js/ai.js, docs/ARCHITECTURE.md "On-device AI assistant") and
+     were each added only after testing showed they were actually required, not
+     assumed up front: the sha256 hash allows exactly this file's inline import
+     map (needed to resolve two bare module specifiers a no-build-step page can't
+     otherwise resolve — see vendor/transformers/SOURCE.md) and nothing else;
+     blob: lets onnxruntime-web's worker-loading pattern (a dynamic import of a
+     blob: URL) run; wasm-unsafe-eval is the CSP Level 3 WASM-specific token that
+     permits WebAssembly.instantiate() without granting general eval()/Function()
+     the way the broader 'unsafe-eval' would. See docs/THREAT_MODEL.md for the
+     honest trade-off this represents. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval' 'sha256-m7pQq+geUzeY8Wtkezps0JNcYG5V4DCgpypCGbsaXB4='; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Private todos. No account, works offline, and nobody — including us — can read them.">
 <title>Haven — private tasks</title>
@@ -30,7 +41,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260806a" integrity="sha384-yYwhUOE6BLsw5Lvt72DrX7uWtITPCjrwlt8v9CbMH2kkMLneTyjK3d4qH9TSYMNU" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260806a" integrity="sha384-NIo6BN8P4UQUGxa0aDROeAW1MVvm8LgrO0q1GqHKe+E5MRpCvlLrI3yFuHYvhtxa" crossorigin="anonymous">
 </head>
 <body>
 
@@ -162,6 +173,12 @@
       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <rect x="3" y="4.5" width="14" height="12" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect>
         <path d="M3 8h14M7 3v3M13 3v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+      </svg>
+    </button>
+    <button type="button" class="rail-btn" id="viewAssistantBtn" role="tab" aria-selected="false" aria-label="AI assistant" title="AI assistant">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M10 2.5l1.4 3.8 3.8 1.4-3.8 1.4L10 13l-1.4-3.8-3.8-1.4 3.8-1.4L10 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+        <path d="M15.5 12l.8 2.2L18.5 15l-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
       </svg>
     </button>
   </nav>
@@ -411,6 +428,46 @@
           gives you a standard .ics file to import into Google Calendar, Apple Calendar, or Outlook —
           a one-time copy, not a live sync back to Haven.</p>
         <div class="calendar-grid" id="calendarGrid"></div>
+      </section>
+    </div>
+
+    <div id="assistantView" class="reveal-view" hidden>
+      <section class="reveal-section">
+        <h2>AI assistant</h2>
+        <p class="reveal-intro">A small language model that runs entirely in your browser — it
+          never sends a task, a title, or a note anywhere. Off by default: nothing downloads until
+          you click Enable below. The download (about 140MB, once) does need the internet; after
+          that, generating an answer is a local computation with zero network requests, even
+          offline. It's genuinely small, so answers are useful but plain-spoken, not polished —
+          and on this device it takes roughly a minute per answer, not a few seconds.</p>
+
+        <div id="assistantEnableCard" class="assistant-enable-card">
+          <button type="button" class="btn btn-primary" id="assistantEnableBtn">Enable AI assistant</button>
+          <div id="assistantProgress" class="assistant-progress" hidden>
+            <div class="assistant-progress-bar"><div id="assistantProgressFill" class="assistant-progress-fill"></div></div>
+            <p id="assistantProgressLabel" class="assistant-progress-label">Starting…</p>
+          </div>
+        </div>
+
+        <div id="assistantActions" class="assistant-actions" hidden>
+          <div class="assistant-action-card">
+            <h3>What should I focus on today?</h3>
+            <p class="assistant-action-sub">Looks at your open tasks and suggests where to start.</p>
+            <button type="button" class="btn btn-secondary" id="assistantFocusBtn">Ask</button>
+          </div>
+          <div class="assistant-action-card">
+            <h3>Break a task into subtasks</h3>
+            <p class="assistant-action-sub">Pick a task; review suggestions before adding any.</p>
+            <select id="assistantTaskSelect" class="assistant-task-select"></select>
+            <button type="button" class="btn btn-secondary" id="assistantBreakdownBtn">Suggest subtasks</button>
+          </div>
+        </div>
+
+        <div id="assistantOutput" class="assistant-output" hidden>
+          <div id="assistantOutputText" class="assistant-output-text"></div>
+          <ul id="assistantSuggestionList" class="assistant-suggestion-list" hidden></ul>
+          <button type="button" class="btn btn-primary" id="assistantAddSubtasksBtn" hidden>Add selected as subtasks</button>
+        </div>
       </section>
     </div>
 
@@ -964,6 +1021,26 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260806a" integrity="sha384-0DuhTryK6vtgv1h/4YNkmUL6L2M/nZs/mkOcFDi1fUyLdrS2Z5OGQaDOIYyAI2nb" crossorigin="anonymous" type="module"></script>
+<!-- Resolves two bare module specifiers that vendor/transformers/transformers.min.js
+     imports statically at the top of its module graph (used by the AI assistant,
+     js/ai.js — loaded lazily, only if that feature is enabled). Both are needed even
+     though the assistant forces device:"wasm", since the imports execute unconditionally
+     regardless of which device is actually requested at runtime. Browsers resolve import
+     maps for *all* module loads on the page, static or dynamic, as long as the map is
+     declared before first use — see vendor/transformers/SOURCE.md.
+     Inline, not external `src`: tried external (a same-origin importmap.json, no inline-
+     script hash to maintain) first, but it didn't reliably apply before the module graph
+     that needs it started resolving — found by testing, not assumed; see
+     vendor/transformers/SOURCE.md. Inline requires this exact content to have a matching
+     CSP script hash below (script-src in both this file's <meta> tag and _headers) since
+     this site's CSP has no 'unsafe-inline' — regenerate both if this block's content ever
+     changes, the same discipline as bumping a ?v= string. -->
+<script type="importmap">
+{ "imports": {
+  "onnxruntime-web/webgpu": "/vendor/transformers/ort.webgpu.bundle.min.mjs",
+  "onnxruntime-common": "/vendor/transformers/onnxruntime-common/index.js"
+} }
+</script>
+<script src="js/app.js?v=20260807a" integrity="sha384-HQFdpbIbwazNIN0aYHGm8PcZ+w+9trwk7x9FvBexCtIcoFzfZftRaclRaVMCaV4f" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

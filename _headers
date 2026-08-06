@@ -4,8 +4,13 @@
 # this file, but a meta tag alone can't enforce frame-ancestors (browsers ignore
 # it there) and only takes effect after the HTML starts parsing. Keep both in
 # sync by hand — there's no build step to generate one from the other.
+# script-src's blob:/wasm-unsafe-eval/sha256-hash tokens exist only for
+# app.html's AI assistant (js/ai.js) — see the longer comment beside app.html's
+# own <meta> CSP tag and docs/ARCHITECTURE.md "On-device AI assistant" for why
+# each was needed. Applied sitewide since this file has one policy for
+# everything, but they're inert on every page that isn't app.html.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;
+  Content-Security-Policy: default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval' 'sha256-m7pQq+geUzeY8Wtkezps0JNcYG5V4DCgpypCGbsaXB4='; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer

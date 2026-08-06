@@ -257,8 +257,8 @@ export function renderList(tasks, handlers) {
   }
 }
 
-const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView", insights: "insightsView", calendar: "calendarView" };
-const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn", insights: "viewInsightsBtn", calendar: "viewCalendarBtn" };
+const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView", insights: "insightsView", calendar: "calendarView", assistant: "assistantView" };
+const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn", insights: "viewInsightsBtn", calendar: "viewCalendarBtn", assistant: "viewAssistantBtn" };
 
 export function setView(view) {
   for (const key of Object.keys(VIEW_PANEL_IDS)) {
@@ -280,11 +280,12 @@ export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
   const empty = document.getElementById("emptyState");
   const noResults = document.getElementById("noResultsState");
 
-  // The reveal, history, insights, and calendar pages don't depend on
-  // whether any real tasks exist — all four must stay reachable even on a
-  // genuinely empty board (insights/calendar just show an empty state
-  // rather than being unreachable).
-  if (view === "reveal" || view === "history" || view === "insights" || view === "calendar") {
+  // The reveal, history, insights, calendar, and assistant pages don't
+  // depend on whether any real tasks exist — all five must stay reachable
+  // even on a genuinely empty board (insights/calendar just show an empty
+  // state rather than being unreachable; the assistant is useful even
+  // before any tasks exist, since enabling it doesn't require any).
+  if (view === "reveal" || view === "history" || view === "insights" || view === "calendar" || view === "assistant") {
     empty.hidden = true;
     noResults.hidden = true;
     setView(view);
@@ -900,6 +901,70 @@ export function renderCalendar(monthDate, tasks, { onOpenTask } = {}) {
 
     grid.appendChild(cell);
   }
+}
+
+// ---------- AI assistant (js/ai.js) ----------
+
+export function renderAssistantTaskOptions(tasks) {
+  const select = document.getElementById("assistantTaskSelect");
+  const previous = select.value;
+  select.textContent = "";
+  const openTasks = tasks.filter((t) => !t.destructed && t.status !== "done");
+  for (const t of openTasks) {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = t.title;
+    select.appendChild(opt);
+  }
+  if (openTasks.some((t) => t.id === previous)) select.value = previous;
+}
+
+export function setAssistantProgress(fraction, label) {
+  const wrap = document.getElementById("assistantProgress");
+  const fill = document.getElementById("assistantProgressFill");
+  const labelEl = document.getElementById("assistantProgressLabel");
+  wrap.hidden = fraction === null;
+  if (fraction !== null) fill.style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
+  if (label) labelEl.textContent = label;
+}
+
+export function showAssistantEnabled() {
+  document.getElementById("assistantEnableCard").hidden = true;
+  document.getElementById("assistantActions").hidden = false;
+}
+
+export function setAssistantOutputText(text) {
+  document.getElementById("assistantOutput").hidden = false;
+  document.getElementById("assistantOutputText").hidden = false;
+  document.getElementById("assistantOutputText").textContent = text;
+  document.getElementById("assistantSuggestionList").hidden = true;
+  document.getElementById("assistantAddSubtasksBtn").hidden = true;
+}
+
+export function setAssistantSuggestions(suggestions) {
+  const list = document.getElementById("assistantSuggestionList");
+  document.getElementById("assistantOutput").hidden = false;
+  document.getElementById("assistantOutputText").hidden = true;
+  list.hidden = false;
+  list.textContent = "";
+  for (const s of suggestions) {
+    const item = el("li", "assistant-suggestion-item");
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = true;
+    checkbox.value = s;
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(" " + s));
+    item.appendChild(label);
+    list.appendChild(item);
+  }
+  const addBtn = document.getElementById("assistantAddSubtasksBtn");
+  addBtn.hidden = suggestions.length === 0;
+}
+
+export function getSelectedAssistantSuggestions() {
+  return [...document.querySelectorAll("#assistantSuggestionList input[type=checkbox]:checked")].map((c) => c.value);
 }
 
 export function getDragAfterElement(container, y) {

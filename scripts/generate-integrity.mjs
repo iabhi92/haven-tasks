@@ -86,7 +86,20 @@ for (const asset of ENTRY_ASSETS) {
 // dynamic `import`). There is no browser-enforced protection for these
 // files today; the manifest below is the "compare it yourself" mechanism
 // instead — see docs/SECURITY.md for exactly how to do that.
-const otherFiles = [...listFiles("js", ".js"), ...listFiles("js", ".mjs")]
+// vendor/transformers/* (the AI assistant's runtime, js/ai.js's dynamic
+// import target — see vendor/transformers/SOURCE.md) is included here too,
+// for the same "compare it yourself" reason, even though it's third-party
+// code: it's still same-origin bytes this page can execute. The .wasm
+// binary is opaque either way, but hashing it costs nothing and means a
+// silent substitution wouldn't go unnoticed if anyone checks.
+const otherFiles = [
+  ...listFiles("js", ".js"),
+  ...listFiles("js", ".mjs"),
+  ...listFiles("vendor/transformers", ".js"),
+  ...listFiles("vendor/transformers", ".mjs"),
+  ...listFiles("vendor/transformers", ".wasm"),
+  ...listFiles("vendor/transformers/onnxruntime-common", ".js"),
+]
   .filter((f) => !ENTRY_ASSETS.some((a) => a.file === f))
   .concat(listFiles("css", ".css").filter((f) => !ENTRY_ASSETS.some((a) => a.file === f)));
 
