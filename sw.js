@@ -8,7 +8,7 @@
 // No build step here either — this list is hand-maintained the same way
 // the ?v= cache-bust query strings on these same files already are. Bump
 // CACHE_NAME (and this list, if a file's ?v= changes) together with those.
-const CACHE_NAME = "haven-shell-v3";
+const CACHE_NAME = "haven-shell-v4";
 const APP_SHELL = [
   "/app.html",
   "/manifest.json",
@@ -56,6 +56,31 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   const path = url.pathname + url.search;
   if (!APP_SHELL.includes(path)) return;
+
+  // The HTML shell itself is network-first, not cache-first, unlike every
+  // other entry here — found the hard way: app.html references every other
+  // asset by a ?v= URL and a matching SRI hash, so a *stale cached copy of
+  // app.html* can point at ?v= URLs/hashes that no longer match what a
+  // fresh deploy now serves at those same paths. Real-world result: a
+  // returning visitor's already-installed SW would serve its old cached
+  // app.html straight after a deploy, whose embedded integrity hash for
+  // js/app.js no longer matched the freshly-fetched (newer) js/app.js —
+  // the browser silently blocks the mismatched script, breaking the page,
+  // until a *second* load let the SW's own background update catch up.
+  // Preferring the network for the shell (falling back to the cache only
+  // when actually offline) removes that transitional broken state
+  // entirely, rather than just shortening it.
+  if (path === "/app.html") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
