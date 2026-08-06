@@ -12,12 +12,12 @@ import {
   getAllRules,
   putRule,
   deleteRule,
-} from "./store.js?v=20260806a";
-import { evaluateTask } from "./automation.js?v=20260806a";
-import { computeInsights } from "./insights.js?v=20260806a";
-import { generateICS } from "./ical.js?v=20260806a";
-import { parseCSVToTasks } from "./csv.js?v=20260806a";
-import { TEMPLATES, findTemplate } from "./templates.js?v=20260806a";
+} from "./store.js?v=20260807a";
+import { evaluateTask } from "./automation.js?v=20260807a";
+import { computeInsights } from "./insights.js?v=20260807a";
+import { generateICS } from "./ical.js?v=20260807a";
+import { parseCSVToTasks } from "./csv.js?v=20260807a";
+import { TEMPLATES, findTemplate } from "./templates.js?v=20260807a";
 import {
   renderBoard,
   renderList,
@@ -92,13 +92,13 @@ import {
   decodeShare,
   generateHardwareSecret,
   wrapRawBytes,
-} from "./crypto.js?v=20260806a";
+} from "./crypto.js?v=20260807a";
 import {
   isWebAuthnAvailable,
   registerPasskey,
   writeLargeBlob,
   readLargeBlob,
-} from "./webauthn.js?v=20260806a";
+} from "./webauthn.js?v=20260807a";
 import {
   generateSyncToken,
   pushRecords,
@@ -107,7 +107,7 @@ import {
   pullKeyringBootstrap,
   pushShare,
   deleteShare,
-} from "./sync.js?v=20260806a";
+} from "./sync.js?v=20260807a";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
