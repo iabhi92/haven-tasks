@@ -7,7 +7,7 @@
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="index, follow">
 <meta name="theme-color" content="#0f0f0f">
-<meta name="description" content="How Haven actually protects your tasks: client-side AES-256-GCM encryption, a published threat model, tamper-evident history, and a server that only ever sees ciphertext. No marketing claims — the real architecture.">
+<meta name="description" content="How Haven actually protects your tasks: client-side AES-256-GCM encryption, a published threat model, tamper-evident history, and a server that only ever sees ciphertext. No marketing claims, just the real architecture.">
 <title>Security — how Haven actually protects your data</title>
 <link rel="canonical" href="https://taskhavens.com/security.html">
 <link rel="icon" href="/favicon.ico">
@@ -57,7 +57,7 @@
   <p class="article-eyebrow reveal-up">Security</p>
   <h1 class="article-h1 reveal-up">How your data is actually protected.</h1>
   <p class="article-lede reveal-up">
-    Not a privacy-policy summary — the real mechanism. Every claim on this page is something you
+    This isn't a privacy-policy summary. It's the real mechanism. Every claim on this page is something you
     can verify yourself: in the app's own "How your data is protected" panel, in the published
     threat model, or in the source code itself.
   </p>
@@ -69,7 +69,7 @@
     <h2>The short version</h2>
     <p>
       Your tasks are encrypted on your device, with a key derived from your passphrase, before
-      anything is ever written to storage — local or synced. That key is never transmitted
+      anything is ever written to storage, local or synced. That key is never transmitted
       anywhere. The server, if you turn on sync, receives and stores only the encrypted result.
       There's no "we could technically read your tasks if we wanted to" available to us, because
       there's no key on our end to do it with.
@@ -81,12 +81,12 @@
     <div class="reveal-up">
     <h2>What "encrypted" means here, specifically</h2>
     <p>
-      Each task is encrypted with <strong>AES-256-GCM</strong> — an authenticated cipher, so a
+      Each task is encrypted with <strong>AES-256-GCM</strong>, an authenticated cipher, so a
       tampered ciphertext fails to decrypt rather than silently decrypting into garbage. The key
       used isn't your passphrase directly; your passphrase is run through
       <strong>PBKDF2</strong> (100,000+ iterations) to derive a key-encryption key, which in turn
       unwraps the actual per-vault data-encryption key. That extra layer means changing your
-      passphrase later doesn't require re-encrypting every task — only re-wrapping one key.
+      passphrase later doesn't require re-encrypting every task, only re-wrapping one key.
     </p>
     <p>
       This is meaningfully different from what most "encrypted" task apps mean. Encrypted <em>in
@@ -104,7 +104,7 @@
         <span class="article-terminal-label">what actually gets stored</span>
       </div>
       <pre><span class="is-comment">// You type: "Call the accountant about Q3 filing"</span>
-<span class="is-comment">// This is the record that reaches storage — local or synced:</span>
+<span class="is-comment">// This is the record that reaches storage, local or synced:</span>
 {
   "id": "a1f9c3...",
   "iv": "N3k2pQr8vXm1...",
@@ -120,25 +120,25 @@
     <div class="reveal-up">
     <h2>Getting in without a "forgot password" link</h2>
     <p>
-      Real encryption means Haven genuinely cannot reset your passphrase for you — there's no
+      Real encryption means Haven genuinely cannot reset your passphrase for you. There's no
       button that magically restores access, because that would require us to hold a key we
       deliberately don't have. Instead there are real, working alternatives, each unlocking the
       same data through a different door:
     </p>
     <ul>
-      <li><strong>A one-time recovery code</strong>, shown once at setup — a second way in, stored
-        by you, not us.</li>
-      <li><strong>Social recovery</strong> — that recovery code split via Shamir's Secret Sharing
+      <li><strong>A one-time recovery code</strong>, shown once at setup. It's a second way in,
+        stored by you, not us.</li>
+      <li><strong>Social recovery</strong>: that recovery code split via Shamir's Secret Sharing
         among people you trust (k-of-n), so no single person can reconstruct it alone, but a
         quorum can help you back in.</li>
-      <li><strong>Passkey (WebAuthn) unlock</strong> — your device's own biometrics/security key as
-        a second, parallel wrap of the same underlying key, alongside your passphrase, not instead
-        of it.</li>
+      <li><strong>Passkey (WebAuthn) unlock</strong>: your device's own biometrics or security key,
+        as a second, parallel wrap of the same underlying key alongside your passphrase, not
+        instead of it.</li>
     </ul>
     <p>
       The honest floor: lose your passphrase <em>and</em> the recovery code (and never set up
-      passkey or social recovery), and the data is gone. Not "gone until you call support" —
-      actually gone. That's the real cost of encryption nobody but you can undo.
+      passkey or social recovery), and the data is gone. Not "gone until you call support."
+      Actually gone. It's the real cost of encryption nobody but you can undo.
     </p>
 
     </div>
@@ -147,12 +147,12 @@
     <div class="reveal-up">
     <h2>What a compromised server would actually get</h2>
     <p>
-      The sync server (optional, off by default) is a dumb encrypted-blob store — it never
+      The sync server (optional, off by default) is a dumb encrypted-blob store. It never
       decrypts anything, never sees a key, and authenticates you with a random bearer token, not
       an identity tied to an email or account. If it were ever breached, an attacker gets a pile of
       ciphertext and no way to read it. Fragment-key share links work the same way: the decryption
       key travels in the URL's <code>#</code> fragment, which browsers structurally never send to
-      any server — so a link-relaying server sees ciphertext too, even for content you're actively
+      any server, so a link-relaying server sees ciphertext too, even for content you're actively
       sharing.
     </p>
 
@@ -163,7 +163,7 @@
     <h2>Provable, not just promised</h2>
     <p>
       Every task change is recorded in a per-device, <strong>Ed25519-signed, hash-chained history
-      log</strong> — the same construction a tamper-evident audit log or a lightweight blockchain
+      log</strong>, the same construction a tamper-evident audit log or a lightweight blockchain
       uses. A silent edit, deletion, or backdated timestamp breaks the chain in a way that's
       detectable, not just against policy. Verify it yourself in the app's "Verify task history"
       panel.
@@ -171,8 +171,8 @@
     <p>
       The frontend itself is verifiable too: every script and stylesheet Haven serves is protected
       by Subresource Integrity, with the exact expected hashes published in
-      <a href="/integrity.json" target="_blank" rel="noopener"><code>integrity.json</code></a> —
-      you can independently confirm the code your browser ran matches the code in the public
+      <a href="/integrity.json" target="_blank" rel="noopener"><code>integrity.json</code></a>,
+      so you can independently confirm the code your browser ran matches the code in the public
       repository, rather than trusting that it does.
     </p>
 
@@ -182,28 +182,28 @@
     <div class="reveal-up">
     <h2>Read the threat model, not just this page</h2>
     <p>
-      We publish a full <a href="https://github.com/iabhi92/haven-tasks/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener">threat model</a> —
+      We publish a full <a href="https://github.com/iabhi92/haven-tasks/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener">threat model</a>:
       every adversary considered (a malicious or compromised sync server, XSS, a coerced/forced
       unlock, a future quantum adversary) and exactly what defends against each. It also lists
       what Haven <em>doesn't</em> protect against today, plainly: record metadata (sizes, timing)
       isn't hidden from the network or server, and the browser delivering the code is itself a
-      trust boundary — mitigated by the Subresource Integrity mechanism above, not eliminated by
+      trust boundary, mitigated by the Subresource Integrity mechanism above but not eliminated by
       it. A privacy pitch that only lists what's protected isn't one you should trust; this is the
       rest of it.
     </p>
 
     <div class="article-cta">
       <h2>See it happen in real time</h2>
-      <p>Open the app's own "How your data is protected" panel and watch a task get encrypted as you type it — no separate demo, the real code path.</p>
-      <a href="app.html" class="lp-btn lp-btn-sun">Open Haven — it's free
+      <p>Open the app's own "How your data is protected" panel and watch a task get encrypted as you type it. No separate demo, just the real code path.</p>
+      <a href="app.html" class="lp-btn lp-btn-sun">Open Haven for free
         <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
       </a>
     </div>
 
     <p class="article-footnote">
       Haven's source, including the encryption implementation, is
-      <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">public on GitHub</a> —
-      read it instead of taking this page's word for it.
+      <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">public on GitHub</a>.
+      Read it instead of taking this page's word for it.
     </p>
     </div>
     </section>

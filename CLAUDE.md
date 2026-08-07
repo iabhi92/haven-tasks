@@ -203,6 +203,57 @@ here) is fixed and shipped. Summary, in case this area is touched again:
 - **Docs updated in the same commit:** `docs/ARCHITECTURE.md` §4h,
   `docs/THREAT_MODEL.md`'s A5 entry, `vendor/transformers/SOURCE.md`.
 
+## Shipped (2026-08-08): copy pass — removed AI-writing tells
+
+The founder flagged the site's copy as "sounds too AI-generated." Rewrote
+prose across `index.html`, `features.html`, `security.html`,
+`compare.html`, `app.html`, and `shared.html` to fix the actual,
+quantified patterns (counted before touching anything, not guessed):
+109 em-dashes across the 4 marketing pages plus 41 in `app.html`,
+constant "X, not Y" antithesis constructions, rhetorical-question section
+headers ("Already using Todoist...?"), "no X, no Y, no Z" prose triads,
+"Bold Hook — Elaboration" list formatting, and "That's the..."
+summary-button closing sentences.
+
+**Explicit constraint, followed strictly: no fact changed, only phrasing.**
+Every claim, number, and feature description reads exactly as true as it
+did before — this is a security/privacy product where "never overclaim
+what shipped" applies doubly to marketing copy. Verify against `git diff`
+before writing more copy here: it should read as sentence-level rephrasing
+only, never new claims or dropped caveats.
+
+**What was deliberately left alone:**
+- Short badge/pill/CTA microcopy ("No account · Works offline",
+  "No account, no credit card, no tour.") — these are UI trust-badges and
+  button subtext, not paragraph prose; the triadic "no X, no Y" pattern is
+  a completely normal, human convention there. Only paragraph-rhythm
+  triads got rewritten.
+- The comparison table's `—` "not applicable" cells (`compare.html`) —
+  a legitimate UI symbol, not prose.
+- Title-tag `Brand — Description` separators (e.g. `<title>Haven — private
+  tasks</title>`) — standard, human SEO convention.
+- `<h3>What should I focus on today?</h3>` in the AI assistant panel — a
+  literal feature label naming exactly what the button does, not a
+  rhetorical flourish.
+- HTML comments (developer-facing, never seen by a site visitor).
+
+Used Google Stitch (MCP) for a second opinion on the hero copy direction
+first — worth knowing if Stitch is used for copy again: it **ignored the
+real copy supplied in the prompt** and hallucinated its own placeholder
+text ("Total Sovereignty," "Instant Capture") against a stale, mismatched
+design system from earlier exploration, despite an explicit
+`designSystem` parameter pointing at the correct one. It's useful for
+independently confirming a diagnosis (it converged on the same em-dash/
+triad findings), but not reliable for verbatim copy work — don't trust its
+output text without diffing it against the real source copy.
+
+Verified with Playwright after: all 6 edited pages load with zero console
+errors, screenshots confirm the rewritten hero and security-page copy
+render correctly. No cache-busting needed — pure text edits to HTML files
+that either aren't in `sw.js`'s precache list (the marketing pages) or are
+served network-first (`app.html`, per the existing fix — see the sw.js
+comment on why).
+
 ## In-flight / unfinished work — pick up here
 
 ### 1. Notes page (not started)

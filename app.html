@@ -28,7 +28,7 @@
      represent. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="Private todos. No account, works offline, and nobody — including us — can read them.">
+<meta name="description" content="Private todos. No account, works offline, and nobody, including us, can read them.">
 <title>Haven — private tasks</title>
 <link rel="canonical" href="https://taskhavens.com/app">
 <link rel="icon" href="/favicon.ico">
@@ -55,7 +55,7 @@
     <h1 class="lock-title">Haven</h1>
 
     <form id="setupForm" class="lock-form" autocomplete="off" hidden>
-      <p class="lock-sub">Set a passphrase. This encrypts everything on this device — we never
+      <p class="lock-sub">Set a passphrase. This encrypts everything on this device. We never
         see it. Next you'll get a one-time recovery code as a backup if you forget it.</p>
       <div class="field">
         <label for="setupPassphrase">Passphrase</label>
@@ -82,7 +82,7 @@
         </div>
         <p class="passphrase-match" id="setupPassphraseConfirmMatch"></p>
       </div>
-      <p class="lock-hint">At least 10 characters. Longer and less guessable beats complex —
+      <p class="lock-hint">At least 10 characters. Longer and less guessable beats complex;
         four random words work well.</p>
       <p class="lock-error" id="setupError" role="alert"></p>
       <button type="submit" class="btn btn-primary lock-submit">Continue</button>
@@ -90,7 +90,7 @@
 
     <div class="lock-form" id="recoveryCodeScreen" hidden>
       <p class="lock-sub">Save this recovery code. We never see it. If you lose both your
-        passphrase and this code, your data cannot be recovered by anyone — not even us.</p>
+        passphrase and this code, your data cannot be recovered by anyone, not even us.</p>
       <div class="recovery-code-box" id="recoveryCodeText"></div>
       <button type="button" class="btn btn-ghost recovery-copy-btn" id="copyRecoveryCodeBtn">Copy code</button>
       <label class="recovery-confirm">
@@ -132,7 +132,7 @@
 
     <div class="lock-form" id="shareReconstructPanel" hidden>
       <p class="lock-sub">Enter shares one at a time from the people you trusted with them. Once
-        enough are in, they'll be combined into your recovery code automatically — the individual
+        enough are in, they'll be combined into your recovery code automatically. The individual
         shares are never enough on their own.</p>
       <div class="field">
         <label for="shareReconstructInput">Share</label>
@@ -146,7 +146,7 @@
     </div>
 
     <form id="resetPassphraseForm" class="lock-form" autocomplete="off" hidden>
-      <p class="lock-sub">Recovery code accepted. Set a new passphrase — your existing tasks
+      <p class="lock-sub">Recovery code accepted. Set a new passphrase. Your existing tasks
         stay exactly as they are, only the passphrase changes.</p>
       <div class="field">
         <label for="resetPassphrase">New passphrase</label>
@@ -308,7 +308,7 @@
   <main class="content">
     <form id="quickAddForm" class="quick-add" autocomplete="off">
       <button type="button" class="quick-add-icon" id="openAddModalBtn" aria-label="Add a task with full details">+</button>
-      <input type="text" id="quickAddInput" name="title" placeholder="Add a task — try &quot;call dentist fri #health&quot;…" maxlength="200" required>
+      <input type="text" id="quickAddInput" name="title" placeholder="Add a task, try &quot;call dentist fri #health&quot;…" maxlength="200" required>
       <select id="quickAddPriority" name="priority" aria-label="Priority" class="quick-add-priority">
         <option value="low">Low</option>
         <option value="medium" selected>Medium</option>
@@ -385,7 +385,7 @@
     <div id="revealView" class="reveal-view" hidden>
       <section class="reveal-section">
         <h2>Watch encryption happen</h2>
-        <p class="reveal-intro">Type a task title below. Nothing here is saved — this runs the
+        <p class="reveal-intro">Type a task title below. Nothing here is saved. This runs the
           exact same encryption function every real task on your board goes through, live, so you
           can see it with your own eyes instead of taking our word for it.</p>
         <input type="text" id="revealDemoInput" class="reveal-demo-input" placeholder="Type a task title…" autocomplete="off">
@@ -405,10 +405,10 @@
         <h2>How your data is protected</h2>
         <p class="reveal-intro">Every task is encrypted on this device with AES-256-GCM before it
           ever touches storage. The key that does that encryption is derived from your passphrase
-          and never leaves your browser — it's never sent anywhere, not to us, not to a server,
+          and never leaves your browser. It's never sent anywhere, not to us, not to a server,
           not to anyone. IndexedDB, this browser's local database, holds only what you see below:
           an ID, a random IV, ciphertext, and a timestamp. If sync is ever turned on, that's also
-          the only thing that would ever be sent — the exact same ciphertext already sitting here.</p>
+          the only thing that would ever be sent: the exact same ciphertext already sitting here.</p>
         <button type="button" class="btn btn-ghost" id="dumpDbBtn">Dump my local database</button>
         <pre id="dbDumpOutput" class="reveal-pre reveal-pre-wide"></pre>
       </section>
@@ -419,10 +419,10 @@
         <h2>Verify your task history</h2>
         <p class="reveal-intro">Every time a task is added, edited, or deleted, Haven signs a
           record of it with a key that lives only on this device and chains it to the record
-          before it — like a private, personal git log. If anything in that log were ever silently
+          before it, like a private, personal git log. If anything in that log were ever silently
           altered, this check would catch it: a broken link in the chain, or a signature that
           doesn't match, shows up immediately below. This runs entirely on your device against
-          your local history — nothing is uploaded to check it.</p>
+          your local history. Nothing is uploaded to check it.</p>
         <button type="button" class="btn btn-primary" id="verifyHistoryBtn">Verify now</button>
         <div id="historyReport" class="history-report"></div>
       </section>
@@ -432,7 +432,7 @@
       <section class="reveal-section">
         <h2>Insights</h2>
         <p class="reveal-intro">Computed instantly from the tasks already decrypted in your
-          browser's memory — nothing here is tracked over time, logged, or sent anywhere. Close
+          browser's memory. Nothing here is tracked over time, logged, or sent anywhere. Close
           the tab and it's gone; reopen it and it's recomputed fresh from what's actually on your
           board right now.</p>
 
@@ -471,7 +471,7 @@
           <button type="button" class="btn btn-ghost btn-sm" id="calendarExportBtn">Export .ics</button>
         </div>
         <p class="reveal-intro">Shows every task with a due date, across all your projects. Exporting
-          gives you a standard .ics file to import into Google Calendar, Apple Calendar, or Outlook —
+          gives you a standard .ics file to import into Google Calendar, Apple Calendar, or Outlook,
           a one-time copy, not a live sync back to Haven.</p>
         <div class="calendar-grid" id="calendarGrid"></div>
       </section>
@@ -480,12 +480,12 @@
     <div id="assistantView" class="reveal-view" hidden>
       <section class="reveal-section">
         <h2>AI assistant</h2>
-        <p class="reveal-intro">A small language model that runs entirely in your browser — it
+        <p class="reveal-intro">A small language model that runs entirely in your browser. It
           never sends a task, a title, or a note anywhere. Off by default: nothing downloads until
           you click Enable below. The download (about 140MB, once) does need the internet; after
           that, generating an answer is a local computation with zero network requests, even
-          offline. It's genuinely small, so answers are useful but plain-spoken, not polished —
-          and on this device it takes roughly a minute per answer, not a few seconds.</p>
+          offline. It's genuinely small, so answers are useful but plain-spoken rather than
+          polished, and on this device it takes roughly a minute per answer, not a few seconds.</p>
 
         <div id="assistantEnableCard" class="assistant-enable-card">
           <button type="button" class="btn btn-primary" id="assistantEnableBtn">Enable AI assistant</button>
@@ -509,7 +509,7 @@
           </div>
           <div class="assistant-action-card">
             <h3>Ask anything</h3>
-            <p class="assistant-action-sub">Type your own question — it sees the same open-task list as "focus on today."</p>
+            <p class="assistant-action-sub">Type your own question. It sees the same open-task list as "focus on today."</p>
             <textarea id="assistantPromptInput" class="assistant-prompt-input" rows="2" maxlength="300" placeholder="e.g. what's overdue that I should reschedule?"></textarea>
             <button type="button" class="btn btn-secondary" id="assistantPromptBtn">Ask</button>
           </div>
@@ -643,7 +643,7 @@
     <h2 id="shareModalTitle">Share this task</h2>
     <p class="modal-help">
       A link that lets anyone with it view this task, without an account. It's encrypted with a
-      fresh key that only ever lives in the link itself — the server relaying it never sees that
+      fresh key that only ever lives in the link itself. The server relaying it never sees that
       key, so it can't read the task either.
     </p>
     <div id="shareBeforeSection">
@@ -661,7 +661,7 @@
           <label for="shareMaxViews">Views allowed</label>
           <select id="shareMaxViews">
             <option value="">Unlimited (until expiry)</option>
-            <option value="1">1 — burn after reading</option>
+            <option value="1">1 (burn after reading)</option>
             <option value="5">5</option>
             <option value="20">20</option>
           </select>
@@ -761,22 +761,22 @@
       <div class="field">
         <label for="addSelfDestructMode">Self-destruct</label>
         <select id="addSelfDestructMode">
-          <option value="">Never — a normal task</option>
+          <option value="">Never (a normal task)</option>
           <option value="1h">Burns in 1 hour</option>
           <option value="1d">Burns in 1 day</option>
           <option value="7d">Burns in 7 days</option>
           <option value="views">Burns after being opened once</option>
         </select>
         <p class="modal-help">
-          Encrypted under its own key, not the shared one. Once it burns, the key is deleted — not
-          even a passphrase can bring the content back. Can't be changed once created, and doesn't
+          Encrypted under its own key, not the shared one. Once it burns, the key is deleted, and
+          not even a passphrase can bring the content back. Can't be changed once created, and doesn't
           sync to other devices.
         </p>
       </div>
 
-      <p class="reveal-intro add-reveal-intro">Watch this get encrypted as you type — the exact
-        same function every task on your board goes through, running live on what you're actually
-        about to create.</p>
+      <p class="reveal-intro add-reveal-intro">Watch this get encrypted as you type. It's the
+        exact same function every task on your board goes through, running live on what you're
+        actually about to create.</p>
       <div class="reveal-columns">
         <div class="reveal-col">
           <h3>What's in your browser's memory</h3>
@@ -818,7 +818,7 @@
     <div id="socialRecoverySetupSection">
       <p class="modal-help">
         Split your recovery code into pieces you give to people you trust. Any of them, working
-        together — enough to reach the threshold you choose — can help you back in if you ever
+        together (enough to reach the threshold you choose) can help you back in if you ever
         forget your passphrase and lose the code. Nobody, not even you, can read the pieces alone
         or reconstruct anything to give it to anyone else.
       </p>
@@ -857,7 +857,7 @@
     <div id="socialRecoveryResultSection" hidden>
       <p class="modal-help">
         Give each share below to a different person, over a different channel if possible (one by
-        text, one in person, one by email) — copy each one individually. Once you close this, these
+        text, one in person, one by email), and copy each one individually. Once you close this, these
         exact shares won't be shown again; generate a new set instead if you lose track of one.
       </p>
       <div id="socialRecoveryShareList" class="subtask-list"></div>
@@ -875,7 +875,7 @@
     <div id="passkeySetupSection">
       <p class="modal-help">
         Add a passkey (Touch ID, Windows Hello, or a hardware security key) as a faster way to
-        unlock — your passphrase still works too, and still is what protects the actual encryption
+        unlock. Your passphrase still works too, and still is what protects the actual encryption
         key underneath. Needs an authenticator that supports resident keys and encrypted storage
         (most modern platform authenticators do); if yours doesn't, you'll get a clear error and
         nothing will be changed.
@@ -906,7 +906,7 @@
     <h2 id="decoyVaultModalTitle">Set up a decoy vault</h2>
     <p class="modal-help">
       Pick a second passphrase. Entering it on the lock screen opens a completely separate,
-      normal-looking vault instead of this one — nothing in the app shows which one is open, so
+      normal-looking vault instead of this one. Nothing in the app shows which one is open, so
       it's worth adding a few plausible tasks to the decoy so it holds up to a glance.
     </p>
     <div class="field">
@@ -919,8 +919,8 @@
     </div>
     <p class="modal-help">
       Use a different passphrase than your real one. This doesn't sync to other devices and has no
-      recovery code — lose this passphrase and the decoy vault's contents are gone for good, same
-      as losing both your real passphrase and recovery code would be for this vault. Running this
+      recovery code. Lose this passphrase and the decoy vault's contents are gone for good, the
+      same as losing both your real passphrase and recovery code would be for this vault. Running this
       again replaces the decoy vault entirely, including anything already in it.
     </p>
     <p class="lock-error" id="decoyVaultError" role="alert"></p>
@@ -935,7 +935,7 @@
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="automationModalTitle">
     <h2 id="automationModalTitle">Automation rules</h2>
     <p class="modal-help">
-      Runs entirely on your device, checked whenever the board updates — nothing is ever sent
+      Runs entirely on your device, checked whenever the board updates. Nothing is ever sent
       anywhere to evaluate a rule. Rules don't trigger other rules (no chains), so there's no way
       for one to set off an endless loop of another.
     </p>
@@ -988,7 +988,7 @@
 <div class="modal-overlay" id="templateModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="templateModalTitle">
     <h2 id="templateModalTitle">New from template</h2>
-    <p class="modal-help">Adds a starter set of tasks to a project — each one created exactly like
+    <p class="modal-help">Adds a starter set of tasks to a project. Each one is created exactly like
       typing it by hand, so it's encrypted, shows up in history, and triggers automation rules the
       same as any other task.</p>
     <div class="field">
@@ -1013,7 +1013,7 @@
 
     <div id="syncSetupSection">
       <p class="lock-sub">Sync keeps tasks in step across your devices through a server that only
-        ever stores ciphertext — same guarantee as this device, nothing new to trust. Leave the
+        ever stores ciphertext, the same guarantee as this device, nothing new to trust. Leave the
         token blank to start a fresh, empty bucket, or paste one from a device you've already set
         up to join it.</p>
       <div class="field">
@@ -1026,7 +1026,7 @@
       </div>
       <div id="syncJoinFields" hidden>
         <p class="lock-hint">Joining an existing bucket needs the recovery code from the device
-          that started it — that's what lets this device decrypt the same tasks, not the token
+          that started it. That's what lets this device decrypt the same tasks, not the token
           alone. Your passphrase on this device doesn't change; confirming it just re-locks the
           shared key under it.</p>
         <div class="field">
@@ -1043,11 +1043,11 @@
     </div>
 
     <div id="syncActiveSection" hidden>
-      <p class="lock-sub">Sync is on. This token is a bearer capability for your ciphertext bucket
-        — anyone who has it can read and write it, so treat it like a password. Enter this same
-        server and token on another device, along with your recovery code, to sync between them —
-        your recovery code now unlocks this synced task list on any joined device, not just this
-        one, so it's worth treating with the same care.</p>
+      <p class="lock-sub">Sync is on. This token is a bearer capability for your ciphertext
+        bucket, so anyone who has it can read and write it: treat it like a password. Enter this
+        same server and token on another device, along with your recovery code, to sync between
+        them. Your recovery code now unlocks this synced task list on any joined device, not just
+        this one, so it's worth treating with the same care.</p>
       <div class="field">
         <label>Server</label>
         <div class="recovery-code-box" id="syncServerDisplay"></div>
