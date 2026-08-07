@@ -4,7 +4,7 @@
 
 const DB_NAME = "haven";
 const DECOY_DB_NAME = "haven-decoy"; // see docs/ARCHITECTURE.md "Duress / decoy vault"
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const STORE_NAME = "tasks";
 const KEYRING_STORE = "keyring";
 const KEYRING_KEY = "main";
@@ -21,6 +21,14 @@ const RULES_STORE = "rules";
 // Same encrypted-JSON-object pattern as tasks and rules — a note's title/body
 // is user content like anything else here. See docs/ARCHITECTURE.md "Notes".
 const NOTES_STORE = "notes";
+// A project name is only otherwise inferred from tasks' `project` field (like
+// a tag), so a project with zero tasks in it had nowhere to durably exist —
+// switching away from a freshly-created empty project made it vanish from the
+// switcher. This store lets an explicitly-created project persist even with
+// no tasks yet. Encrypted the same way, not a cleartext name list: a project
+// name is as much user content as a task title. See docs/ARCHITECTURE.md
+// "Projects".
+const PROJECTS_STORE = "projects";
 
 // Same object-store layout for both databases — the decoy DB just never
 // happens to have anything in `keyring` (that always lives in the main "haven"
@@ -44,6 +52,9 @@ function upgrade(db) {
   }
   if (!db.objectStoreNames.contains(NOTES_STORE)) {
     db.createObjectStore(NOTES_STORE, { keyPath: "id" });
+  }
+  if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
+    db.createObjectStore(PROJECTS_STORE, { keyPath: "id" });
   }
 }
 
@@ -242,6 +253,26 @@ export async function deleteNote(id) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(NOTES_STORE, "readwrite");
     tx.objectStore(NOTES_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getAllProjects() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PROJECTS_STORE, "readonly");
+    const req = tx.objectStore(PROJECTS_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function putProject(project) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PROJECTS_STORE, "readwrite");
+    tx.objectStore(PROJECTS_STORE).put(project);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

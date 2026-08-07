@@ -15,7 +15,9 @@ import {
   getAllNotes,
   putNote,
   deleteNote,
-} from "./store.js?v=20260808b";
+  getAllProjects,
+  putProject,
+} from "./store.js?v=20260808c";
 import { evaluateTask } from "./automation.js?v=20260808b";
 import { computeInsights } from "./insights.js?v=20260808b";
 import { generateICS } from "./ical.js?v=20260807a";
@@ -191,13 +193,13 @@ let activeVaultIsDecoy = false;
 // each task (default "Inbox"), same encrypted envelope as everything else.
 // Not a separate key/vault per project (that's "compartmentalised vaults" in
 // docs/FEATURES.md, a much bigger crypto change) — this is just a filter, the
-// same pattern as tags. Because of that, a project only "exists" once at
-// least one task belongs to it: there's nowhere to durably store an empty
-// project without either a new encrypted store (schema/sync changes) or
-// stashing the name in plaintext localStorage (which would leak a project
-// name outside the encryption boundary — not acceptable here). An honest,
-// documented limitation, not an oversight.
+// same pattern as tags. An explicitly-created project with no tasks yet has
+// nothing to infer its existence from, so it's separately persisted in its
+// own `projects` store (see loadProjects()/addProject() below) purely so it
+// doesn't vanish the moment you switch away from it — not a schema fork,
+// just what keeps an empty project from being forgotten.
 let activeProject = "Inbox";
+let projects = []; // explicitly-created projects, decrypted; see loadProjects()
 
 let selectionMode = false;
 let selectedIds = new Set();
@@ -380,17 +382,42 @@ function syncTagFilterOptions() {
 function allProjects() {
   const set = new Set(["Inbox", activeProject]); // activeProject stays listed even with 0 tasks yet
   for (const t of tasks) set.add(projectOf(t));
+  for (const p of projects) set.add(p.name);
   return [...set].sort((a, b) => (a === "Inbox" ? -1 : b === "Inbox" ? 1 : a.localeCompare(b)));
+}
+
+async function loadProjects() {
+  const records = await getAllProjects();
+  const decrypted = [];
+  for (const record of records) {
+    try {
+      decrypted.push(await decryptTask(record, dek));
+    } catch (err) {
+      console.error("Skipping a project that failed to decrypt:", record.id, err);
+    }
+  }
+  projects = decrypted;
+}
+
+// Persists an explicitly-created project so it survives switching away
+// before it has any tasks. A no-op if already persisted (by name) or if a
+// task already anchors it — this only needs to cover the empty-project gap.
+async function addProject(name) {
+  if (projects.some((p) => p.name === name)) return;
+  const project = { id: uuid(), name, createdAt: now() };
+  const { iv, ciphertext } = await encryptTask(project, dek);
+  await putProject({ id: project.id, iv, ciphertext });
+  projects.push(project);
 }
 
 // Keeps the project switcher <select> and the add/edit modals' project
 // <datalist> in sync with whatever projects currently exist.
 function syncProjectUI() {
-  const projects = allProjects();
+  const projectNames = allProjects();
 
   const switcher = document.getElementById("projectSwitcher");
   switcher.textContent = "";
-  for (const p of projects) {
+  for (const p of projectNames) {
     const opt = document.createElement("option");
     opt.value = p;
     opt.textContent = p;
@@ -400,7 +427,7 @@ function syncProjectUI() {
 
   const datalist = document.getElementById("projectOptions");
   datalist.textContent = "";
-  for (const p of projects) {
+  for (const p of projectNames) {
     const opt = document.createElement("option");
     opt.value = p;
     datalist.appendChild(opt);
@@ -2163,10 +2190,11 @@ function wireProjectSwitcher() {
     addInput.focus();
   });
 
-  const confirmAdd = () => {
+  const confirmAdd = async () => {
     const name = addInput.value.trim();
     if (!name) return;
     activeProject = name;
+    await addProject(name);
     addRow.hidden = true;
     render();
   };
@@ -2949,6 +2977,7 @@ async function afterUnlock() {
   tasks = await loadAndDecryptTasks();
   await loadAutomationRules();
   await loadNotes();
+  await loadProjects();
   renderNotesList(notes, { onOpen: openNoteModal, onDelete: removeNote });
   render();
   showApp();
@@ -3324,6 +3353,7 @@ function wireLockButton() {
     ephemeralTaskKeys.clear();
     automationRules = [];
     notes = [];
+    projects = [];
     // Locking mid-Pomodoro just drops the in-progress session rather than
     // trying to persist against a `dek` that's about to become null — the
     // same trade-off closing the tab mid-session already has.
