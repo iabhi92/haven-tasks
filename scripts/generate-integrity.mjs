@@ -25,9 +25,9 @@ function sha384(bytes) {
 // browser can actually enforce SRI on. See the "what this does NOT cover"
 // note below for why the list stops here.
 const ENTRY_ASSETS = [
-  { file: "css/style.css", htmlFiles: ["app.html", "index.html", "shared.html", "compare.html"] },
-  { file: "css/landing.css", htmlFiles: ["index.html", "compare.html"] },
-  { file: "css/article.css", htmlFiles: ["compare.html"] },
+  { file: "css/style.css", htmlFiles: ["app.html", "index.html", "shared.html", "compare.html", "features.html", "security.html"] },
+  { file: "css/landing.css", htmlFiles: ["index.html", "compare.html", "features.html", "security.html"] },
+  { file: "css/article.css", htmlFiles: ["compare.html", "features.html", "security.html"] },
   { file: "js/app.js", htmlFiles: ["app.html"] },
   { file: "js/landing.js", htmlFiles: ["index.html"] },
   { file: "js/shared.js", htmlFiles: ["shared.html"] },

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none';">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="description" content="How Haven actually protects your tasks: client-side AES-256-GCM encryption, a published threat model, tamper-evident history, and a server that only ever sees ciphertext. No marketing claims — the real architecture.">
+<title>Security — how Haven actually protects your data</title>
+<link rel="canonical" href="https://taskhavens.com/security.html">
+<link rel="icon" href="/favicon.ico">
+<link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+<link rel="icon" type="image/png" sizes="48x48" href="img/favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="img/favicon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="img/favicon-512.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Haven">
+<meta property="og:title" content="Security — how Haven actually protects your data">
+<meta property="og:description" content="Client-side AES-256-GCM encryption, a published threat model, tamper-evident history, and a server that only ever sees ciphertext. The real architecture, not a marketing claim.">
+<meta property="og:url" content="https://taskhavens.com/security.html">
+<meta property="og:image" content="https://taskhavens.com/img/hero-screenshot.png">
+<meta property="og:image:width" content="1088">
+<meta property="og:image:height" content="640">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Security — how Haven actually protects your data">
+<meta name="twitter:description" content="Client-side AES-256-GCM encryption, a published threat model, tamper-evident history, and a server that only ever sees ciphertext.">
+<meta name="twitter:image" content="https://taskhavens.com/img/hero-screenshot.png">
+
+<link rel="stylesheet" href="css/style.css?v=20260807a" integrity="sha384-NIo6BN8P4UQUGxa0aDROeAW1MVvm8LgrO0q1GqHKe+E5MRpCvlLrI3yFuHYvhtxa" crossorigin="anonymous">
+<link rel="stylesheet" href="css/landing.css?v=20260808a" integrity="sha384-Zk8MvSHLaFJp+PwjwVYSZ4znt5P+c3OQYo4GltyvIjpMw1xb8QA1n0GsOL+4wOra" crossorigin="anonymous">
+<link rel="stylesheet" href="css/article.css?v=20260808b" integrity="sha384-j5Zw9huKX3WnyO4S8U0HhpaSxvmycn46KfIWkh6v4k9ZfgjtZnELWkZhhNR3k7Uk" crossorigin="anonymous">
+</head>
+<body class="landing-body">
+
+<div class="landing-ambient landing-ambient-1" aria-hidden="true"></div>
+<div class="landing-ambient landing-ambient-2" aria-hidden="true"></div>
+
+<header class="landing-nav">
+  <a href="index.html" class="landing-brand" aria-label="Haven home">
+    <span class="landing-brand-mark" aria-hidden="true">H</span>
+    Haven
+  </a>
+  <nav class="landing-nav-links">
+    <a href="features.html">Features</a>
+    <a href="security.html">Security</a>
+    <a href="compare.html">Compare</a>
+    <a href="app.html" class="lp-btn lp-btn-ghost lp-btn-sm">Open Haven
+      <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+  </nav>
+</header>
+
+<main class="article-main">
+  <p class="article-eyebrow">Security</p>
+  <h1 class="article-h1">How your data is actually protected.</h1>
+  <p class="article-lede">
+    Not a privacy-policy summary — the real mechanism. Every claim on this page is something you
+    can verify yourself: in the app's own "How your data is protected" panel, in the published
+    threat model, or in the source code itself.
+  </p>
+
+  <div class="article-body">
+
+    <h2>The short version</h2>
+    <p>
+      Your tasks are encrypted on your device, with a key derived from your passphrase, before
+      anything is ever written to storage — local or synced. That key is never transmitted
+      anywhere. The server, if you turn on sync, receives and stores only the encrypted result.
+      There's no "we could technically read your tasks if we wanted to" available to us, because
+      there's no key on our end to do it with.
+    </p>
+
+    <h2>What "encrypted" means here, specifically</h2>
+    <p>
+      Each task is encrypted with <strong>AES-256-GCM</strong> — an authenticated cipher, so a
+      tampered ciphertext fails to decrypt rather than silently decrypting into garbage. The key
+      used isn't your passphrase directly; your passphrase is run through
+      <strong>PBKDF2</strong> (100,000+ iterations) to derive a key-encryption key, which in turn
+      unwraps the actual per-vault data-encryption key. That extra layer means changing your
+      passphrase later doesn't require re-encrypting every task — only re-wrapping one key.
+    </p>
+    <p>
+      This is meaningfully different from what most "encrypted" task apps mean. Encrypted <em>in
+      transit</em> (HTTPS to their server) and encrypted <em>at rest</em> (the disk is encrypted,
+      but the company holds the key) are both table stakes and both still let the company read
+      your data whenever it wants to, or whenever a subpoena asks it to. Haven's encryption
+      happens before a task leaves your browser, using a key that never leaves it either.
+    </p>
+
+    <div class="article-terminal">
+      <div class="article-terminal-head">
+        <span class="article-terminal-dot"></span>
+        <span class="article-terminal-dot"></span>
+        <span class="article-terminal-dot"></span>
+        <span class="article-terminal-label">what actually gets stored</span>
+      </div>
+      <pre><span class="is-comment">// You type: "Call the accountant about Q3 filing"</span>
+<span class="is-comment">// This is the record that reaches storage — local or synced:</span>
+{
+  "id": "a1f9c3...",
+  "iv": "N3k2pQr8vXm1...",
+  "ciphertext": "8f2e9c1a4b7d3f6e0a2c5b9d8e1f4a7c...",
+  "updatedAt": 1754521600000
+}
+<span class="is-comment">// No title. No notes. No project name. Nothing readable.</span></pre>
+    </div>
+
+    <h2>Getting in without a "forgot password" link</h2>
+    <p>
+      Real encryption means Haven genuinely cannot reset your passphrase for you — there's no
+      button that magically restores access, because that would require us to hold a key we
+      deliberately don't have. Instead there are real, working alternatives, each unlocking the
+      same data through a different door:
+    </p>
+    <ul>
+      <li><strong>A one-time recovery code</strong>, shown once at setup — a second way in, stored
+        by you, not us.</li>
+      <li><strong>Social recovery</strong> — that recovery code split via Shamir's Secret Sharing
+        among people you trust (k-of-n), so no single person can reconstruct it alone, but a
+        quorum can help you back in.</li>
+      <li><strong>Passkey (WebAuthn) unlock</strong> — your device's own biometrics/security key as
+        a second, parallel wrap of the same underlying key, alongside your passphrase, not instead
+        of it.</li>
+    </ul>
+    <p>
+      The honest floor: lose your passphrase <em>and</em> the recovery code (and never set up
+      passkey or social recovery), and the data is gone. Not "gone until you call support" —
+      actually gone. That's the real cost of encryption nobody but you can undo.
+    </p>
+
+    <h2>What a compromised server would actually get</h2>
+    <p>
+      The sync server (optional, off by default) is a dumb encrypted-blob store — it never
+      decrypts anything, never sees a key, and authenticates you with a random bearer token, not
+      an identity tied to an email or account. If it were ever breached, an attacker gets a pile of
+      ciphertext and no way to read it. Fragment-key share links work the same way: the decryption
+      key travels in the URL's <code>#</code> fragment, which browsers structurally never send to
+      any server — so a link-relaying server sees ciphertext too, even for content you're actively
+      sharing.
+    </p>
+
+    <h2>Provable, not just promised</h2>
+    <p>
+      Every task change is recorded in a per-device, <strong>Ed25519-signed, hash-chained history
+      log</strong> — the same construction a tamper-evident audit log or a lightweight blockchain
+      uses. A silent edit, deletion, or backdated timestamp breaks the chain in a way that's
+      detectable, not just against policy. Verify it yourself in the app's "Verify task history"
+      panel.
+    </p>
+    <p>
+      The frontend itself is verifiable too: every script and stylesheet Haven serves is protected
+      by Subresource Integrity, with the exact expected hashes published in
+      <a href="/integrity.json" target="_blank" rel="noopener"><code>integrity.json</code></a> —
+      you can independently confirm the code your browser ran matches the code in the public
+      repository, rather than trusting that it does.
+    </p>
+
+    <h2>Read the threat model, not just this page</h2>
+    <p>
+      We publish a full <a href="https://github.com/iabhi92/haven-tasks/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener">threat model</a> —
+      every adversary considered (a malicious or compromised sync server, XSS, a coerced/forced
+      unlock, a future quantum adversary) and exactly what defends against each. It also lists
+      what Haven <em>doesn't</em> protect against today, plainly: record metadata (sizes, timing)
+      isn't hidden from the network or server, and the browser delivering the code is itself a
+      trust boundary — mitigated by the Subresource Integrity mechanism above, not eliminated by
+      it. A privacy pitch that only lists what's protected isn't one you should trust; this is the
+      rest of it.
+    </p>
+
+    <div class="article-cta">
+      <h2>See it happen in real time</h2>
+      <p>Open the app's own "How your data is protected" panel and watch a task get encrypted as you type it — no separate demo, the real code path.</p>
+      <a href="app.html" class="lp-btn lp-btn-sun">Open Haven — it's free
+        <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+    </div>
+
+    <p class="article-footnote">
+      Haven's source, including the encryption implementation, is
+      <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">public on GitHub</a> —
+      read it instead of taking this page's word for it.
+    </p>
+  </div>
+</main>
+
+<footer class="landing-footer">
+  <div class="landing-footer-top">
+    <div class="landing-footer-brand">
+      <h3>Haven</h3>
+      <p>A private, local-first task manager.</p>
+    </div>
+    <div class="landing-footer-cols">
+      <div class="landing-footer-col">
+        <h4>Product</h4>
+        <a href="features.html">Features</a>
+        <a href="security.html">Security</a>
+        <a href="compare.html">Compare</a>
+        <a href="https://github.com/iabhi92/haven-tasks/commits/main" target="_blank" rel="noopener">Changelog</a>
+      </div>
+      <div class="landing-footer-col">
+        <h4>Learn</h4>
+        <a href="app.html">How it works</a>
+        <a href="https://github.com/iabhi92/haven-tasks/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener">Threat model</a>
+        <a href="https://github.com/iabhi92/haven-tasks/tree/main/docs" target="_blank" rel="noopener">Documentation</a>
+      </div>
+      <div class="landing-footer-col">
+        <h4>Community</h4>
+        <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/iabhi92/haven-tasks/issues" target="_blank" rel="noopener">Report a bug</a>
+        <a href="mailto:pinku2c@gmail.com">Contact</a>
+      </div>
+    </div>
+  </div>
+  <div class="landing-footer-bottom">
+    <span>Haven is free and open source</span>
+    <span>© 2026 Haven</span>
+  </div>
+</footer>
+
+</body>
+</html>
