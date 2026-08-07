@@ -5,39 +5,44 @@
 // plaintext, per the same idea as the app's own reveal page.
 import { generateDek, encryptTask } from "./crypto.js?v=20260806a";
 
+// Only index.html has the live encryption demo — this file is also now
+// shared by compare.html/features.html/security.html purely for the motion
+// system below, so this whole block is a no-op (not a crash) on those pages.
 const input = document.getElementById("landingDemoInput");
-const plaintextEl = document.getElementById("landingPlaintext");
-const ciphertextEl = document.getElementById("landingCiphertext");
+if (input) {
+  const plaintextEl = document.getElementById("landingPlaintext");
+  const ciphertextEl = document.getElementById("landingCiphertext");
 
-const demoDek = await generateDek();
-let token = 0;
+  const demoDek = await generateDek();
+  let token = 0;
 
-async function update(title) {
-  const current = ++token;
-  const demoTask = {
-    id: "landing-demo",
-    title,
-    notes: "",
-    status: "todo",
-    priority: "medium",
-    dueDate: null,
-    order: 0,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+  const update = async (title) => {
+    const current = ++token;
+    const demoTask = {
+      id: "landing-demo",
+      title,
+      notes: "",
+      status: "todo",
+      priority: "medium",
+      dueDate: null,
+      order: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const record = await encryptTask(demoTask, demoDek);
+    if (current !== token) return;
+
+    plaintextEl.textContent = JSON.stringify(demoTask, null, 2);
+    ciphertextEl.textContent = JSON.stringify(
+      { id: demoTask.id, iv: record.iv, ciphertext: record.ciphertext, updatedAt: demoTask.updatedAt },
+      null,
+      2
+    );
   };
-  const record = await encryptTask(demoTask, demoDek);
-  if (current !== token) return;
 
-  plaintextEl.textContent = JSON.stringify(demoTask, null, 2);
-  ciphertextEl.textContent = JSON.stringify(
-    { id: demoTask.id, iv: record.iv, ciphertext: record.ciphertext, updatedAt: demoTask.updatedAt },
-    null,
-    2
-  );
+  input.addEventListener("input", () => update(input.value));
+  update("Try typing your own task title above");
 }
-
-input.addEventListener("input", () => update(input.value));
-update("Try typing your own task title above");
 
 // ---------- motion ----------
 // GSAP is vendored locally (vendor/gsap/ — see SOURCE.md), not loaded from a
@@ -164,10 +169,14 @@ if (hasGsap && !reducedMotion) {
 }
 
 // ---------- custom cursor ----------
+// Only index.html has the .landing-cursor element (and the has-custom-cursor
+// CSS that hides the real system cursor) — on other pages sharing this
+// script, skip entirely rather than hiding the cursor with nothing to
+// replace it.
+const cursor = document.querySelector(".landing-cursor");
 // Pointer devices only (hover:hover + pointer:fine) — never engages on
 // touch/coarse pointers, and bows out entirely under reduced-motion.
-if (!reducedMotion && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
-  const cursor = document.querySelector(".landing-cursor");
+if (cursor && !reducedMotion && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
   document.body.classList.add("has-custom-cursor");
   let mx = 0, my = 0, cx = 0, cy = 0;
   document.addEventListener("mousemove", (e) => { mx = e.clientX; my = e.clientY; });

@@ -29,7 +29,7 @@ const ENTRY_ASSETS = [
   { file: "css/landing.css", htmlFiles: ["index.html", "compare.html", "features.html", "security.html"] },
   { file: "css/article.css", htmlFiles: ["compare.html", "features.html", "security.html"] },
   { file: "js/app.js", htmlFiles: ["app.html"] },
-  { file: "js/landing.js", htmlFiles: ["index.html"] },
+  { file: "js/landing.js", htmlFiles: ["index.html", "compare.html", "features.html", "security.html"] },
   { file: "js/shared.js", htmlFiles: ["shared.html"] },
   { file: "vendor/gsap/gsap.min.js", htmlFiles: ["index.html"] },
   { file: "vendor/gsap/ScrollTrigger.min.js", htmlFiles: ["index.html"] },

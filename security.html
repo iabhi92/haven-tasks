@@ -54,9 +54,9 @@
 </header>
 
 <main class="article-main">
-  <p class="article-eyebrow">Security</p>
-  <h1 class="article-h1">How your data is actually protected.</h1>
-  <p class="article-lede">
+  <p class="article-eyebrow reveal-up">Security</p>
+  <h1 class="article-h1 reveal-up">How your data is actually protected.</h1>
+  <p class="article-lede reveal-up">
     Not a privacy-policy summary — the real mechanism. Every claim on this page is something you
     can verify yourself: in the app's own "How your data is protected" panel, in the published
     threat model, or in the source code itself.
@@ -64,6 +64,8 @@
 
   <div class="article-body">
 
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>The short version</h2>
     <p>
       Your tasks are encrypted on your device, with a key derived from your passphrase, before
@@ -73,6 +75,10 @@
       there's no key on our end to do it with.
     </p>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>What "encrypted" means here, specifically</h2>
     <p>
       Each task is encrypted with <strong>AES-256-GCM</strong> — an authenticated cipher, so a
@@ -108,6 +114,10 @@
 <span class="is-comment">// No title. No notes. No project name. Nothing readable.</span></pre>
     </div>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>Getting in without a "forgot password" link</h2>
     <p>
       Real encryption means Haven genuinely cannot reset your passphrase for you — there's no
@@ -131,6 +141,10 @@
       actually gone. That's the real cost of encryption nobody but you can undo.
     </p>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>What a compromised server would actually get</h2>
     <p>
       The sync server (optional, off by default) is a dumb encrypted-blob store — it never
@@ -142,6 +156,10 @@
       sharing.
     </p>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>Provable, not just promised</h2>
     <p>
       Every task change is recorded in a per-device, <strong>Ed25519-signed, hash-chained history
@@ -158,6 +176,10 @@
       repository, rather than trusting that it does.
     </p>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>Read the threat model, not just this page</h2>
     <p>
       We publish a full <a href="https://github.com/iabhi92/haven-tasks/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener">threat model</a> —
@@ -183,6 +205,8 @@
       <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">public on GitHub</a> —
       read it instead of taking this page's word for it.
     </p>
+    </div>
+    </section>
   </div>
 </main>
 
@@ -220,5 +244,8 @@
   </div>
 </footer>
 
+<script src="vendor/gsap/gsap.min.js?v=20260807a" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+<script src="vendor/gsap/ScrollTrigger.min.js?v=20260807a" integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d" crossorigin="anonymous"></script>
+<script src="js/landing.js?v=20260809a" integrity="sha384-mPT4JI5Tl21NXPaNJBk0gQm7pfKgArghdmpOzLGDE+GOAJ1ZeJtx4uK5bqial3Ha" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

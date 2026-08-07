@@ -54,9 +54,9 @@
 </header>
 
 <main class="article-main">
-  <p class="article-eyebrow">Features</p>
-  <h1 class="article-h1">Everything you need for tasks. Nothing you have to hand over to get it.</h1>
-  <p class="article-lede">
+  <p class="article-eyebrow reveal-up">Features</p>
+  <h1 class="article-h1 reveal-up">Everything you need for tasks. Nothing you have to hand over to get it.</h1>
+  <p class="article-lede reveal-up">
     Haven is a real task manager first — boards, lists, due dates, recurring tasks, search — and a
     private one second, in the sense that the privacy is built into how the ordinary features work,
     not bolted on as a separate mode. Here's the full list, plainly.
@@ -64,6 +64,8 @@
 
   <div class="article-body">
 
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>The basics, done properly</h2>
     <p>
       A board (kanban) view and a list view of the same tasks, switchable any time. Drag-and-drop
@@ -82,6 +84,10 @@
       <span class="lp-pill article-chip">Bulk actions + undo</span>
     </div>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>Find things without hunting</h2>
     <p>
       Today, Upcoming, and Overdue smart views surface what actually needs attention. Instant
@@ -91,6 +97,10 @@
       understands things like <em>"call dentist fri 3pm #health"</em> — parsed entirely client-side.
     </p>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>Set it once</h2>
     <p>
       Recurring tasks (daily, weekly, monthly) spawn their next occurrence automatically when you
@@ -99,6 +109,10 @@
       instead of a blank list, using the exact same task-creation path as typing one by hand.
     </p>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>Yours to keep</h2>
     <p>
       Your tasks export as plain JSON any time you want them, and the same file imports right back
@@ -137,6 +151,10 @@
 ]</pre>
     </div>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>Fits into a life you already have</h2>
     <p>
       A calendar view of every task with a due date, plus one-way <code>.ics</code> export to drop
@@ -146,6 +164,10 @@
       on, accumulating real time-spent per task.
     </p>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>Quietly smart, entirely on your device</h2>
     <p>
       A local automation rules engine reacts to your own tasks — mark something done, let its due
@@ -165,6 +187,10 @@
       laptop" instead of a hosted model.
     </p>
 
+    </div>
+    </section>
+    <section class="article-reveal-section">
+    <div class="reveal-up">
     <h2>For when it matters more</h2>
     <p>
       Share a single task or a whole list via a link — the decryption key travels in the URL
@@ -191,6 +217,8 @@
         <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
       </a>
     </div>
+    </div>
+    </section>
   </div>
 </main>
 
@@ -228,5 +256,8 @@
   </div>
 </footer>
 
+<script src="vendor/gsap/gsap.min.js?v=20260807a" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+<script src="vendor/gsap/ScrollTrigger.min.js?v=20260807a" integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d" crossorigin="anonymous"></script>
+<script src="js/landing.js?v=20260809a" integrity="sha384-mPT4JI5Tl21NXPaNJBk0gQm7pfKgArghdmpOzLGDE+GOAJ1ZeJtx4uK5bqial3Ha" crossorigin="anonymous" type="module"></script>
 </body>
 </html>
