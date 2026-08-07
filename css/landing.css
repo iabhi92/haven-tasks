@@ -55,6 +55,7 @@
   --lp-purple-light: #ecceff;
   --lp-purple-deep: #b476e0;
   --lp-border: #131313;
+  --lp-shadow-sm: 3px 3px 0 var(--lp-border);
   --lp-shadow: 4px 4px 0 var(--lp-border);
   --lp-shadow-lg: 8px 8px 0 var(--lp-border);
   --lp-heading-font: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -79,11 +80,6 @@
 }
 
 .landing-body * { box-sizing: border-box; }
-
-/* Deliberately no soft ambient glow blobs in this design — flat, hard-edged
-   backgrounds are the point. Elements kept as empty/inert for markup
-   compatibility with index.html; JS that toggles them is harmless no-ops. */
-.landing-ambient { display: none; }
 
 /* ---------- custom cursor (pointer devices only — never on touch, never
    replacing focus-visible outlines for keyboard users) ---------- */
@@ -194,8 +190,11 @@
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(241, 241, 241, 0.92);
-  backdrop-filter: blur(10px);
+  /* Solid, not backdrop-filter: blur — a sticky element re-samples everything
+     scrolling beneath it every frame under blur, one of the costlier things
+     to keep alive for the whole scroll session. A near-opaque solid reads
+     almost identically here since the grid background underneath is subtle. */
+  background: rgba(241, 241, 241, 0.98);
   border-bottom: 3px solid var(--lp-border);
 }
 .landing-brand {
@@ -424,7 +423,7 @@
   padding: 9px 15px;
   border-radius: 999px;
   border: 2px solid var(--lp-border);
-  box-shadow: 3px 3px 0 var(--lp-border);
+  box-shadow: var(--lp-shadow-sm);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .lp-pill:hover { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--lp-border); }
@@ -446,7 +445,11 @@
   z-index: 5;
 }
 .landing-section-warm { background: #fff; border: 3px solid var(--lp-border); border-radius: 24px; margin: 0 20px; }
-.landing-section-eyebrow {
+/* Shared with css/article.css's .article-eyebrow (identical pill-badge
+   treatment) — defined once here since landing.css is loaded on every
+   page that uses either class. */
+.landing-section-eyebrow,
+.article-eyebrow {
   font-family: var(--lp-mono-font);
   font-size: 11px;
   font-weight: 700;
@@ -462,7 +465,6 @@
   padding: 6px 12px;
   border-radius: 999px;
 }
-.landing-section-eyebrow::before { content: none; }
 .landing-section-title {
   font-size: clamp(30px, 4.4vw, 52px);
   line-height: 1.06;
@@ -499,9 +501,12 @@
   min-height: 220px;
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  /* transform-only, not box-shadow — landing.js already runs a continuous
+     GSAP mousemove tilt on this element while hovered; a shadow-value
+     transition here would force a paint on top of that every frame. */
+  transition: transform 0.2s ease;
 }
-.lp-fcard:hover { transform: translate(-3px, -3px); box-shadow: 7px 7px 0 var(--lp-border); }
+.lp-fcard:hover { transform: translate(-3px, -3px); }
 .lp-fcard-mint { background: var(--lp-mint-light); }
 .lp-fcard-yellow { background: var(--lp-yellow-light); }
 .lp-fcard-purple { background: var(--lp-purple-light); }
@@ -631,7 +636,7 @@
   padding: 11px 18px;
   background: #fff;
   border: 2px solid var(--lp-border);
-  box-shadow: 3px 3px 0 var(--lp-border);
+  box-shadow: var(--lp-shadow-sm);
   border-radius: 999px;
   font-size: 13.5px;
   font-weight: 700;
@@ -679,7 +684,6 @@
   overflow: hidden;
   box-shadow: var(--lp-shadow-lg);
 }
-.landing-final-cta-orb { display: none; }
 .landing-final-cta-card h2 {
   font-size: clamp(32px, 5vw, 58px);
   line-height: 1.04;
