@@ -1,6 +1,9 @@
 /* ---------- article page (compare.html) — matches the landing page's design
-   system (css/landing.css): warm cream palette, Plus Jakarta Sans headings,
-   Manrope body, JetBrains Mono labels. */
+   system (css/landing.css): neo-brutalist, hard black borders, offset
+   shadows, Space Grotesk headings, Hanken Grotesk body, Space Mono labels.
+   Colors/fonts here inherit the --lp-* custom properties landing.css
+   defines on .landing-body, so only the border/shadow/radius rules below
+   needed to change to match — the palette followed automatically. */
 
 .article-main {
   max-width: 720px;
@@ -13,16 +16,20 @@
 .article-eyebrow {
   font-family: var(--lp-mono-font);
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--lp-ink-soft);
-  display: flex;
+  color: var(--lp-ink);
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   margin: 0 0 22px;
+  background: var(--lp-mint);
+  border: 2px solid var(--lp-border);
+  padding: 6px 12px;
+  border-radius: 999px;
 }
-.article-eyebrow::before { content: ""; width: 28px; height: 1.5px; background: var(--lp-ink); }
+.article-eyebrow::before { content: none; }
 
 .article-h1 {
   font-family: var(--lp-heading-font);
@@ -85,7 +92,7 @@
 .article-body a {
   color: var(--lp-ink);
   text-decoration: underline;
-  text-decoration-color: var(--lp-yellow-deep);
+  text-decoration-color: var(--lp-mint-deep);
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
 }
@@ -94,8 +101,9 @@
 .article-table-wrap {
   overflow-x: auto;
   margin: 0 0 28px;
-  border: 1px solid var(--lp-border);
-  border-radius: 16px;
+  border: 3px solid var(--lp-border);
+  border-radius: 14px;
+  box-shadow: var(--lp-shadow);
   background: #fff;
 }
 
@@ -110,12 +118,12 @@
 .article-table td {
   padding: 13px 15px;
   text-align: left;
-  border-bottom: 1px solid var(--lp-border);
+  border-bottom: 2px solid var(--lp-border);
   vertical-align: top;
 }
 
 .article-table th {
-  background: var(--lp-bg-warm);
+  background: var(--lp-bg-deep);
   font-weight: 700;
   white-space: nowrap;
   font-family: var(--lp-heading-font);
@@ -135,9 +143,10 @@
 /* callout boxes */
 .article-callout {
   background: #fff;
-  border: 1px solid var(--lp-border);
-  border-left: 4px solid var(--lp-yellow-deep);
-  border-radius: 14px;
+  border: 3px solid var(--lp-border);
+  border-left: 6px solid var(--lp-yellow-deep);
+  border-radius: 12px;
+  box-shadow: var(--lp-shadow);
   padding: 20px 22px;
   margin: 0 0 28px;
 }
@@ -150,9 +159,10 @@
 .article-cta {
   margin-top: 56px;
   padding: 40px 32px;
-  border-radius: 26px;
-  background: var(--lp-bg-warm);
-  border: 1px solid var(--lp-border);
+  border-radius: 20px;
+  background: #fff;
+  border: 3px solid var(--lp-border);
+  box-shadow: var(--lp-shadow-lg);
   text-align: center;
 }
 .article-cta h2 {
@@ -167,7 +177,7 @@
 .article-footnote {
   margin-top: 56px;
   padding-top: 20px;
-  border-top: 1px solid var(--lp-border);
+  border-top: 2px solid var(--lp-border);
   font-size: 13px;
   line-height: 1.6;
   color: var(--lp-ink-faint);
