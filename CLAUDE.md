@@ -254,6 +254,43 @@ that either aren't in `sw.js`'s precache list (the marketing pages) or are
 served network-first (`app.html`, per the existing fix — see the sw.js
 comment on why).
 
+## Shipped (2026-08-08): Inbox board redesign, take 2
+
+First pass (border-weight fix + board-footer whitespace fill, earlier in
+this doc) shipped but the founder still didn't like the board: "too
+plain," weak layout/density, flat colors. Explored a genuinely bolder
+Stitch direction for a second pass, but Stitch timed out 4 consecutive
+times on this specific screen (it had needed only one retry each for the
+two earlier successful generations this session) — stopped retrying
+blindly per the tool's own guidance and hand-designed it instead, per the
+founder's choice when asked.
+
+Changes, all reusing existing tokens (no new colors introduced):
+- **Priority/overdue accent stripe**: `js/ui.js`'s `createTaskCard()` now
+  sets `data-priority` on the card element and an `.is-overdue` class
+  (computed the same way `dueBadgeInfo()` already does, gated on
+  `status !== "done"` so a completed task is never "overdue"). CSS in
+  `style.css` turns that into a 5px colored left border
+  (`--priority-low/medium/high`, `--danger` for overdue, reset to
+  `--border` once done) — scannable without reading the small badge text.
+- **Column identity**: `.board-col[data-status="in-progress"]` and
+  `="done"` get a colored header underline (reusing `--status-progress`/
+  `--status-done`, the same colors the header dot already uses) plus a
+  faint background wash (`--accent-soft` / a `color-mix()` success tint)
+  behind the cards. "To Do" stays neutral as the default state.
+- **Task title**: 600→700 weight, 15px→15.5px, for more contrast against
+  the metadata badges.
+
+Explicitly avoided: anything decorative (texture, rotation, the
+previously-rejected notebook-paper look) — every change here is
+functional signal, not decoration, per the direction the founder actually
+gave ("bolder" + "real hierarchy," not "cute").
+
+Verified with Playwright: a realistic board (4 tasks, mixed priority, one
+overdue, one in each of the 3 columns after moving status) screenshotted
+in both light and dark themes, zero console errors. Screenshots shown to
+the founder for approval before shipping — approved as "ship."
+
 ## In-flight / unfinished work — pick up here
 
 ### 1. Notes page (not started)

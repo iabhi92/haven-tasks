@@ -93,9 +93,14 @@ function dueBadge(dueDate) {
 export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selectionMode, selectedIds, onToggleSelect }) {
   const selected = !!(selectedIds && selectedIds.has(task.id));
   const destructedCls = task.destructed ? " is-destructed" : "";
-  const card = el("div", "task-card" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : "") + destructedCls);
+  // Overdue takes visual precedence over priority on the card's accent
+  // stripe (see .task-card[data-priority] / .task-card.is-overdue in
+  // style.css) — a done task is never "overdue" regardless of its date.
+  const overdueCls = !task.destructed && task.status !== "done" && dueBadgeInfo(task.dueDate)?.cls.includes("is-overdue") ? " is-overdue" : "";
+  const card = el("div", "task-card" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : "") + destructedCls + overdueCls);
   card.draggable = !selectionMode && !task.destructed;
   card.dataset.id = task.id;
+  if (!task.destructed) card.dataset.priority = task.priority;
   card.setAttribute("role", "listitem");
   card.tabIndex = 0;
 

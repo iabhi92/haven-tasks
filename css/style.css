@@ -714,6 +714,26 @@ body { display: flex; }
   border-radius: var(--radius-md);
 }
 
+/* Column identity — a colored header underline plus a faint background
+   wash, both reusing the same status colors the header dot already uses
+   (not new colors), so the board reads as three distinct zones instead
+   of three identical white boxes. To Do stays neutral/black since it's
+   the default "nothing special yet" state. */
+.board-col[data-status="in-progress"] .board-col-head { border-bottom: 3px solid var(--status-progress); }
+.board-col[data-status="done"] .board-col-head { border-bottom: 3px solid var(--status-done); }
+.board-col[data-status="in-progress"] .board-col-body {
+  background: var(--accent-soft);
+  border-radius: var(--radius-lg);
+  padding: 8px;
+  margin: 0 -8px -8px;
+}
+.board-col[data-status="done"] .board-col-body {
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+  border-radius: var(--radius-lg);
+  padding: 8px;
+  margin: 0 -8px -8px;
+}
+
 /* ---------- task card ---------- */
 .task-card {
   position: relative;
@@ -733,6 +753,15 @@ body { display: flex; }
 .task-card.is-dragging {
   opacity: 0.4;
 }
+/* Priority/overdue accent stripe — scannable at a glance without reading
+   the small badge text. Overdue overrides priority (set on the card by
+   createTaskCard() in js/ui.js); done tasks reset to neutral since
+   they're already de-emphasized via the strikethrough title below. */
+.task-card[data-priority="low"] { border-left-color: var(--priority-low); border-left-width: 5px; }
+.task-card[data-priority="medium"] { border-left-color: var(--priority-medium); border-left-width: 5px; }
+.task-card[data-priority="high"] { border-left-color: var(--priority-high); border-left-width: 5px; }
+.task-card.is-overdue { border-left-color: var(--danger); border-left-width: 5px; }
+.task-card.is-done { border-left-color: var(--border); border-left-width: 2px; }
 .task-card.is-destructed {
   background: var(--surface-sunken);
   color: var(--text-faint);
@@ -765,8 +794,8 @@ body { display: flex; }
 .task-title {
   margin: 0 0 6px;
   font-family: var(--font);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 15.5px;
+  font-weight: 700;
   line-height: 1.4;
   word-break: break-word;
 }
