@@ -12,9 +12,12 @@ import {
   getAllRules,
   putRule,
   deleteRule,
-} from "./store.js?v=20260807a";
-import { evaluateTask } from "./automation.js?v=20260807a";
-import { computeInsights } from "./insights.js?v=20260807a";
+  getAllNotes,
+  putNote,
+  deleteNote,
+} from "./store.js?v=20260808b";
+import { evaluateTask } from "./automation.js?v=20260808b";
+import { computeInsights } from "./insights.js?v=20260808b";
 import { generateICS } from "./ical.js?v=20260807a";
 import { parseCSVToTasks } from "./csv.js?v=20260807a";
 import { TEMPLATES, findTemplate } from "./templates.js?v=20260807a";
@@ -39,6 +42,7 @@ import {
   initPassphraseFeedback,
   renderHistoryReport,
   renderAutomationRulesList,
+  renderNotesList,
   renderInsights,
   renderCalendar,
   renderAssistantTaskOptions,
@@ -62,7 +66,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260807c";
+} from "./ui.js?v=20260808b";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -168,6 +172,12 @@ let ephemeralSweepInterval = null;
 // evaluator itself.
 let automationRules = [];
 let automationSweepInProgress = false;
+
+// ---------- notes ----------
+// Same encrypted-record pattern as automation rules above, not a parallel
+// scheme: encryptTask/decryptTask are already generic AES-GCM-over-JSON, so
+// a note is just { id, title, body, createdAt, updatedAt } run through them.
+let notes = [];
 
 // ---------- duress / decoy vault (Layer 3) ----------
 // Whichever passphrase the unlock form is given, it either opens the real
@@ -663,6 +673,95 @@ async function removeAutomationRule(id) {
   automationRules = automationRules.filter((r) => r.id !== id);
   await deleteRule(id);
   renderAutomationModal();
+}
+
+// ---------- notes ----------
+
+async function loadNotes() {
+  const records = await getAllNotes();
+  const decrypted = [];
+  for (const record of records) {
+    try {
+      decrypted.push(await decryptTask(record, dek));
+    } catch (err) {
+      console.error("Skipping a note that failed to decrypt:", record.id, err);
+    }
+  }
+  decrypted.sort((a, b) => b.updatedAt - a.updatedAt);
+  notes = decrypted;
+}
+
+async function addNote(title, body) {
+  const note = { id: uuid(), title, body, createdAt: now(), updatedAt: now() };
+  const { iv, ciphertext } = await encryptTask(note, dek);
+  await putNote({ id: note.id, iv, ciphertext });
+  notes.unshift(note);
+  renderNotesList(notes, { onOpen: openNoteModal, onDelete: removeNote });
+}
+
+async function updateNote(id, title, body) {
+  const note = notes.find((n) => n.id === id);
+  if (!note) return;
+  note.title = title;
+  note.body = body;
+  note.updatedAt = now();
+  const { iv, ciphertext } = await encryptTask(note, dek);
+  await putNote({ id, iv, ciphertext });
+  notes.sort((a, b) => b.updatedAt - a.updatedAt);
+  renderNotesList(notes, { onOpen: openNoteModal, onDelete: removeNote });
+}
+
+async function removeNote(id) {
+  notes = notes.filter((n) => n.id !== id);
+  await deleteNote(id);
+  renderNotesList(notes, { onOpen: openNoteModal, onDelete: removeNote });
+}
+
+let editingNoteId = null;
+
+function openNoteModal(note = null) {
+  editingNoteId = note ? note.id : null;
+  document.getElementById("noteModalTitle").textContent = note ? "Edit note" : "New note";
+  document.getElementById("noteTitle").value = note ? note.title : "";
+  document.getElementById("noteBody").value = note ? note.body : "";
+  document.getElementById("noteDeleteBtn").hidden = !note;
+  document.getElementById("noteModal").hidden = false;
+  document.getElementById("noteTitle").focus();
+}
+
+function closeNoteModal() {
+  document.getElementById("noteModal").hidden = true;
+  editingNoteId = null;
+}
+
+function wireNoteModal() {
+  const overlay = document.getElementById("noteModal");
+  const form = document.getElementById("noteForm");
+
+  document.getElementById("newNoteBtn").addEventListener("click", () => openNoteModal());
+  document.getElementById("noteCancelBtn").addEventListener("click", () => closeNoteModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeNoteModal();
+  });
+
+  document.getElementById("noteDeleteBtn").addEventListener("click", async () => {
+    if (!editingNoteId) return;
+    await removeNote(editingNoteId);
+    closeNoteModal();
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = document.getElementById("noteTitle").value.trim();
+    const body = document.getElementById("noteBody").value;
+    if (!title) return;
+    if (editingNoteId) {
+      await updateNote(editingNoteId, title, body);
+    } else {
+      await addNote(title, body);
+    }
+    closeNoteModal();
+  });
 }
 
 // Same lazy-on-render + reentrancy-guard pattern as the ephemeral-task sweep
@@ -2114,6 +2213,11 @@ function wireViewToggle() {
     setView(view);
     render();
   });
+  document.getElementById("viewNotesBtn").addEventListener("click", () => {
+    view = "notes";
+    setView(view);
+    render();
+  });
   document.getElementById("viewAssistantBtn").addEventListener("click", () => {
     view = "assistant";
     setView(view);
@@ -2844,6 +2948,8 @@ function wireCommandPalette() {
 async function afterUnlock() {
   tasks = await loadAndDecryptTasks();
   await loadAutomationRules();
+  await loadNotes();
+  renderNotesList(notes, { onOpen: openNoteModal, onDelete: removeNote });
   render();
   showApp();
   document.getElementById("quickAddInput").focus();
@@ -3217,6 +3323,7 @@ function wireLockButton() {
     tasks = [];
     ephemeralTaskKeys.clear();
     automationRules = [];
+    notes = [];
     // Locking mid-Pomodoro just drops the in-progress session rather than
     // trying to persist against a `dek` that's about to become null — the
     // same trade-off closing the tab mid-session already has.
@@ -3277,6 +3384,7 @@ async function boot() {
   wirePasskeyModal();
   wireDecoyVaultModal();
   wireAutomationModal();
+  wireNoteModal();
   wireCalendarView();
   wirePomodoro();
   wireTemplateModal();

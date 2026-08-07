@@ -52,8 +52,8 @@
 }
 </script>
 
-<link rel="stylesheet" href="css/style.css?v=20260809e" integrity="sha384-wFIkoDlCLVgGDiA+cxEV72BrFjJfHu13MS5THG8/eBKCXozu0y/l+0P8UYHdkQS/" crossorigin="anonymous">
-<link rel="stylesheet" href="css/landing.css?v=20260808a" integrity="sha384-Nue8MPzNJDqKBXU8ZybaIZTwv5UVzwkqqiezsEsUnB2zkLTKMwviSomqiVOLgkGR" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260809f" integrity="sha384-5d9bfPVi+1TCZwHXEfyzrT8IST0hjJucMyfLqbTyylmyWoXifmJ5tfJybTEAKPlM" crossorigin="anonymous">
+<link rel="stylesheet" href="css/landing.css?v=20260808b" integrity="sha384-kN1Gtij8ek3IQj7SY1/7ngHvatvb8NySKE8o5L7PvOZXYrCvKQBb4KGjOhOvvX4B" crossorigin="anonymous">
 </head>
 <body class="landing-body">
 
@@ -214,55 +214,57 @@
   </section>
 
   <section id="privacy" class="landing-section">
-    <div class="landing-section-head reveal-up">
-      <p class="landing-section-eyebrow">02 / The part most task apps skip</p>
-      <h2 class="landing-section-title">Your task list says more about you than you think.</h2>
-      <p class="landing-section-lede">
-        A task list doesn't look particularly sensitive, until it contains your doctor's
-        appointment, a client's name, a job you're applying for, a personal reminder, or something
-        you simply don't want sitting on somebody else's server.
-      </p>
-      <p class="landing-section-lede">
-        Haven encrypts your tasks on your device before it's saved. The server receives the
-        encrypted version, not the readable task. The encryption key stays with you, so we don't
-        have a readable copy of what you write.
-      </p>
-      <p class="landing-privacy-pullquote">We built Haven. We still can't read your tasks.</p>
-    </div>
-
-    <p class="landing-section-eyebrow landing-eyebrow-tight reveal-up">See exactly how it works</p>
-    <p class="landing-section-lede reveal-up">
-      Type something into Haven and see how your data is protected, right here, in your browser.
-    </p>
-    <div class="landing-reveal-demo reveal-up">
-      <div class="reveal-columns">
-        <div>
-          <p class="add-reveal-intro">What you type</p>
-          <pre id="landingPlaintext" class="reveal-pre reveal-pre-compact"></pre>
-        </div>
-        <div>
-          <p class="add-reveal-intro">What actually gets saved</p>
-          <pre id="landingCiphertext" class="reveal-pre reveal-pre-compact"></pre>
-        </div>
+    <div class="landing-privacy-inner">
+      <div class="landing-section-head reveal-up">
+        <p class="landing-section-eyebrow">02 / The part most task apps skip</p>
+        <h2 class="landing-section-title">Your task list says more about you than you think.</h2>
+        <p class="landing-section-lede">
+          A task list doesn't look particularly sensitive, until it contains your doctor's
+          appointment, a client's name, a job you're applying for, a personal reminder, or something
+          you simply don't want sitting on somebody else's server.
+        </p>
+        <p class="landing-section-lede">
+          Haven encrypts your tasks on your device before it's saved. The server receives the
+          encrypted version, not the readable task. The encryption key stays with you, so we don't
+          have a readable copy of what you write.
+        </p>
+        <p class="landing-privacy-pullquote">We built Haven. We still can't read your tasks.</p>
       </div>
-      <input
-        type="text"
-        id="landingDemoInput"
-        class="reveal-demo-input"
-        placeholder="Type here — try it with your own task"
-        autocomplete="off"
-        maxlength="200"
-      >
-    </div>
 
-    <p class="landing-section-lede landing-lede-tight reveal-up">
-      We've also published the technical details, threat model, and security testing, so you
-      don't have to take our word for it.
-    </p>
-    <div class="landing-proof-links reveal-up">
-      <a href="app.html" class="lp-link-chip">How your data is protected →</a>
-      <a href="docs/THREAT_MODEL.md" target="_blank" rel="noopener" class="lp-link-chip">Read the threat model →</a>
-      <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener" class="lp-link-chip">View the source code →</a>
+      <p class="landing-section-eyebrow landing-eyebrow-tight reveal-up">See exactly how it works</p>
+      <p class="landing-section-lede reveal-up">
+        Type something into Haven and see how your data is protected, right here, in your browser.
+      </p>
+      <div class="landing-reveal-demo reveal-up">
+        <div class="reveal-columns">
+          <div>
+            <p class="add-reveal-intro">What you type</p>
+            <pre id="landingPlaintext" class="reveal-pre reveal-pre-compact"></pre>
+          </div>
+          <div>
+            <p class="add-reveal-intro">What actually gets saved</p>
+            <pre id="landingCiphertext" class="reveal-pre reveal-pre-compact"></pre>
+          </div>
+        </div>
+        <input
+          type="text"
+          id="landingDemoInput"
+          class="reveal-demo-input"
+          placeholder="Type here — try it with your own task"
+          autocomplete="off"
+          maxlength="200"
+        >
+      </div>
+
+      <p class="landing-section-lede landing-lede-tight reveal-up">
+        We've also published the technical details, threat model, and security testing, so you
+        don't have to take our word for it.
+      </p>
+      <div class="landing-proof-links reveal-up">
+        <a href="app.html" class="lp-link-chip">How your data is protected →</a>
+        <a href="docs/THREAT_MODEL.md" target="_blank" rel="noopener" class="lp-link-chip">Read the threat model →</a>
+        <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener" class="lp-link-chip">View the source code →</a>
+      </div>
     </div>
   </section>
 

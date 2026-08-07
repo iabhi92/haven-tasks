@@ -262,8 +262,8 @@ export function renderList(tasks, handlers) {
   }
 }
 
-const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView", insights: "insightsView", calendar: "calendarView", assistant: "assistantView" };
-const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn", insights: "viewInsightsBtn", calendar: "viewCalendarBtn", assistant: "viewAssistantBtn" };
+const VIEW_PANEL_IDS = { board: "boardView", list: "listView", reveal: "revealView", history: "historyView", insights: "insightsView", calendar: "calendarView", notes: "notesView", assistant: "assistantView" };
+const VIEW_BTN_IDS = { board: "viewBoardBtn", list: "viewListBtn", reveal: "viewRevealBtn", history: "viewHistoryBtn", insights: "viewInsightsBtn", calendar: "viewCalendarBtn", notes: "viewNotesBtn", assistant: "viewAssistantBtn" };
 
 export function setView(view) {
   for (const key of Object.keys(VIEW_PANEL_IDS)) {
@@ -294,7 +294,7 @@ export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
   // even on a genuinely empty board (insights/calendar just show an empty
   // state rather than being unreachable; the assistant is useful even
   // before any tasks exist, since enabling it doesn't require any).
-  if (view === "reveal" || view === "history" || view === "insights" || view === "calendar" || view === "assistant") {
+  if (view === "reveal" || view === "history" || view === "insights" || view === "calendar" || view === "notes" || view === "assistant") {
     empty.hidden = true;
     noResults.hidden = true;
     setView(view);
@@ -899,6 +899,37 @@ export function renderAutomationRulesList(rules, { onDelete } = {}) {
     row.appendChild(delBtn);
 
     container.appendChild(row);
+  }
+}
+
+export function renderNotesList(notes, { onOpen, onDelete } = {}) {
+  const container = document.getElementById("notesList");
+  container.textContent = "";
+
+  if (notes.length === 0) {
+    container.appendChild(el("p", "modal-help", "No notes yet — click “New note” to write one."));
+    return;
+  }
+
+  for (const note of notes) {
+    const card = el("div", "note-card");
+    card.appendChild(el("h3", "note-card-title", note.title));
+    if (note.body) {
+      const preview = note.body.length > 160 ? note.body.slice(0, 160) + "…" : note.body;
+      card.appendChild(el("p", "note-card-body", preview));
+    }
+    card.appendChild(el("p", "note-card-meta", "Updated " + new Date(note.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })));
+    card.addEventListener("click", () => onOpen && onOpen(note));
+
+    const delBtn = el("button", "note-card-delete", "Delete");
+    delBtn.type = "button";
+    delBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onDelete && onDelete(note.id);
+    });
+    card.appendChild(delBtn);
+
+    container.appendChild(card);
   }
 }
 

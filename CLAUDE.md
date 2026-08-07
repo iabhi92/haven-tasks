@@ -291,20 +291,61 @@ overdue, one in each of the 3 columns after moving status) screenshotted
 in both light and dark themes, zero console errors. Screenshots shown to
 the founder for approval before shipping — approved as "ship."
 
+## Shipped (2026-08-08): Notes, Inbox/lock-screen polish, landing page fixes
+
+- **Notes** (`js/app.js`'s `loadNotes()`/`addNote()`/`updateNote()`/
+  `removeNote()`, `js/ui.js`'s `renderNotesList()`, `js/store.js`'s new
+  `notes` object store, `DB_VERSION` 4→5): title+body notes, own rail icon
+  and `notesView`, add/edit through one shared `noteModal`. Reuses
+  `encryptTask`/`decryptTask` as-is, same as automation rules — see
+  `docs/ARCHITECTURE.md` §4i. **Honest scope cut, not in this pass:**
+  sync push and the fragment-key share-link flow — a note is local-only
+  for now, both are natural follow-ups. Voice-to-text was asked for again
+  this session and explicitly declined again (same reasoning as before:
+  browser speech-to-text sends raw audio to a cloud provider, conflicting
+  with the privacy pitch) — don't re-litigate without a fresh explicit ask.
+- **Multi-project switcher discoverability fix**: the `#projectSwitcher`
+  `<select>` next to "Inbox" already existed and worked (create/switch
+  projects, per-project board filtering) but was styled to look like plain
+  static heading text — no visible affordance that it was a control. Added
+  a custom chevron + hover state (`.project-switcher-wrap` in
+  `css/style.css`) so it reads as a dropdown. Don't rebuild this feature if
+  asked for "multiple projects" again — it's there, the ask is almost
+  certainly about visibility/polish.
+- **Lock screen**: unlock-form subtext reworded (warmer, more complete
+  sentence); setup form gained a "Read the security model" link to
+  `security.html`. Adapted from Stitch explorations in the "Task Havens
+  Redesign" project, content/copy only — the accompanying visual mockups
+  (dark theme, pill buttons, a fake terminal boot-log with hex addresses on
+  the setup screen) were **not** applied: off-brand for this project's
+  established neo-brutalist system and explicit prior "functional signal,
+  not decoration" direction (see the Inbox-board-redesign session below).
+  A separate Stitch "Bold Structural Inbox" screen was also fetched and
+  rejected outright — generic multi-user SaaS Kanban (Create Project,
+  assignees, comments) that doesn't match Haven's single-vault, no-account
+  model at all.
+- **Landing page** (`index.html`): `img/hero-screenshot.png` regenerated
+  against the current app — the old one still showed the removed
+  notebook-paper card style. The `#privacy` section ("Your task list says
+  more about you than you think…") hugged the left edge with the whole
+  right side empty on wide viewports; its content is now wrapped in
+  `.landing-privacy-inner` (`max-width: 860px; margin: 0 auto;`) so the
+  block centers in the section — text itself stays left-aligned for
+  readability, only the block's position changed.
+
 ## In-flight / unfinished work — pick up here
 
-### 1. Notes page (not started)
+### 1. Drag-and-drop bug report, unreproduced
 
-User wants a Notes page: title + body notes, same E2EE encryption/storage
-pattern as tasks (reuse `encryptTask`/`decryptTask` primitives, don't
-invent a parallel scheme), shareable via the existing fragment-key
-share-link mechanism (`shared.html`/`js/shared.js`, `POST /share`).
-
-**Explicit decision already made, don't re-litigate:** typed input only,
-**no voice-to-text** — offered to the user and they chose to skip it
-entirely, since browser speech-to-text APIs typically send raw audio to a
-cloud provider (e.g. Google in Chrome), which conflicts with the "we can't
-read what you write" pitch.
+User reported dragging a task from To Do to In Progress "works for the
+first task only." Scripted Playwright repro (real mouse down/move/up, not
+synthetic events) dragging a *non-first* card while siblings still sit
+above it in the source column — twice, different scenarios — and both
+moved the correct task cleanly. Whatever's wrong wasn't caught this way.
+Next step: get the user's actual browser/device (the current impl is HTML5
+drag-and-drop, which doesn't work on touch/mobile at all — worth ruling
+out first) and exact repro steps before touching `wireDragAndDrop()` in
+`js/app.js` or `getDragAfterElement()` in `js/ui.js`.
 
 ## Notable gotchas discovered this session (don't rediscover the hard way)
 

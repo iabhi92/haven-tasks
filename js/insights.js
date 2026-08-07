@@ -3,10 +3,7 @@
 // See docs/ARCHITECTURE.md "On-device insights" for the honest scope note on
 // why this is a snapshot, not a history-over-time view.
 
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { todayStr } from "./automation.js?v=20260808b";
 
 export function computeInsights(tasks) {
   const real = tasks.filter((t) => !t.destructed); // a destructed placeholder has no real content to count

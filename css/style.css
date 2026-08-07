@@ -330,7 +330,10 @@ body { display: flex; }
   gap: 8px;
   margin-bottom: 4px;
 }
+.project-switcher-wrap { position: relative; display: inline-flex; align-items: center; }
 .project-switcher {
+  appearance: none;
+  -webkit-appearance: none;
   border: none;
   background: transparent;
   color: var(--text);
@@ -338,10 +341,24 @@ body { display: flex; }
   font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  padding: 0;
+  padding: 2px 20px 2px 4px;
+  margin: -2px -4px;
+  border-radius: var(--radius-sm);
   outline: none;
   cursor: pointer;
   max-width: 320px;
+  transition: background-color 0.15s ease;
+}
+.project-switcher:hover, .project-switcher:focus-visible { background: var(--surface-sunken); }
+.project-switcher-chevron {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--text-faint);
+  pointer-events: none;
 }
 .project-add-btn {
   border: none;
@@ -1127,6 +1144,62 @@ body { display: flex; }
   line-height: 1.5;
 }
 .automation-rule-text strong { color: var(--accent); font-weight: 700; }
+
+.notes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.notes-toolbar h2 { margin: 0; }
+.notes-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.note-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.12s ease;
+}
+.note-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.note-card-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  padding-right: 20px;
+  overflow-wrap: break-word;
+}
+.note-card-body {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  white-space: pre-line;
+}
+.note-card-meta {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.note-card-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+.note-card-delete:hover { color: var(--danger); background: var(--danger-soft); }
 
 .history-table-wrap {
   overflow-x: auto;

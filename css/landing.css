@@ -480,6 +480,10 @@
   margin: 0 0 8px;
 }
 .landing-section-head { margin-bottom: 56px; }
+/* #privacy is wide (unlike .landing-honest next to it, which stays left-aligned
+   at the section's own edge) — its content column is centered in the section
+   instead of hugging the left edge, so wide viewports don't read as half-empty. */
+.landing-privacy-inner { max-width: 860px; margin: 0 auto; }
 .landing-eyebrow-tight { margin-bottom: 16px; }
 .landing-lede-tight { margin-bottom: 20px; }
 @media (max-width: 700px) {

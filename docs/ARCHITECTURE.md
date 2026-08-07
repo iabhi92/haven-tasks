@@ -605,6 +605,27 @@ open-ended.
   stays responsive, not just that the promise eventually resolves. That's real evidence the feature
   works, just not re-run automatically on every future change the way a committed test suite would.
 
+## 4i. Notes (Layer 3)
+
+Free-form title+body writing for anything that doesn't fit a task — an appointment's details, a
+reference number, a longer thought. A separate entity from tasks, not a task field.
+
+- **Record shape:** `{ id, title, body, createdAt, updatedAt }`, encrypted the same way tasks and
+  automation rules are — `js/crypto.js`'s `encryptTask()`/`decryptTask()` reused as-is (already a
+  generic AES-GCM-encrypt-a-JSON-object pair, not task-schema-specific), stored in their own
+  `notes` IndexedDB object store (`DB_VERSION` 4→5). `js/app.js`'s `loadNotes()`/`addNote()`/
+  `updateNote()`/`removeNote()` mirror the automation-rules functions in shape and are the entire
+  data layer; `js/ui.js`'s `renderNotesList()` renders them as cards (title, a body preview
+  truncated to 160 chars, and a relative "Updated" date) into a dedicated `notesView` reached from
+  its own rail icon, with add/edit through one shared `noteModal` (`js/app.js`'s `openNoteModal()`/
+  `wireNoteModal()`).
+- **The decoy vault gets its own independent notes**, same as its own tasks/history/rules — `notes`
+  is part of the same per-database object-store layout `js/store.js`'s `upgrade()` creates for both
+  `haven` and `haven-decoy`.
+- **Honest scope limit:** local-only for now — not included in `syncNow()`'s push, and not wired
+  into the fragment-key share-link flow (§5b) that tasks use. Both are natural follow-ups, not done
+  here; a note currently lives and dies on the one device that wrote it.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

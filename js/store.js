@@ -4,7 +4,7 @@
 
 const DB_NAME = "haven";
 const DECOY_DB_NAME = "haven-decoy"; // see docs/ARCHITECTURE.md "Duress / decoy vault"
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORE_NAME = "tasks";
 const KEYRING_STORE = "keyring";
 const KEYRING_KEY = "main";
@@ -18,6 +18,9 @@ const HISTORY_STORE = "historyLog";
 // names) are just as much user content as a task title. See
 // docs/ARCHITECTURE.md "Local automation rules".
 const RULES_STORE = "rules";
+// Same encrypted-JSON-object pattern as tasks and rules — a note's title/body
+// is user content like anything else here. See docs/ARCHITECTURE.md "Notes".
+const NOTES_STORE = "notes";
 
 // Same object-store layout for both databases — the decoy DB just never
 // happens to have anything in `keyring` (that always lives in the main "haven"
@@ -38,6 +41,9 @@ function upgrade(db) {
   }
   if (!db.objectStoreNames.contains(RULES_STORE)) {
     db.createObjectStore(RULES_STORE, { keyPath: "id" });
+  }
+  if (!db.objectStoreNames.contains(NOTES_STORE)) {
+    db.createObjectStore(NOTES_STORE, { keyPath: "id" });
   }
 }
 
@@ -206,6 +212,36 @@ export async function deleteRule(id) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(RULES_STORE, "readwrite");
     tx.objectStore(RULES_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getAllNotes() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTES_STORE, "readonly");
+    const req = tx.objectStore(NOTES_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function putNote(note) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTES_STORE, "readwrite");
+    tx.objectStore(NOTES_STORE).put(note);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteNote(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTES_STORE, "readwrite");
+    tx.objectStore(NOTES_STORE).delete(id);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

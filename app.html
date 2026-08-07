@@ -45,7 +45,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260809e" integrity="sha384-wFIkoDlCLVgGDiA+cxEV72BrFjJfHu13MS5THG8/eBKCXozu0y/l+0P8UYHdkQS/" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260809f" integrity="sha384-5d9bfPVi+1TCZwHXEfyzrT8IST0hjJucMyfLqbTyylmyWoXifmJ5tfJybTEAKPlM" crossorigin="anonymous">
 </head>
 <body>
 
@@ -86,6 +86,7 @@
         four random words work well.</p>
       <p class="lock-error" id="setupError" role="alert"></p>
       <button type="submit" class="btn btn-primary lock-submit">Continue</button>
+      <a class="lock-link" href="security.html">Read the security model</a>
     </form>
 
     <div class="lock-form" id="recoveryCodeScreen" hidden>
@@ -101,7 +102,7 @@
     </div>
 
     <form id="unlockForm" class="lock-form" autocomplete="off" hidden>
-      <p class="lock-sub">Enter your passphrase to unlock your tasks.</p>
+      <p class="lock-sub">Your tasks are encrypted and stored locally. Enter your passphrase to unlock your vault.</p>
       <button type="button" class="btn btn-ghost lock-submit lock-passkey-btn" id="passkeyUnlockBtn" hidden>Unlock with passkey</button>
       <div class="field">
         <label for="unlockPassphrase">Passphrase</label>
@@ -219,6 +220,14 @@
         <path d="M3 8h14M7 3v3M13 3v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
       </svg>
     </button>
+    <button type="button" class="rail-btn" id="viewNotesBtn" role="tab" aria-selected="false" aria-label="Notes" title="Notes">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M5 2.5h7l3 3v12H5v-15z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+        <path d="M12 2.5v3h3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+        <line x1="7.2" y1="10" x2="12.8" y2="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+        <line x1="7.2" y1="13" x2="12.8" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
+      </svg>
+    </button>
     <button type="button" class="rail-btn" id="viewAssistantBtn" role="tab" aria-selected="false" aria-label="AI assistant" title="AI assistant">
       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path d="M10 2.5l1.4 3.8 3.8 1.4-3.8 1.4L10 13l-1.4-3.8-3.8-1.4 3.8-1.4L10 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
@@ -259,7 +268,12 @@
   <header class="page-header">
     <div>
       <div class="project-switcher-row">
-        <select id="projectSwitcher" class="project-switcher" aria-label="Current project"></select>
+        <div class="project-switcher-wrap">
+          <select id="projectSwitcher" class="project-switcher" aria-label="Current project"></select>
+          <svg class="project-switcher-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </div>
         <button type="button" class="project-add-btn" id="addProjectBtn" aria-label="New project">+</button>
       </div>
       <div class="project-add-row" id="projectAddRow" hidden>
@@ -474,6 +488,19 @@
           gives you a standard .ics file to import into Google Calendar, Apple Calendar, or Outlook,
           a one-time copy, not a live sync back to Haven.</p>
         <div class="calendar-grid" id="calendarGrid"></div>
+      </section>
+    </div>
+
+    <div id="notesView" class="reveal-view" hidden>
+      <section class="reveal-section">
+        <div class="notes-toolbar">
+          <h2>Notes</h2>
+          <button type="button" class="btn btn-primary btn-sm" id="newNoteBtn">+ New note</button>
+        </div>
+        <p class="reveal-intro">Encrypted the same way tasks are — free-form writing for
+          anything that doesn't fit a task: an appointment's details, a reference number,
+          a longer thought. Local-only, not part of sync yet.</p>
+        <div class="notes-list" id="notesList"></div>
       </section>
     </div>
 
@@ -985,6 +1012,29 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="noteModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="noteModalTitle">
+    <h2 id="noteModalTitle">New note</h2>
+    <form id="noteForm">
+      <div class="field">
+        <label for="noteTitle">Title</label>
+        <input type="text" id="noteTitle" maxlength="200" required>
+      </div>
+      <div class="field">
+        <label for="noteBody">Note</label>
+        <textarea id="noteBody" rows="10" maxlength="20000"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="noteDeleteBtn" hidden>Delete</button>
+        <div class="modal-actions-right">
+          <button type="button" class="btn btn-ghost" id="noteCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="templateModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="templateModalTitle">
     <h2 id="templateModalTitle">New from template</h2>
@@ -1073,6 +1123,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260807d" integrity="sha384-sfGu4FSdV1PHT3dWpjc7AUJsl4S83iNH6IyQnb726zgUp0hEuiIB/4syUqawOD8/" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260808b" integrity="sha384-RmiNSqAcnJClV1kmA0smqFM4yBUXH5lVvYCD0pIkL5T8fRvvUU54CJ2v88SSZfEz" crossorigin="anonymous" type="module"></script>
 </body>
 </html>
