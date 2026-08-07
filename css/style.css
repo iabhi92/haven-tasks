@@ -67,11 +67,6 @@
   --bg-glass: var(--bg);
   --surface-glass: var(--surface);
   --overlay-glass: rgba(15, 16, 20, 0.35);
-
-  --paper-bg: #fdf6e3;
-  --paper-line: rgba(30, 25, 15, 0.16);
-  --paper-text: #2c2620;
-  --paper-text-muted: #6f6656;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -108,11 +103,6 @@
     --bg-glass: var(--bg);
     --surface-glass: var(--surface);
     --overlay-glass: rgba(4, 4, 6, 0.55);
-
-    --paper-bg: #26221b;
-    --paper-line: rgba(255, 248, 230, 0.13);
-    --paper-text: #efe9db;
-    --paper-text-muted: #a89d85;
 
     /* Rail uses the dark-mode surface tone (not near-black bg) so its border
        still reads as a distinct panel, not a shade of the page. */
@@ -161,11 +151,6 @@
   --surface-glass: var(--surface);
   --overlay-glass: rgba(4, 4, 6, 0.55);
 
-  --paper-bg: #26221b;
-  --paper-line: rgba(255, 248, 230, 0.13);
-  --paper-text: #efe9db;
-  --paper-text-muted: #a89d85;
-
   --rail-bg: var(--surface);
   --rail-border: var(--border);
 }
@@ -203,11 +188,6 @@
   --bg-glass: var(--bg);
   --surface-glass: var(--surface);
   --overlay-glass: rgba(15, 16, 20, 0.35);
-
-  --paper-bg: #fdf6e3;
-  --paper-line: rgba(30, 25, 15, 0.16);
-  --paper-text: #2c2620;
-  --paper-text-muted: #6f6656;
 
   --rail-bg: #131313;
   --rail-border: #131313;
@@ -737,57 +717,27 @@ body { display: flex; }
 /* ---------- task card ---------- */
 .task-card {
   position: relative;
-  background: var(--paper-bg);
-  color: var(--paper-text);
-  border: none;
-  border-radius: 3px;
-  padding: 13px 14px 11px 32px;
+  background: var(--surface);
+  color: var(--text);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 13px 14px 11px;
   cursor: grab;
-  /* Hard-edged, not blurred — drop-shadow (not box-shadow) so it follows the
-     punch-hole/ruled-paper mask below instead of casting a plain rectangle. */
-  filter: drop-shadow(3px 3px 0 var(--border));
-  transition: transform 0.25s ease, filter 0.2s ease;
-
-  /* Punch-hole left margin, notebook-style. Standard `mask` only — deliberately no
-     -webkit-mask duplicate: legacy WebKit/Blink -webkit-mask defaults to luminance
-     mode for plain gradients, so opaque black (meant as "fully visible" under alpha
-     masking) reads as luminance 0 and hides the whole element instead. Forcing
-     alpha mode explicitly on the standard property sidesteps that ambiguity. */
-  mask:
-    linear-gradient(#000, #000) no-repeat center / 100% 100%,
-    radial-gradient(circle, #000 42%, transparent 0) repeat-y 11px 9px / 15px 28px;
-  mask-mode: alpha, alpha;
-  mask-composite: subtract;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-/* ruled lines, purely decorative texture behind the content */
-.task-card::before {
-  content: "";
-  position: absolute;
-  inset: 8px 6px 6px 28px;
-  background-image: repeating-linear-gradient(var(--paper-line) 0 1px, transparent 1px 21px);
-  pointer-events: none;
-}
-.task-card > * {
-  position: relative;
-}
-.task-card:nth-child(odd) { transform: rotate(-1.5deg); }
-.task-card:nth-child(even) { transform: rotate(1.5deg); }
 .task-card:hover {
-  transform: rotate(0deg) translateY(-3px);
-  filter: drop-shadow(5px 5px 0 var(--border));
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
 }
 .task-card.is-dragging {
   opacity: 0.4;
 }
-/* No punch-holes/ruled-paper texture for a burned-out card — the whole point
-   is that it doesn't look like a normal note anymore. Overrides the mask
-   from .task-card above by resetting it, not by fighting the mask directly. */
 .task-card.is-destructed {
   background: var(--surface-sunken);
   color: var(--text-faint);
-  mask: none;
-  filter: none;
-  border: 1px dashed var(--border-strong);
+  border: 2px dashed var(--border-strong);
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -796,7 +746,7 @@ body { display: flex; }
 }
 .task-card.is-destructed:hover {
   transform: none;
-  filter: none;
+  box-shadow: none;
 }
 .destructed-label {
   margin: 0;
@@ -809,7 +759,7 @@ body { display: flex; }
 
 .task-card.is-done .task-title {
   text-decoration: line-through;
-  color: var(--paper-text-muted);
+  color: var(--text-muted);
 }
 
 .task-title {
@@ -823,7 +773,7 @@ body { display: flex; }
 .task-notes {
   margin: 0 0 8px;
   font-size: 12px;
-  color: var(--paper-text-muted);
+  color: var(--text-muted);
   line-height: 1.5;
   word-break: break-word;
 }
@@ -1215,29 +1165,13 @@ body { display: flex; }
 .add-reveal-intro { margin-top: 4px; }
 
 /* ---------- list view ---------- */
-/* List view: one continuous notebook page rather than a data table — same
-   punch-hole/ruled-line/typewriter language as the board cards, applied once
-   to the whole page instead of per-card. */
 .list-view {
   position: relative;
-  background: var(--paper-bg);
-  border: none;
-  border-radius: 3px;
-  padding: 6px 10px 6px 34px;
-  filter: drop-shadow(2px 3px 8px rgba(0, 0, 0, 0.16));
-
-  mask:
-    linear-gradient(#000, #000) no-repeat center / 100% 100%,
-    radial-gradient(circle, #000 42%, transparent 0) repeat-y 11px 14px / 15px 32px;
-  mask-mode: alpha, alpha;
-  mask-composite: subtract;
-}
-.list-view::before {
-  content: "";
-  position: absolute;
-  inset: 8px 8px 8px 30px;
-  background-image: repeating-linear-gradient(var(--paper-line) 0 1px, transparent 1px 41px);
-  pointer-events: none;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  box-shadow: var(--shadow-sm);
 }
 .list-head, .list-row {
   position: relative;
@@ -1252,14 +1186,14 @@ body { display: flex; }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--paper-text-muted);
+  color: var(--text-muted);
 }
 .list-row {
   cursor: pointer;
-  color: var(--paper-text);
+  color: var(--text);
   transition: background-color 0.15s ease;
 }
-.list-row:hover { background: color-mix(in srgb, var(--paper-text) 6%, transparent); }
+.list-row:hover { background: var(--surface-sunken); }
 .list-row-title-cell {
   display: flex;
   flex-direction: column;
@@ -1279,7 +1213,7 @@ body { display: flex; }
 }
 .list-row.is-done .list-row-title {
   text-decoration: line-through;
-  color: var(--paper-text-muted);
+  color: var(--text-muted);
 }
 .list-row-actions {
   display: flex;
@@ -1288,7 +1222,7 @@ body { display: flex; }
 .list-row-delete {
   border: none;
   background: transparent;
-  color: var(--paper-text-muted);
+  color: var(--text-muted);
   padding: 4px 6px;
   border-radius: var(--radius-sm);
   font-size: 12px;
