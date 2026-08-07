@@ -1164,6 +1164,69 @@ body { display: flex; }
 .reveal-pre-compact { min-height: 100px; max-height: 180px; font-size: 11px; }
 .add-reveal-intro { margin-top: 4px; }
 
+/* ---------- board footer (weekly momentum + recently completed) ----------
+   Fills the dead whitespace that otherwise trails below the board columns
+   once there are only a few tasks — genuinely useful summary content, not
+   decoration. Shown only on the board/list views, and only once at least
+   one task exists (see setView()/hideAllViewPanels() in js/ui.js). */
+.board-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 40px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 2px solid var(--border);
+}
+.board-footer-momentum {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+.board-footer-track { flex: 1; min-width: 100px; }
+.board-footer-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.board-footer-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.board-footer-recent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+}
+.board-footer-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.board-footer-chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- list view ---------- */
 .list-view {
   position: relative;
@@ -1300,6 +1363,68 @@ body { display: flex; }
   border-color: var(--accent);
 }
 .field textarea { resize: vertical; }
+
+/* ---------- password field: show/hide toggle, strength meter, match indicator ---------- */
+.field-password { position: relative; }
+.field-password input { padding-right: 36px; }
+.field-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.field-password-toggle:hover { color: var(--text); background: var(--surface); }
+.field-password-toggle svg { width: 17px; height: 17px; }
+.field-password-toggle .icon-eye-off { display: none; }
+.field-password-toggle.is-visible .icon-eye { display: none; }
+.field-password-toggle.is-visible .icon-eye-off { display: block; }
+
+.passphrase-strength {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 0;
+}
+.strength-seg {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+}
+.strength-seg.is-danger { background: var(--danger); }
+.strength-seg.is-warn { background: var(--warn); }
+.strength-seg.is-success { background: var(--success); }
+.strength-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 2px;
+  color: var(--text-faint);
+  min-width: 42px;
+}
+.strength-label.is-danger { color: var(--danger); }
+.strength-label.is-warn { color: var(--warn); }
+.strength-label.is-success { color: var(--success); }
+
+.passphrase-match {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 1em;
+  color: var(--text-faint);
+}
+.passphrase-match.is-match { color: var(--success); }
+.passphrase-match.is-mismatch { color: var(--danger); }
 
 .field-row {
   display: grid;
@@ -1466,7 +1591,10 @@ body { display: flex; }
   width: 100%;
   max-width: 400px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  /* 2px, not the 1px this shipped with — every other primary surface in the
+     app (buttons, task cards) carries a 2px border; a 1px border here was
+     the one surface that didn't match that hierarchy. */
+  border: 2px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 32px 28px;

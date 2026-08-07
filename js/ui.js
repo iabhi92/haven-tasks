@@ -268,12 +268,16 @@ export function setView(view) {
     btn.classList.toggle("is-active", isActive);
     btn.setAttribute("aria-selected", String(isActive));
   }
+  // The board-footer summary only makes sense alongside the board/list views,
+  // not the reveal/history/insights/calendar/assistant pages.
+  document.getElementById("boardFooter").hidden = !(view === "board" || view === "list");
 }
 
 function hideAllViewPanels() {
   for (const id of Object.values(VIEW_PANEL_IDS)) {
     document.getElementById(id).hidden = true;
   }
+  document.getElementById("boardFooter").hidden = true;
 }
 
 export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
@@ -499,6 +503,90 @@ export function setResetError(message) {
   document.getElementById("resetError").textContent = message || "";
 }
 
+// ---------- password fields: show/hide toggle, strength meter, match indicator ----------
+
+// Wires every .field-password-toggle button in the document (works for any
+// password field using the .field-password wrapper markup, present or future).
+export function initPasswordToggles() {
+  document.querySelectorAll(".field-password-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = btn.previousElementSibling;
+      const showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.classList.toggle("is-visible", !showing);
+      btn.setAttribute("aria-label", showing ? "Show passphrase" : "Hide passphrase");
+    });
+  });
+}
+
+const STRENGTH_LABELS = ["Too short", "Weak", "Fair", "Good", "Strong"];
+const STRENGTH_CLASS = ["danger", "danger", "warn", "warn", "success"];
+
+// A rough heuristic, not a real entropy estimate — enough to nudge someone
+// away from "aaaaaaaaaa" without pretending to be a password-strength library.
+function computePassphraseStrength(value) {
+  if (!value) return 0;
+  let score = 0;
+  if (value.length >= 10) score += 1;
+  if (value.length >= 16) score += 1;
+  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1;
+  if (/[0-9]/.test(value)) score += 1;
+  if (/[^A-Za-z0-9\s]/.test(value) || value.trim().split(/\s+/).length >= 4) score += 1;
+  return Math.min(score, 4);
+}
+
+function renderPassphraseStrength(meterId, value) {
+  const meter = document.getElementById(meterId);
+  if (!meter) return;
+  const score = computePassphraseStrength(value);
+  const cls = STRENGTH_CLASS[score];
+  const lit = value ? Math.max(score, 1) : 0;
+  meter.querySelectorAll(".strength-seg").forEach((seg, i) => {
+    seg.className = "strength-seg" + (i < lit ? ` is-${cls}` : "");
+  });
+  const label = meter.querySelector(".strength-label");
+  label.textContent = value ? STRENGTH_LABELS[score] : "";
+  label.className = "strength-label" + (value ? ` is-${cls}` : "");
+}
+
+function renderPassphraseMatch(matchId, primaryValue, confirmValue) {
+  const matchEl = document.getElementById(matchId);
+  if (!matchEl) return;
+  if (!confirmValue) {
+    matchEl.textContent = "";
+    matchEl.className = "passphrase-match";
+    return;
+  }
+  const matches = primaryValue === confirmValue;
+  matchEl.textContent = matches ? "Matches" : "Doesn't match yet";
+  matchEl.className = "passphrase-match" + (matches ? " is-match" : " is-mismatch");
+}
+
+// The two passphrase-setting pairs on the lock screen (setup, and the
+// recovery-code reset flow) — both need live strength + match feedback.
+// Not the unlock or decoy-vault forms: those aren't "choosing a passphrase."
+const PASSPHRASE_PAIRS = [
+  { primary: "setupPassphrase", confirm: "setupPassphraseConfirm" },
+  { primary: "resetPassphrase", confirm: "resetPassphraseConfirm" },
+];
+
+export function initPassphraseFeedback() {
+  for (const { primary, confirm } of PASSPHRASE_PAIRS) {
+    const primaryInput = document.getElementById(primary);
+    const confirmInput = document.getElementById(confirm);
+    if (!primaryInput || !confirmInput) continue;
+    const meterId = `${primary}Strength`;
+    const matchId = `${confirm}Match`;
+    primaryInput.addEventListener("input", () => {
+      renderPassphraseStrength(meterId, primaryInput.value);
+      renderPassphraseMatch(matchId, primaryInput.value, confirmInput.value);
+    });
+    confirmInput.addEventListener("input", () => {
+      renderPassphraseMatch(matchId, primaryInput.value, confirmInput.value);
+    });
+  }
+}
+
 // ---------- stat pills ----------
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -587,6 +675,46 @@ export function renderStats(tasks) {
 
 export function setPageSubtitle(text) {
   document.getElementById("pageSubtitle").textContent = text;
+}
+
+// Fills the whitespace that otherwise trails below the board columns once
+// there are only a few tasks, with genuinely useful summary content: how
+// much of this week's workload is done, and what got finished recently.
+// Visibility (board/list view only, and only once a task exists) is handled
+// by setView()/hideAllViewPanels() below — this just renders content.
+export function renderBoardFooter(tasks) {
+  const footer = document.getElementById("boardFooter");
+  footer.textContent = "";
+  if (tasks.length === 0) return;
+
+  const weekAgo = Date.now() - 7 * 86400000;
+  const completedThisWeek = tasks
+    .filter((t) => t.status === "done" && !t.destructed && t.updatedAt >= weekAgo)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const openCount = tasks.filter((t) => t.status !== "done" && !t.destructed).length;
+  const total = completedThisWeek.length + openCount;
+  const pct = total > 0 ? Math.round((completedThisWeek.length / total) * 100) : 0;
+
+  const momentum = el("div", "board-footer-momentum");
+  momentum.appendChild(el("span", "board-footer-label", "Weekly momentum"));
+  const track = el("div", "insights-bar-track board-footer-track");
+  const fill = el("div", "insights-bar-fill");
+  fill.style.width = `${pct}%`;
+  track.appendChild(fill);
+  momentum.appendChild(track);
+  momentum.appendChild(el("span", "board-footer-count", `${completedThisWeek.length} done this week`));
+  footer.appendChild(momentum);
+
+  if (completedThisWeek.length > 0) {
+    const recent = el("div", "board-footer-recent");
+    recent.appendChild(el("span", "board-footer-label", "Recently completed"));
+    const chips = el("div", "board-footer-chips");
+    for (const t of completedThisWeek.slice(0, 3)) {
+      chips.appendChild(el("span", "board-footer-chip", t.title));
+    }
+    recent.appendChild(chips);
+    footer.appendChild(recent);
+  }
 }
 
 const HISTORY_BREAK_REASON_TEXT = {

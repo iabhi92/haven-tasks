@@ -114,6 +114,56 @@ git -c http.postBuffer=524288000 -c http.version=HTTP/1.1 push origin main
   `docs/THREAT_MODEL.md`'s A5 entry and `vendor/transformers/SOURCE.md`.
   **Known unfixed issue: see below.**
 
+## UI refinement pass (2026-08-08): unlock screen + Inbox board
+
+Used Google Stitch (MCP) to explore refinements to the unlock/passphrase
+screen and the Inbox board, against a hand-authored design system fed from
+the *actual* shipped `css/style.css` tokens (not any of the earlier,
+mismatched Stitch explorations already sitting in the `Task Havens
+Redesign` Stitch project — those used a soft-cream/gold/glassmorphism
+theme from before the neo-brutalist direction was settled; left alone,
+not deleted). Shipped changes, all within the existing scheme (indigo
+accent, hard offset shadows, Space Grotesk headings, rounded-not-sharp
+corners):
+
+- **`.lock-card` border 1px → 2px** — it was the one primary surface in
+  the app that didn't carry the same border weight as buttons/task cards
+  (2px) or the icon rail (3px). Pure consistency fix.
+- **Password show/hide toggle** on all 5 lock-screen password fields
+  (setup ×2, unlock, reset ×2) — inline SVG eye icon matching the app's
+  existing line-icon style, no external icon font. `initPasswordToggles()`
+  in `js/ui.js`, generic over any `.field-password-toggle` button.
+- **Live passphrase strength meter + match indicator** on the setup and
+  reset-passphrase forms (not unlock or the decoy-vault modal — those
+  aren't "choosing a new passphrase," out of scope for this pass).
+  Heuristic-based (`computePassphraseStrength()`), explicitly not a real
+  entropy estimate. `initPassphraseFeedback()` in `js/ui.js`.
+- **Board footer** (`renderBoardFooter()` in `js/ui.js`, `#boardFooter` in
+  `app.html`) — fills the dead whitespace that used to trail below the
+  board columns once there are only a few tasks, with a "Weekly momentum"
+  progress bar (done-this-week ÷ (done-this-week + still-open)) and up to
+  3 "Recently completed" chips. Real data, not decorative filler; hidden
+  automatically on non-board/list views and when zero tasks exist
+  (wired through `setView()`/`hideAllViewPanels()`).
+
+Verified with a real Playwright run (not just read-and-assume): border
+width via computed style, strength label changing weak→strong as typed,
+match indicator flipping mismatch→match, toggle actually flipping
+`input.type`, and the board footer appearing/hiding correctly and showing
+correct counts after actually completing a task through the real edit-modal
+save flow (not just DOM inspection) — light and dark themes both checked.
+
+Deliberately **not** touched: `passkeySetupPassphrase`,
+`decoyVaultPassphrase`/`Confirm`, `syncJoinPassphrase` — those live in
+separate settings modals, not "the login page" the user asked about, and
+adding the same strength/match treatment there wasn't requested.
+
+Cache-busting done: `css/style.css` → `?v=20260809c`, `js/app.js` /
+`js/ui.js` → `?v=20260807b` (bumped everywhere referenced — all 6 HTML
+files plus `sw.js`'s `APP_SHELL`), `sw.js`'s `CACHE_NAME` → `haven-shell-v7`,
+`integrity.json` and every `integrity="..."` attribute regenerated via
+`node scripts/generate-integrity.mjs`.
+
 ## In-flight / unfinished work — pick up here
 
 ### 1. AI assistant freezes the page during load/generation (not shipped)

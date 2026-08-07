@@ -41,7 +41,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260809b" integrity="sha384-eI8S8qvSM2j+TU5Cm287BRwBPXGQFt74NF03GDVVGoxbjh1Iuuy9uyYmwSADgE99" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260809c" integrity="sha384-3ldClOZXfpN7ThgjHq+WPla7tcW7WSrmV8dkLQdhkEFP6UzPmOjTCtLsnw/vP5IC" crossorigin="anonymous">
 </head>
 <body>
 
@@ -55,11 +55,28 @@
         see it. Next you'll get a one-time recovery code as a backup if you forget it.</p>
       <div class="field">
         <label for="setupPassphrase">Passphrase</label>
-        <input type="password" id="setupPassphrase" autocomplete="new-password" minlength="10" required>
+        <div class="field-password">
+          <input type="password" id="setupPassphrase" autocomplete="new-password" minlength="10" required>
+          <button type="button" class="field-password-toggle" aria-label="Show passphrase">
+            <svg class="icon-eye" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="10" cy="10" r="2.3" stroke="currentColor" stroke-width="1.6"></circle></svg>
+            <svg class="icon-eye-off" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.5 2.5l15 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><path d="M8.3 4.3A8.6 8.6 0 0 1 10 4c5.5 0 8.5 6 8.5 6a15 15 0 0 1-2.3 3.1M5.6 5.6C3 7.3 1.5 10 1.5 10s3 6 8.5 6c1 0 1.9-.2 2.7-.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.2 8.2a2.3 2.3 0 0 0 3.2 3.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+          </button>
+        </div>
+        <div class="passphrase-strength" id="setupPassphraseStrength" aria-hidden="true">
+          <div class="strength-seg"></div><div class="strength-seg"></div><div class="strength-seg"></div><div class="strength-seg"></div>
+          <span class="strength-label"></span>
+        </div>
       </div>
       <div class="field">
         <label for="setupPassphraseConfirm">Confirm passphrase</label>
-        <input type="password" id="setupPassphraseConfirm" autocomplete="new-password" minlength="10" required>
+        <div class="field-password">
+          <input type="password" id="setupPassphraseConfirm" autocomplete="new-password" minlength="10" required>
+          <button type="button" class="field-password-toggle" aria-label="Show passphrase">
+            <svg class="icon-eye" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="10" cy="10" r="2.3" stroke="currentColor" stroke-width="1.6"></circle></svg>
+            <svg class="icon-eye-off" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.5 2.5l15 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><path d="M8.3 4.3A8.6 8.6 0 0 1 10 4c5.5 0 8.5 6 8.5 6a15 15 0 0 1-2.3 3.1M5.6 5.6C3 7.3 1.5 10 1.5 10s3 6 8.5 6c1 0 1.9-.2 2.7-.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.2 8.2a2.3 2.3 0 0 0 3.2 3.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+          </button>
+        </div>
+        <p class="passphrase-match" id="setupPassphraseConfirmMatch"></p>
       </div>
       <p class="lock-hint">At least 10 characters. Longer and less guessable beats complex —
         four random words work well.</p>
@@ -84,7 +101,13 @@
       <button type="button" class="btn btn-ghost lock-submit lock-passkey-btn" id="passkeyUnlockBtn" hidden>Unlock with passkey</button>
       <div class="field">
         <label for="unlockPassphrase">Passphrase</label>
-        <input type="password" id="unlockPassphrase" autocomplete="current-password" required>
+        <div class="field-password">
+          <input type="password" id="unlockPassphrase" autocomplete="current-password" required>
+          <button type="button" class="field-password-toggle" aria-label="Show passphrase">
+            <svg class="icon-eye" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="10" cy="10" r="2.3" stroke="currentColor" stroke-width="1.6"></circle></svg>
+            <svg class="icon-eye-off" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.5 2.5l15 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><path d="M8.3 4.3A8.6 8.6 0 0 1 10 4c5.5 0 8.5 6 8.5 6a15 15 0 0 1-2.3 3.1M5.6 5.6C3 7.3 1.5 10 1.5 10s3 6 8.5 6c1 0 1.9-.2 2.7-.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.2 8.2a2.3 2.3 0 0 0 3.2 3.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+          </button>
+        </div>
       </div>
       <p class="lock-error" id="unlockError" role="alert"></p>
       <button type="submit" class="btn btn-primary lock-submit">Unlock</button>
@@ -123,11 +146,28 @@
         stay exactly as they are, only the passphrase changes.</p>
       <div class="field">
         <label for="resetPassphrase">New passphrase</label>
-        <input type="password" id="resetPassphrase" autocomplete="new-password" minlength="10" required>
+        <div class="field-password">
+          <input type="password" id="resetPassphrase" autocomplete="new-password" minlength="10" required>
+          <button type="button" class="field-password-toggle" aria-label="Show passphrase">
+            <svg class="icon-eye" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="10" cy="10" r="2.3" stroke="currentColor" stroke-width="1.6"></circle></svg>
+            <svg class="icon-eye-off" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.5 2.5l15 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><path d="M8.3 4.3A8.6 8.6 0 0 1 10 4c5.5 0 8.5 6 8.5 6a15 15 0 0 1-2.3 3.1M5.6 5.6C3 7.3 1.5 10 1.5 10s3 6 8.5 6c1 0 1.9-.2 2.7-.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.2 8.2a2.3 2.3 0 0 0 3.2 3.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+          </button>
+        </div>
+        <div class="passphrase-strength" id="resetPassphraseStrength" aria-hidden="true">
+          <div class="strength-seg"></div><div class="strength-seg"></div><div class="strength-seg"></div><div class="strength-seg"></div>
+          <span class="strength-label"></span>
+        </div>
       </div>
       <div class="field">
         <label for="resetPassphraseConfirm">Confirm new passphrase</label>
-        <input type="password" id="resetPassphraseConfirm" autocomplete="new-password" minlength="10" required>
+        <div class="field-password">
+          <input type="password" id="resetPassphraseConfirm" autocomplete="new-password" minlength="10" required>
+          <button type="button" class="field-password-toggle" aria-label="Show passphrase">
+            <svg class="icon-eye" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="10" cy="10" r="2.3" stroke="currentColor" stroke-width="1.6"></circle></svg>
+            <svg class="icon-eye-off" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.5 2.5l15 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><path d="M8.3 4.3A8.6 8.6 0 0 1 10 4c5.5 0 8.5 6 8.5 6a15 15 0 0 1-2.3 3.1M5.6 5.6C3 7.3 1.5 10 1.5 10s3 6 8.5 6c1 0 1.9-.2 2.7-.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.2 8.2a2.3 2.3 0 0 0 3.2 3.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+          </button>
+        </div>
+        <p class="passphrase-match" id="resetPassphraseConfirmMatch"></p>
       </div>
       <p class="lock-error" id="resetError" role="alert"></p>
       <button type="submit" class="btn btn-primary lock-submit">Set new passphrase and unlock</button>
@@ -335,6 +375,8 @@
       </div>
       <div id="listBody" class="list-body"></div>
     </div>
+
+    <footer class="board-footer" id="boardFooter" hidden></footer>
 
     <div id="revealView" class="reveal-view" hidden>
       <section class="reveal-section">
@@ -1041,6 +1083,6 @@
   "onnxruntime-common": "/vendor/transformers/onnxruntime-common/index.js"
 } }
 </script>
-<script src="js/app.js?v=20260807a" integrity="sha384-LPTTeEnRryPjlyNdVDbEzQ/z/EFX3tpecArQNZsrUTdMVBVPlPPUtVzY+TdN8o2K" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260807b" integrity="sha384-VlWMpRMOEnVxP6tzgXSea40kfImFqVB60BuWCldhW4bfTu6oHWJAYLmfUvTcFGbD" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

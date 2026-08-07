@@ -34,6 +34,9 @@ import {
   showInfoToast,
   getDragAfterElement,
   renderStats,
+  renderBoardFooter,
+  initPasswordToggles,
+  initPassphraseFeedback,
   renderHistoryReport,
   renderAutomationRulesList,
   renderInsights,
@@ -59,7 +62,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260807a";
+} from "./ui.js?v=20260807b";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -400,6 +403,7 @@ function render() {
   const hasVisibleTasks = visible.length > 0;
 
   renderStats(tasks);
+  renderBoardFooter(tasks);
   const dateStr = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -3228,6 +3232,8 @@ async function boot() {
     showSetupScreen();
   }
   document.getElementById("passkeyUnlockBtn").addEventListener("click", () => unlockWithPasskey());
+  initPasswordToggles();
+  initPassphraseFeedback();
   wireLockScreen();
   wireLockButton();
   wireQuickAdd();
