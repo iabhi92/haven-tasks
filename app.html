@@ -11,18 +11,22 @@
      not a silent loosening: an XSS payload could now fetch() plaintext to an
      arbitrary origin, whereas without sync it could only reach this app's own
      origin.
-     script-src's three extra tokens all exist solely for the AI assistant's WASM
-     model runtime (js/ai.js, docs/ARCHITECTURE.md "On-device AI assistant") and
-     were each added only after testing showed they were actually required, not
-     assumed up front: the sha256 hash allows exactly this file's inline import
-     map (needed to resolve two bare module specifiers a no-build-step page can't
-     otherwise resolve — see vendor/transformers/SOURCE.md) and nothing else;
-     blob: lets onnxruntime-web's worker-loading pattern (a dynamic import of a
-     blob: URL) run; wasm-unsafe-eval is the CSP Level 3 WASM-specific token that
-     permits WebAssembly.instantiate() without granting general eval()/Function()
-     the way the broader 'unsafe-eval' would. See docs/THREAT_MODEL.md for the
-     honest trade-off this represents. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval' 'sha256-m7pQq+geUzeY8Wtkezps0JNcYG5V4DCgpypCGbsaXB4='; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
+     script-src's two extra tokens both exist solely for the AI assistant's WASM
+     model runtime (js/ai.js + js/ai-worker.js, docs/ARCHITECTURE.md "On-device AI
+     assistant") and were each added only after testing showed they were actually
+     required, not assumed up front: blob: lets onnxruntime-web's worker-loading
+     pattern (a dynamic import of a blob: URL) run; wasm-unsafe-eval is the CSP
+     Level 3 WASM-specific token that permits WebAssembly.instantiate() without
+     granting general eval()/Function() the way the broader 'unsafe-eval' would.
+     A third token — a sha256 hash for an inline import map — was needed here
+     until the AI assistant moved onto a dedicated Web Worker (js/ai-worker.js):
+     workers don't inherit the document's import map, so the fix was to patch
+     vendor/transformers/transformers.min.js's two bare module specifiers to
+     relative paths instead (see vendor/transformers/SOURCE.md) — which also
+     made the import map, and its CSP hash, unnecessary on the main thread too.
+     See docs/THREAT_MODEL.md for the honest trade-off the remaining two tokens
+     represent. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Private todos. No account, works offline, and nobody — including us — can read them.">
 <title>Haven — private tasks</title>
@@ -41,7 +45,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260809c" integrity="sha384-3ldClOZXfpN7ThgjHq+WPla7tcW7WSrmV8dkLQdhkEFP6UzPmOjTCtLsnw/vP5IC" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260809d" integrity="sha384-qoZCJ9yRuqZ4GAMHFsoEa5nu2b9SGN15MwPzvTPRn9N+pQhzkTlZ4wRPjVMOrEWw" crossorigin="anonymous">
 </head>
 <body>
 
@@ -502,6 +506,12 @@
             <p class="assistant-action-sub">Pick a task; review suggestions before adding any.</p>
             <select id="assistantTaskSelect" class="assistant-task-select"></select>
             <button type="button" class="btn btn-secondary" id="assistantBreakdownBtn">Suggest subtasks</button>
+          </div>
+          <div class="assistant-action-card">
+            <h3>Ask anything</h3>
+            <p class="assistant-action-sub">Type your own question — it sees the same open-task list as "focus on today."</p>
+            <textarea id="assistantPromptInput" class="assistant-prompt-input" rows="2" maxlength="300" placeholder="e.g. what's overdue that I should reschedule?"></textarea>
+            <button type="button" class="btn btn-secondary" id="assistantPromptBtn">Ask</button>
           </div>
         </div>
 
@@ -1063,26 +1073,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<!-- Resolves two bare module specifiers that vendor/transformers/transformers.min.js
-     imports statically at the top of its module graph (used by the AI assistant,
-     js/ai.js — loaded lazily, only if that feature is enabled). Both are needed even
-     though the assistant forces device:"wasm", since the imports execute unconditionally
-     regardless of which device is actually requested at runtime. Browsers resolve import
-     maps for *all* module loads on the page, static or dynamic, as long as the map is
-     declared before first use — see vendor/transformers/SOURCE.md.
-     Inline, not external `src`: tried external (a same-origin importmap.json, no inline-
-     script hash to maintain) first, but it didn't reliably apply before the module graph
-     that needs it started resolving — found by testing, not assumed; see
-     vendor/transformers/SOURCE.md. Inline requires this exact content to have a matching
-     CSP script hash below (script-src in both this file's <meta> tag and _headers) since
-     this site's CSP has no 'unsafe-inline' — regenerate both if this block's content ever
-     changes, the same discipline as bumping a ?v= string. -->
-<script type="importmap">
-{ "imports": {
-  "onnxruntime-web/webgpu": "/vendor/transformers/ort.webgpu.bundle.min.mjs",
-  "onnxruntime-common": "/vendor/transformers/onnxruntime-common/index.js"
-} }
-</script>
-<script src="js/app.js?v=20260807b" integrity="sha384-VlWMpRMOEnVxP6tzgXSea40kfImFqVB60BuWCldhW4bfTu6oHWJAYLmfUvTcFGbD" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260807c" integrity="sha384-ikjFavdAkyC/TbHRD5xo+tpi03tPibeVuJcu37Kw4iq5VueKl8AoNs/1Oc+WfFGZ" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

@@ -4,9 +4,10 @@
   "files": {
     "css/article.css": "sha384-p11yvDOg5HhvMByrXd0QayQO2eWwyAUg8Zdnxm1ZAwGPgj17EgfPogJ0DtyP7Edp",
     "css/landing.css": "sha384-Nue8MPzNJDqKBXU8ZybaIZTwv5UVzwkqqiezsEsUnB2zkLTKMwviSomqiVOLgkGR",
-    "css/style.css": "sha384-3ldClOZXfpN7ThgjHq+WPla7tcW7WSrmV8dkLQdhkEFP6UzPmOjTCtLsnw/vP5IC",
-    "js/ai.js": "sha384-4MdBQUDJULUWFB5CMwVXdHXN5aby/CO4GKDgUDH3hem5+8NoxpV91bpN9EQNjmtI",
-    "js/app.js": "sha384-VlWMpRMOEnVxP6tzgXSea40kfImFqVB60BuWCldhW4bfTu6oHWJAYLmfUvTcFGbD",
+    "css/style.css": "sha384-qoZCJ9yRuqZ4GAMHFsoEa5nu2b9SGN15MwPzvTPRn9N+pQhzkTlZ4wRPjVMOrEWw",
+    "js/ai-worker.js": "sha384-uFHLnPCXBIjAYtpPURIFUzOhXFcpfSfOt74CGL3PNl1Wt6RwWa6u2H5nwKbRoXJy",
+    "js/ai.js": "sha384-SP713RmJTPy10J+BwGSqmtIb/4x7WNgESh7fgKZVE83U9i8vrY/unILXnHm1OooA",
+    "js/app.js": "sha384-ikjFavdAkyC/TbHRD5xo+tpi03tPibeVuJcu37Kw4iq5VueKl8AoNs/1Oc+WfFGZ",
     "js/automation.js": "sha384-/LD/U5/MZ5Zjcq1+YFIOjFi752L/8FggV57SEWdG0glNe/UfO/lQFqPeKSwIB5Vf",
     "js/automation.test.mjs": "sha384-Hhw+AFYMjQ0leAdmxKXWqA214QIvXSL6PbIozkYG9lbClx1TukEl+7lhgSmS9zv5",
     "js/crypto.js": "sha384-SsL5AVrzzWh8iGVpHQ9s7gh4nN5SFHLeBeUZ8mgtf6JI/azVze5/aPp1QokcE8iL",
@@ -50,6 +51,6 @@
     "vendor/transformers/ort-wasm-simd-threaded.asyncify.mjs": "sha384-3PtbyJKPDRoZCNL6u5IQ3uw3aYqeALuxedvWoGF8Syni60K8769ZoBCVSyxZVllq",
     "vendor/transformers/ort-wasm-simd-threaded.asyncify.wasm": "sha384-ppxy8GpR5oK0pciZqI/PSDs0fl2gPFvA509fIkdyEwIAvXabDahpzW9fPyZq/fLs",
     "vendor/transformers/ort.webgpu.bundle.min.mjs": "sha384-05oW++cf3Wks8/51AZrOWtfpZmt7PzAEMqRJXttIlsKpkvuFVNIqKfhqoPIQv9fG",
-    "vendor/transformers/transformers.min.js": "sha384-zRrg7p9CA9PJ/XD6ZjVl1Bcr98z/KzFhoH4qsHmv7THvcl06cy/8RcR4UFziz6fV"
+    "vendor/transformers/transformers.min.js": "sha384-+O7JxP+6DT4FQf07VOtYR9OIjQ3VFTSLfyXo4ZX3HC8PAR2pdw9gd4/8ZfqWb5gR"
   }
 }

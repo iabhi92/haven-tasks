@@ -502,9 +502,11 @@ recomputes everything fresh from the current board, same as every other view in 
 A real small language model — [HuggingFaceTB/SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct),
 int8-quantized ONNX, ~140MB — running entirely in the browser via
 [transformers.js](https://github.com/huggingface/transformers.js) on top of onnxruntime-web's WASM
-backend. `js/ai.js` is the whole interface: `loadAssistant()`, `generateFocusSummary(tasks)`,
-`generateSubtaskSuggestions(task)`. Two actions in the AI assistant panel (`app.html`'s
-`assistantView`, wired in `js/app.js`'s `wireAssistantView()`):
+backend. `js/ai.js` is a thin main-thread RPC wrapper (`loadAssistant()`, `generateFocusSummary(tasks)`,
+`generateSubtaskSuggestions(task)`, `generateFreeTextReply(prompt, tasks)`) — the actual model load
+and generation run in a dedicated Web Worker, `js/ai-worker.js` (see "Runs in a Web Worker, not the
+main thread" below). Three actions in the AI assistant panel (`app.html`'s `assistantView`, wired in
+`js/app.js`'s `wireAssistantView()`):
 
 - **"What should I focus on today?"** — sends the open (non-done) tasks' titles, due dates,
   priorities, and statuses (not notes — kept out purely to keep the prompt short, not for privacy;
@@ -515,6 +517,36 @@ backend. `js/ai.js` is the whole interface: `loadAssistant()`, `generateFocusSum
   subtask would — same encryption, same tamper-evident history entry, same automation-rule
   triggers. The model's output is a *suggestion staged for review*, structurally no different from
   a template's starter tasks (§9) once accepted.
+- **"Ask anything"** — a free-text prompt box, grounded in the same open-task summary the focus
+  action uses so the model has real context rather than a bare question. Added because the two
+  canned buttons above don't cover an open-ended question — direct user request.
+
+**Runs in a Web Worker, not the main thread.** This wasn't the original shape of the feature — the
+first version ran `pipeline()` load and generation inline in `js/ai.js`, which froze the entire tab
+for the ~25s model load and the ~85s+ generation (reported directly: "ai assisnt is frezzed"). The
+fix moves both into `js/ai-worker.js`, with `js/ai.js` reduced to a `postMessage`/`onmessage` RPC
+wrapper (a monotonic request-id map of pending promises, since a worker's `message` events aren't
+inherently ordered/correlated to a specific call). The main thread stays interactive throughout —
+verified with a real Playwright run that clicks the theme toggle repeatedly *during* a live
+generation and confirms it flips every time, not just that the promise eventually resolves.
+
+**Real blocker this hit, worth knowing if this file is touched again: Web Workers do not inherit
+the document's `<script type="importmap">`.** `transformers.min.js` has two static top-level bare
+specifiers (`onnxruntime-web/webgpu`, `onnxruntime-common`) that used to be resolved by an inline
+import map in `app.html` (see the git history around "Add on-device AI assistant" for that
+version). An import map only applies to the document that declares it — module workers get none of
+it. The fix that unblocks *both* the main thread and a worker: `vendor/transformers/transformers.min.js`
+is now hand-patched (documented in `vendor/transformers/SOURCE.md`) to import via relative paths
+instead of bare specifiers — `from"./ort.webgpu.bundle.min.mjs"` and
+`from"./onnxruntime-common/index.js"` — which resolve correctly regardless of which module graph
+loads the file, main thread or worker. This made the import map (and its CSP `sha256-` hash)
+unnecessary entirely, not just for the worker path — one fix, two problems solved.
+
+**Gotcha hit while wiring the worker up, don't relearn it the hard way:** `new Worker(url)` resolves
+a *relative* `url` against the **document's** URL, not the calling module's own URL — the opposite
+of how `import` statements resolve. `js/ai.js` uses
+`new Worker(new URL("./ai-worker.js?v=...", import.meta.url), { type: "module" })`, which resolves
+correctly regardless of caller; a bare relative string would 404 the worker script.
 
 **Nothing here ever leaves the device except the one-time model download.** Once
 `HuggingFaceTB/SmolLM2-135M-Instruct`'s files are fetched from Hugging Face's CDN — the only
@@ -535,19 +567,18 @@ still explicitly forces `device: "wasm"` rather than `"auto"`, because getting t
 resolve is a different problem from onnxruntime-web's WebGPU execution provider actually working
 well in an unbundled page, which wasn't verified and wasn't the point of this pass. Real GPU
 acceleration here is future work, gated on either a bundler or a from-scratch browser-native WebGPU
-integration — see `vendor/transformers/SOURCE.md` for the exact import-map mechanics.
+integration — see `vendor/transformers/SOURCE.md` for the exact bare-specifier-patch mechanics
+(no longer an import map — see "Runs in a Web Worker" above).
 
-**This required loosening the site's CSP — three specific, tested-not-assumed additions to
-`script-src`**, each hit and fixed in sequence while getting the pipeline to actually run under
-this site's real policy rather than an unrestricted scratch page: a `sha256-` hash for the one
-inline import map above (inline `<script>` tags need a matching hash or nonce under
-`script-src 'self'`; an external `<script type="importmap" src="...">` was tried first since it
-needs no hash at all, but didn't reliably apply before the module graph that needs it started
-resolving, so this shipped as inline instead); `blob:`, because onnxruntime-web's worker-loading
-path dynamically imports a `blob:` URL; and `'wasm-unsafe-eval'`, the CSP Level 3 token that
-permits `WebAssembly.instantiate()` specifically, without granting the general `eval()`/`Function()`
-access the broader `'unsafe-eval'` would. See docs/THREAT_MODEL.md's A5 entry for the honest
-security cost of this widening.
+**This required loosening the site's CSP — two specific, tested-not-assumed additions to
+`script-src`**, each hit and fixed while getting the pipeline to actually run under this site's
+real policy rather than an unrestricted scratch page: `blob:`, because onnxruntime-web's
+worker-loading path dynamically imports a `blob:` URL; and `'wasm-unsafe-eval'`, the CSP Level 3
+token that permits `WebAssembly.instantiate()` specifically, without granting the general
+`eval()`/`Function()` access the broader `'unsafe-eval'` would. (A third addition, a `sha256-` hash
+for an inline import map, was needed for one earlier version of this feature — see "Runs in a Web
+Worker, not the main thread" above for why it's gone.) See docs/THREAT_MODEL.md's A5 entry for the
+honest security cost of the two that remain.
 
 **Measured, not estimated, performance** (single-threaded CPU WASM — threaded WASM needs
 `SharedArrayBuffer`, which needs cross-origin isolation headers this site doesn't set, so it's
@@ -565,12 +596,14 @@ open-ended.
 - **Answer quality.** 135M parameters is genuinely small — answers are plain and sometimes generic,
   not the kind of reasoning a larger hosted model would give. That's the deliberate trade-off for
   "small enough to download once and run on a phone-class CPU," not a bug.
-- **Test coverage.** Unlike this project's other pure-logic modules, there's no
-  `js/ai.test.mjs` and the Playwright coverage for this feature mocks `js/ai.js`'s exports rather
-  than running a real multi-hundred-MB download and a ~2-minute generation inside the test suite.
-  The standalone scratch test this section's numbers come from *did* run the real pipeline
-  end-to-end (real download, real model, real generation) — that's real evidence the feature
-  works, just not re-run on every test pass the way the rest of this codebase's claims are.
+- **Test coverage.** Unlike this project's other pure-logic modules, there's no `js/ai.test.mjs` —
+  this project has no checked-in Playwright suite at all (see §5d "Verifiable frontend"), only
+  one-off scratch verification scripts run by hand each session. Both this section's original
+  performance numbers *and* the Web Worker fix above were verified this way: real downloads, real
+  model, real generation, no mocking — including a real-time check (repeatedly toggling the theme
+  during a live generation and confirming it responds instantly) that the main thread actually
+  stays responsive, not just that the promise eventually resolves. That's real evidence the feature
+  works, just not re-run automatically on every future change the way a committed test suite would.
 
 ## 5. Optional sync protocol
 

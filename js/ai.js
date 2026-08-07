@@ -12,70 +12,68 @@
 // opts in from the AI assistant panel — so the ~450KB runtime script and
 // the far larger model weights are never fetched by someone who never
 // clicks "Enable."
+//
+// The actual model load + generation run in a dedicated Web Worker
+// (js/ai-worker.js), not on the main thread — this file is a thin RPC
+// wrapper around it. This exists specifically to fix a real reported bug:
+// the whole tab used to freeze for the ~25s model load and ~85s+
+// generation, because both used to run inline here. See js/ai-worker.js
+// and CLAUDE.md's "AI assistant freezes the page" note for the fix
+// history (a bare-module-specifier patch to transformers.min.js was
+// required first — workers don't inherit the page's import map).
 
-const MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct";
-// Bounds worst-case generation time. Measured on single-threaded CPU WASM
-// (no bundler means no WebGPU codepath here — see ARCHITECTURE.md): roughly
-// 0.5-0.6s/token, so 110 tokens is "about a minute," not "instant." A bigger
-// budget would make the UI feel broken long before it'd make answers better
-// out of a 135M-parameter model.
 const MAX_NEW_TOKENS = 110;
 
-let generator = null;
-let loadPromise = null;
+let worker = null;
+let ready = false;
+let nextRequestId = 1;
+const pending = new Map(); // requestId -> { resolve, reject }
+let onProgressCallback = null;
+
+function getWorker() {
+  if (worker) return worker;
+  worker = new Worker(new URL("./ai-worker.js?v=20260808a", import.meta.url), { type: "module" });
+  worker.addEventListener("message", (event) => {
+    const msg = event.data;
+    if (msg.type === "progress") {
+      if (onProgressCallback) onProgressCallback(msg.progress);
+      return;
+    }
+    const entry = pending.get(msg.id);
+    if (!entry) return; // stale/unknown request id — ignore rather than throw
+    pending.delete(msg.id);
+    if (msg.type === "error") entry.reject(new Error(msg.error));
+    else entry.resolve(msg.result);
+  });
+  worker.addEventListener("error", (err) => {
+    const failure = new Error(err?.message || "AI worker crashed.");
+    for (const entry of pending.values()) entry.reject(failure);
+    pending.clear();
+  });
+  return worker;
+}
+
+function callWorker(type, payload) {
+  const id = nextRequestId++;
+  const w = getWorker();
+  const donePromise = new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  w.postMessage({ id, type, ...payload });
+  return donePromise;
+}
 
 export function isAssistantReady() {
-  return generator !== null;
+  return ready;
 }
 
 export async function loadAssistant(onProgress) {
-  if (generator) return generator;
-  if (loadPromise) return loadPromise;
-
-  loadPromise = (async () => {
-    const { pipeline, env } = await import("../vendor/transformers/transformers.min.js");
-
-    // We don't ship the model weights ourselves (a few hundred MB is well
-    // past what belongs in this repo) — fetched from Hugging Face's CDN on
-    // first use, then cached by the browser's Cache API (useBrowserCache)
-    // so every use after the first is fully offline.
-    env.allowLocalModels = false;
-    env.useBrowserCache = true;
-    // Point the ONNX runtime's WASM loader at our own vendored copy instead
-    // of its jsdelivr CDN default — every script this page runs has to be
-    // same-origin under our CSP (script-src 'self'), model weights aside.
-    env.backends.onnx.wasm.wasmPaths = {
-      wasm: "/vendor/transformers/ort-wasm-simd-threaded.asyncify.wasm",
-      mjs: "/vendor/transformers/ort-wasm-simd-threaded.asyncify.mjs",
-    };
-    // Threaded WASM needs SharedArrayBuffer, which needs cross-origin
-    // isolation (COOP/COEP headers) that this site doesn't set — so pin to
-    // single-threaded rather than silently degrading at runtime.
-    env.backends.onnx.wasm.numThreads = 1;
-
-    generator = await pipeline("text-generation", MODEL_ID, {
-      device: "wasm",
-      dtype: "q8",
-      progress_callback: onProgress,
-    });
-    return generator;
-  })();
-
-  try {
-    return await loadPromise;
-  } catch (err) {
-    loadPromise = null; // let a failed load be retried instead of wedging forever
-    throw err;
-  }
+  if (ready) return;
+  onProgressCallback = onProgress || null;
+  await callWorker("load", {});
+  ready = true;
 }
 
-function extractReply(out) {
-  const generated = out?.[0]?.generated_text;
-  if (Array.isArray(generated)) {
-    const last = generated[generated.length - 1];
-    return String(last?.content || "").trim();
-  }
-  return String(generated || "").trim();
+function extractReply(text) {
+  return String(text || "").trim();
 }
 
 // Only title/dueDate/priority/status feed the prompt — notes are left out
@@ -94,10 +92,15 @@ function summarizeTasksForPrompt(tasks, limit = 25) {
     .join("\n");
 }
 
+async function generateChat(messages) {
+  if (!ready) await loadAssistant();
+  const text = await callWorker("generate", { messages, maxNewTokens: MAX_NEW_TOKENS });
+  return extractReply(text);
+}
+
 export async function generateFocusSummary(tasks) {
-  const gen = await loadAssistant();
   const list = summarizeTasksForPrompt(tasks);
-  const messages = [
+  return generateChat([
     {
       role: "system",
       content: "You are a concise, encouraging task-planning assistant. Keep answers under 80 words.",
@@ -106,13 +109,10 @@ export async function generateFocusSummary(tasks) {
       role: "user",
       content: `Here are my open tasks:\n${list || "(no open tasks)"}\n\nWhat should I focus on today, and why? Be specific but brief.`,
     },
-  ];
-  const out = await gen(messages, { max_new_tokens: MAX_NEW_TOKENS, do_sample: false });
-  return extractReply(out);
+  ]);
 }
 
 export async function generateSubtaskSuggestions(task) {
-  const gen = await loadAssistant();
   const messages = [
     {
       role: "system",
@@ -123,11 +123,28 @@ export async function generateSubtaskSuggestions(task) {
       content: `Task: ${task.title}${task.notes ? `\nNotes: ${task.notes}` : ""}\n\nBreak this into subtasks.`,
     },
   ];
-  const out = await gen(messages, { max_new_tokens: MAX_NEW_TOKENS, do_sample: false });
-  const reply = extractReply(out);
+  const reply = await generateChat(messages);
   return reply
     .split("\n")
     .map((line) => line.replace(/^[-*\d.)\s]+/, "").trim())
     .filter(Boolean)
     .slice(0, 8);
+}
+
+// Free-text prompt — the user directly asked for this ("why isnt a box to
+// enter prompt"); the two canned buttons above don't cover an open-ended
+// question. Still grounded in the same task summary as "focus on today" so
+// the model has real context, not just a bare question.
+export async function generateFreeTextReply(prompt, tasks) {
+  const list = summarizeTasksForPrompt(tasks);
+  return generateChat([
+    {
+      role: "system",
+      content: "You are a concise, helpful task-planning assistant for the user's private, on-device task list. Keep answers under 100 words.",
+    },
+    {
+      role: "user",
+      content: `Here are my open tasks:\n${list || "(no open tasks)"}\n\n${prompt}`,
+    },
+  ]);
 }

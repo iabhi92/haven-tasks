@@ -164,68 +164,48 @@ files plus `sw.js`'s `APP_SHELL`), `sw.js`'s `CACHE_NAME` → `haven-shell-v7`,
 `integrity.json` and every `integrity="..."` attribute regenerated via
 `node scripts/generate-integrity.mjs`.
 
+## Shipped (2026-08-08): AI assistant Web Worker fix
+
+The "AI assistant freezes the page" bug (previously the #1 in-flight item
+here) is fixed and shipped. Summary, in case this area is touched again:
+
+- **Root cause:** `js/ai.js` ran `pipeline()` load + generation
+  synchronously on the main thread, freezing the tab for ~25s load /
+  ~85s+ generation.
+- **Fix:** moved both into a new dedicated Web Worker, `js/ai-worker.js`.
+  `js/ai.js` is now a thin `postMessage`/`onmessage` RPC wrapper (a
+  request-id → pending-promise map, since worker messages need explicit
+  correlation).
+- **Real blocker hit:** Workers don't inherit the document's
+  `<script type="importmap">`. Fixed by patching
+  `vendor/transformers/transformers.min.js`'s two bare specifiers
+  (`onnxruntime-web/webgpu`, `onnxruntime-common`) to relative paths
+  instead (documented in `vendor/transformers/SOURCE.md`) — this fixed
+  *both* the worker and the main thread at once, so the import map and its
+  CSP `sha256-` hash were removed entirely, from both `app.html` and
+  `_headers`. `script-src` is down to just `blob: 'wasm-unsafe-eval'` now
+  (both still required, confirmed by testing — not assumed).
+- **Gotcha applied correctly:** used
+  `new Worker(new URL("./ai-worker.js?v=...", import.meta.url), {type:"module"})`,
+  not a bare relative string — `new Worker(url)` resolves relative to the
+  *document's* URL, not the calling module's, unlike `import`.
+- **Also added:** a free-text "Ask anything" prompt box in the assistant
+  panel (`generateFreeTextReply()` in `js/ai.js`) — the user had asked for
+  this and it didn't exist before.
+- **Verified for real, not assumed:** a Playwright run that clicked
+  "Enable," waited through a real ~33s model download, clicked "Ask," and
+  — critically — repeatedly clicked the theme toggle *during* the ~20s
+  real generation, confirming it flipped instantly every time (10/10
+  checks responsive). Zero console errors, zero CSP violations. This
+  project still has no checked-in Playwright suite (see §5d in
+  `docs/ARCHITECTURE.md`) — this was a one-off verification script, same
+  as every other Playwright check in this project's history.
+- **Docs updated in the same commit:** `docs/ARCHITECTURE.md` §4h,
+  `docs/THREAT_MODEL.md`'s A5 entry, `vendor/transformers/SOURCE.md`.
+
 ## In-flight / unfinished work — pick up here
 
-### 1. AI assistant freezes the page during load/generation (not shipped)
-
-**Symptom:** the whole tab is unresponsive for the ~25s model load and
-~85s+ generation, because `js/ai.js` runs the model synchronously on the
-main thread. Reported directly by the user ("ai assisnt is frezzed").
-
-**Diagnosis (done):** move inference into a dedicated Web Worker so the
-main thread — and the rest of the UI — stays responsive.
-
-**Real blocker found while investigating:** Workers do **not** inherit the
-document's `<script type="importmap">` — confirmed by testing, not assumed.
-`transformers.min.js` has two static bare-specifier imports
-(`onnxruntime-web/webgpu`, `onnxruntime-common`) that the main-thread path
-resolves via an inline import map + matching CSP hash (see
-`vendor/transformers/SOURCE.md`), but that fix doesn't carry into a worker
-context.
-
-**Promising fix, tested but reverted (not yet shipped):** patch
-`vendor/transformers/transformers.min.js` to replace those two bare
-specifiers with relative paths:
-- `from"onnxruntime-web/webgpu"` → `from"./ort.webgpu.bundle.min.mjs"`
-- `from"onnxruntime-common"` → `from"./onnxruntime-common/index.js"`
-
-This was verified working in a scratch test (both main-thread and,
-critically, inside a real `new Worker(url, {type:'module'})`), which
-removes the need for the import map/CSP hash entirely — but it was
-**reverted before shipping** to keep an unrelated urgent bug-fix commit
-clean, and `vendor/transformers/transformers.min.js` is currently back to
-its original (unpatched) npm-package state. Confirm with:
-```bash
-grep -c 'from"onnxruntime-web/webgpu"' vendor/transformers/transformers.min.js
-# 1 = unpatched (current state); 0 = patched
-```
-
-**Real gotcha hit during testing, don't relearn it the hard way:**
-`new Worker(url)` resolves a *relative* `url` against the **document's**
-URL, not the calling module's own URL (unlike `import` statements, which
-resolve against the importing module). Use an absolute path
-(`/js/ai-worker.js`) or `new URL("./ai-worker.js", import.meta.url)` when
-constructing the worker, or the worker script itself will 404.
-
-**To resume:**
-1. Re-apply the `transformers.min.js` patch above.
-2. Create `js/ai-worker.js`, move the `pipeline()` load + generation calls
-   into it, message-pass results back to the main thread.
-3. Remove the now-unnecessary import map + CSP `sha256-` hash from
-   `app.html`/`_headers` (both the `blob:` and `wasm-unsafe-eval` tokens
-   likely still needed — only the import-map hash becomes removable).
-4. Test for real: a Playwright run that drives the *actual* (not mocked)
-   pipeline inside a worker, confirming the main thread stays responsive
-   (e.g. a button click / animation still fires while generation runs).
-5. Update `docs/ARCHITECTURE.md`'s "On-device AI assistant" section and
-   `docs/THREAT_MODEL.md`'s A5 entry to reflect whichever CSP tokens are
-   still actually needed post-fix.
-6. Also add a free-text prompt input to the assistant panel — the user
-   asked for this ("why isnt a box to enter prompt") and it's not built;
-   currently only two canned buttons exist (focus-summary, break-into-
-   subtasks).
-
-### 2. Notes page (not started)
+### 1. Notes page (not started)
 
 User wants a Notes page: title + body notes, same E2EE encryption/storage
 pattern as tasks (reuse `encryptTask`/`decryptTask` primitives, don't

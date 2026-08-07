@@ -134,7 +134,7 @@ let dek = null; // the in-memory DEK CryptoKey — null whenever locked
 let assistantModule = null;
 let assistantEnabled = false;
 async function getAssistantModule() {
-  if (!assistantModule) assistantModule = await import("./ai.js?v=20260807a");
+  if (!assistantModule) assistantModule = await import("./ai.js?v=20260808a");
   return assistantModule;
 }
 
@@ -2182,6 +2182,27 @@ function wireAssistantView() {
       else setAssistantSuggestions(suggestions);
     } catch (err) {
       setAssistantOutputText("Something went wrong generating suggestions. Try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("assistantPromptBtn").addEventListener("click", async () => {
+    const input = document.getElementById("assistantPromptInput");
+    const prompt = input.value.trim();
+    if (!prompt) {
+      showInfoToast("Type a question first.");
+      return;
+    }
+    const btn = document.getElementById("assistantPromptBtn");
+    btn.disabled = true;
+    setAssistantOutputText("Thinking… this can take about a minute on your device.");
+    try {
+      const { generateFreeTextReply } = await getAssistantModule();
+      const reply = await generateFreeTextReply(prompt, tasks);
+      setAssistantOutputText(reply || "(no response)");
+    } catch (err) {
+      setAssistantOutputText("Something went wrong generating a response. Try again.");
     } finally {
       btn.disabled = false;
     }

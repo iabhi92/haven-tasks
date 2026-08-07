@@ -1885,6 +1885,20 @@ body { display: flex; }
   color: var(--text);
   font: inherit;
 }
+.assistant-prompt-input {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.assistant-prompt-input:focus { outline: none; border-color: var(--accent); }
 
 .assistant-output {
   padding: 18px 20px;
