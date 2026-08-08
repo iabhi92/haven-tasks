@@ -17,7 +17,7 @@ import {
   deleteNote,
   getAllProjects,
   putProject,
-} from "./store.js?v=20260808c";
+} from "./store.js?v=20260808d";
 import { evaluateTask } from "./automation.js?v=20260808b";
 import { computeInsights } from "./insights.js?v=20260808b";
 import { generateICS } from "./ical.js?v=20260807a";
@@ -201,6 +201,20 @@ let activeVaultIsDecoy = false;
 // just what keeps an empty project from being forgotten.
 let activeProject = "Inbox";
 let projects = []; // explicitly-created projects, decrypted; see loadProjects()
+
+// ---------- compartmentalised vaults (Layer 2) ----------
+// Real separate-key vaults (work/personal), not the lightweight project
+// filter above. Each compartment gets its own DEK and its own signing
+// identity, wrapped under the *main* vault's DEK (not the KEK — the KEK is
+// deliberately not retained in memory after unlock, see the unlock flow
+// below) so switching never re-prompts for the passphrase, and its own
+// IndexedDB database (openNamedDB() already supports any name — same
+// mechanism the decoy vault uses). See docs/ARCHITECTURE.md
+// "Compartmentalised vaults".
+let mainVaultDek = null; // stashed once at main-vault unlock; needed to unwrap every compartment's DEK
+let mainHistorySigningKey = null;
+let mainHistorySigningPublicKeyB64 = null;
+let activeVaultId = "main"; // "main" | a compartment's id — never "decoy", compartments don't apply there
 
 let selectionMode = false;
 let selectedIds = new Set();
@@ -433,6 +447,101 @@ function syncProjectUI() {
     opt.value = p;
     datalist.appendChild(opt);
   }
+}
+
+function compartmentVaultDbName(id) {
+  return `haven-vault-${id}`;
+}
+
+async function listCompartmentVaults() {
+  const keyring = await getKeyring();
+  return keyring.vaults || [];
+}
+
+// Only callable from the main vault (mainVaultDek is null in the decoy
+// vault and while locked) — compartments are additional rooms in the real
+// vault, not a decoy-vault feature. Each compartment's DEK and signing key
+// are wrapped under mainVaultDek, the same "wrap one key under another,
+// already-decrypted key" pattern ephemeral tasks use for their per-task
+// keys, just one level up.
+async function createCompartmentVault(name) {
+  if (!mainVaultDek) throw new Error("Compartmentalised vaults require the main vault to be unlocked.");
+  const keyring = await getKeyring();
+  const id = uuid();
+
+  const vaultDek = await generateDek();
+  const { wrappedDek, wrapIv } = await wrapDek(vaultDek, mainVaultDek);
+
+  const signingKeypair = await generateSigningKeypair();
+  const signingPublicKeyB64 = bufToBase64(await exportSigningPublicKey(signingKeypair.publicKey));
+  const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, mainVaultDek);
+
+  const vaultMeta = {
+    id,
+    name,
+    wrappedDek,
+    wrapIv,
+    wrappedSigningKey,
+    signingKeyWrapIv,
+    signingPublicKey: signingPublicKeyB64,
+    signingKeyLog: [{ publicKey: signingPublicKeyB64, startedAt: now() }],
+    createdAt: now(),
+  };
+  await putKeyring({ ...keyring, vaults: [...(keyring.vaults || []), vaultMeta] });
+  return vaultMeta;
+}
+
+// Switches the active in-memory dek/signing-identity/storage database to
+// "main" or a given compartment id, then reloads everything the same way
+// afterUnlock() already does at initial unlock — a vault switch is really
+// just "unlock a different room," not a separate code path. Requires no
+// passphrase re-entry: compartments are wrapped under mainVaultDek, which
+// stays cached in memory for the whole unlocked session (see the module
+// comment above) precisely so this doesn't need the KEK again.
+async function switchToVault(vaultId) {
+  if (vaultId === activeVaultId) return;
+
+  if (vaultId === "main") {
+    if (!mainVaultDek) return;
+    dek = mainVaultDek;
+    historySigningKey = mainHistorySigningKey;
+    historySigningPublicKeyB64 = mainHistorySigningPublicKeyB64;
+    setActiveVault(false);
+  } else {
+    const keyring = await getKeyring();
+    const vault = (keyring.vaults || []).find((v) => v.id === vaultId);
+    if (!vault) return;
+    const rawDekBytes = await unwrapDek(vault.wrappedDek, vault.wrapIv, mainVaultDek);
+    dek = await importDek(rawDekBytes);
+    historySigningKey = await unwrapSigningKey(vault.wrappedSigningKey, vault.signingKeyWrapIv, mainVaultDek);
+    historySigningPublicKeyB64 = vault.signingPublicKey;
+    setActiveVault(compartmentVaultDbName(vaultId));
+  }
+
+  activeVaultId = vaultId;
+  activeProject = "Inbox"; // the old vault's active project may not exist here
+  await primeHistoryChainTip();
+  await afterUnlock(); // reloads tasks/notes/rules/projects for the newly active vault, syncs vault UI, and renders
+}
+
+async function syncVaultUI() {
+  const row = document.getElementById("vaultSwitcherRow");
+  row.hidden = activeVaultIsDecoy; // compartments are a main-vault-only feature
+
+  const vaults = await listCompartmentVaults();
+  const switcher = document.getElementById("vaultSwitcher");
+  switcher.textContent = "";
+  const mainOpt = document.createElement("option");
+  mainOpt.value = "main";
+  mainOpt.textContent = "Main";
+  switcher.appendChild(mainOpt);
+  for (const v of vaults) {
+    const opt = document.createElement("option");
+    opt.value = v.id;
+    opt.textContent = v.name;
+    switcher.appendChild(opt);
+  }
+  switcher.value = activeVaultId;
 }
 
 function render() {
@@ -1848,6 +1957,12 @@ async function unlockWithPasskey() {
     historySigningKey = await crypto.subtle.importKey("pkcs8", rawSigningKeyBytes, { name: "Ed25519" }, false, ["sign"]);
     historySigningPublicKeyB64 = keyring.signingPublicKey;
     await primeHistoryChainTip();
+    // Passkey unlock is always the main vault (decoy has no passkey path) —
+    // cache for compartment-vault switching, see the module comment above.
+    mainVaultDek = dek;
+    mainHistorySigningKey = historySigningKey;
+    mainHistorySigningPublicKeyB64 = historySigningPublicKeyB64;
+    activeVaultId = "main";
   } catch (err) {
     setUnlockError("Couldn't unlock with this passkey.");
     return;
@@ -2264,6 +2379,41 @@ function wireProjectSwitcher() {
     await addProject(name);
     addRow.hidden = true;
     render();
+  };
+  confirmBtn.addEventListener("click", confirmAdd);
+  addInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); confirmAdd(); }
+    if (e.key === "Escape") { addRow.hidden = true; }
+  });
+  cancelBtn.addEventListener("click", () => { addRow.hidden = true; });
+}
+
+// Same interaction shape as wireProjectSwitcher() above, deliberately —
+// switching vaults and switching projects should feel like the same kind
+// of action to the user, even though a vault switch is a real key change
+// underneath and a project switch is just a filter.
+function wireVaultSwitcher() {
+  const switcher = document.getElementById("vaultSwitcher");
+  const addBtn = document.getElementById("addVaultBtn");
+  const addRow = document.getElementById("vaultAddRow");
+  const addInput = document.getElementById("vaultAddInput");
+  const confirmBtn = document.getElementById("vaultAddConfirmBtn");
+  const cancelBtn = document.getElementById("vaultAddCancelBtn");
+
+  switcher.addEventListener("change", () => switchToVault(switcher.value));
+
+  addBtn.addEventListener("click", () => {
+    addRow.hidden = false;
+    addInput.value = "";
+    addInput.focus();
+  });
+
+  const confirmAdd = async () => {
+    const name = addInput.value.trim();
+    if (!name) return;
+    const vault = await createCompartmentVault(name);
+    addRow.hidden = true;
+    await switchToVault(vault.id);
   };
   confirmBtn.addEventListener("click", confirmAdd);
   addInput.addEventListener("keydown", (e) => {
@@ -3045,6 +3195,7 @@ async function afterUnlock() {
   await loadAutomationRules();
   await loadNotes();
   await loadProjects();
+  await syncVaultUI();
   renderNotesList(notes, { onOpen: openNoteModal, onDelete: removeNote });
   render();
   showApp();
@@ -3254,6 +3405,12 @@ function wireLockScreen() {
     historySigningKey = pendingSigningKey;
     historySigningPublicKeyB64 = pendingSigningPublicKeyB64;
     historyChainTip = "GENESIS"; // brand-new vault, nothing in the log yet
+    // Fresh setup is always the main vault — cache for compartment-vault
+    // switching, see the module comment above.
+    mainVaultDek = dek;
+    mainHistorySigningKey = historySigningKey;
+    mainHistorySigningPublicKeyB64 = historySigningPublicKeyB64;
+    activeVaultId = "main";
     pendingKeyring = null;
     pendingDek = null;
     pendingRecoveryCode = null;
@@ -3308,6 +3465,20 @@ function wireLockScreen() {
     activeVaultIsDecoy = unlockedAsDecoy;
     setActiveVault(unlockedAsDecoy);
     await ensureLocalSigningKeyOnUnlock(keyring, activeKek, unlockedAsDecoy);
+    activeVaultId = "main"; // compartments (if any) are always entered from here, never auto-restored
+
+    // Compartments only apply to the real main vault — cache the identity
+    // for switching, see the module comment above. Left null in the decoy
+    // vault, which disables the vault switcher (see syncVaultUI()).
+    if (!unlockedAsDecoy) {
+      mainVaultDek = dek;
+      mainHistorySigningKey = historySigningKey;
+      mainHistorySigningPublicKeyB64 = historySigningPublicKeyB64;
+    } else {
+      mainVaultDek = null;
+      mainHistorySigningKey = null;
+      mainHistorySigningPublicKeyB64 = null;
+    }
 
     // Same reasoning as the setup path — the passphrase's job is done once it's
     // derived the KEK above, so it shouldn't keep sitting in the DOM.
@@ -3402,6 +3573,14 @@ function wireLockScreen() {
     historySigningPublicKeyB64 = signingPublicKeyB64;
     await primeHistoryChainTip();
     recoveredDek = null;
+    // A passphrase reset re-wraps the *same* DEK under a new KEK — the DEK
+    // bytes themselves don't change, so every compartment vault (wrapped
+    // under this DEK, not the KEK) keeps working unaffected. Always the
+    // main vault: recovery-code reset has no decoy-vault equivalent.
+    mainVaultDek = dek;
+    mainHistorySigningKey = historySigningKey;
+    mainHistorySigningPublicKeyB64 = historySigningPublicKeyB64;
+    activeVaultId = "main";
 
     document.getElementById("resetPassphrase").value = "";
     document.getElementById("resetPassphraseConfirm").value = "";
@@ -3416,6 +3595,10 @@ function wireLockButton() {
     historySigningKey = null;
     historySigningPublicKeyB64 = null;
     historyChainTip = "GENESIS";
+    mainVaultDek = null;
+    mainHistorySigningKey = null;
+    mainHistorySigningPublicKeyB64 = null;
+    activeVaultId = "main";
     tasks = [];
     ephemeralTaskKeys.clear();
     automationRules = [];
@@ -3468,6 +3651,7 @@ async function boot() {
   wireBulkActions();
   wireImport();
   wireProjectSwitcher();
+  wireVaultSwitcher();
   wireViewToggle();
   wireEditModal();
   wireAddModal();

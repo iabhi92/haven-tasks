@@ -630,6 +630,46 @@ reference number, a longer thought. A separate entity from tasks, not a task fie
   into the fragment-key share-link flow (§5b) that tasks use. Both are natural follow-ups, not done
   here; a note currently lives and dies on the one device that wrote it.
 
+## 4j. Compartmentalised vaults (Layer 2)
+
+Real work/personal vaults with separate keys — distinct from both the lightweight "project" filter
+(§ above, a string field within one shared vault) and §4e's decoy vault (a single, hidden,
+duress-specific second vault with its own passphrase). A compartment is openly listed, named by
+the user, and switchable at will without leaving the app.
+
+- **Reuses §4e's exact mechanism, generalized.** Each compartment gets its own DEK, its own Ed25519
+  signing identity, and its own IndexedDB database (`haven-vault-<id>`, via the same
+  `openNamedDB()`/`upgrade()` any new database name already goes through) — the same three-part
+  isolation the decoy vault already has, just for an arbitrary user-created list instead of one
+  hardcoded second vault.
+- **Wrapped under the main DEK, not the KEK — a deliberate departure from every other wrapping in
+  this app.** Every other wrapped key here (`wrappedDek`, `wrappedDekDecoy`, `wrappedSigningKey`,
+  etc.) is wrapped under a KEK derived fresh from a passphrase. The KEK is intentionally *not*
+  retained in memory once unlock finishes (see §2) — so wrapping a compartment's DEK under it would
+  mean re-deriving a 600,000-iteration PBKDF2 KEK (re-prompting for the passphrase) on every single
+  vault switch. Instead, `createCompartmentVault()`/`switchToVault()` (`js/app.js`) wrap each
+  compartment's DEK and signing key under **the main vault's own DEK**, cached in memory as
+  `mainVaultDek` for the session the same way `dek` itself is. This is the same "wrap one
+  already-unlocked key under another" pattern ephemeral tasks (§4d) use for their per-task keys,
+  one level up: anyone who can decrypt the main vault can enumerate and enter every compartment
+  inside it (they're rooms in the same house, not separate houses like the decoy vault is), but
+  switching between them needs no further passphrase entry.
+- **Main-vault-only, on purpose.** `mainVaultDek` is only ever populated on a real (non-decoy)
+  unlock; the vault switcher is hidden entirely (`syncVaultUI()`) whenever `activeVaultIsDecoy` is
+  true. Compartments inside a decoy vault would be a confusing, low-value nesting the roadmap
+  doesn't call for — the decoy vault stays a single, simple, plausible second vault.
+- **Switching reuses `afterUnlock()`.** A vault switch is not a separate code path from unlocking —
+  `switchToVault()` re-points `store.js`'s active database (`setActiveVault()`, already generic
+  over any db name string, not just the original main/decoy boolean), swaps `dek`/
+  `historySigningKey` to the target vault's own, re-primes the history-chain tip for that vault's
+  own log, and calls the exact same `afterUnlock()` initial-unlock uses to reload tasks/notes/
+  rules/projects and re-render. "Switch vaults" and "unlock" are the same operation on a different
+  target, not two things to keep in sync.
+- **Honest scope limit:** compartments don't sync (same local-only limitation as notes, §4i, and
+  for the same reason — sync would need its own design for multiple per-compartment blobs, not
+  implemented here) and aren't included in the fragment-key share-link flow (§5b). A compartment
+  currently lives and dies on the one device that created it, same as a note does.
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

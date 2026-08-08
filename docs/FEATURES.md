@@ -145,7 +145,16 @@ data."*
 
 - [ ] Metadata resistance — constant-size padded records, batching — High
 - [ ] Peer-to-peer serverless sync (WebRTC), no server to trust — High · Signal: high
-- [ ] Compartmentalised vaults (work / personal) with separate keys — Med
+- [x] Compartmentalised vaults (work / personal) with separate keys — Med. Shipped: real
+      per-vault DEKs and per-vault signing identities (own IndexedDB database each, same
+      mechanism the duress/decoy vault already used), switchable from the header without
+      re-entering a passphrase — every compartment's key material is wrapped under the main
+      vault's own DEK, not the KEK, since the KEK is deliberately not retained in memory past
+      unlock. Distinct from the lightweight "project" filter (a string field on one shared vault)
+      and from the decoy vault (a single, duress-specific second vault, hidden by design, its own
+      passphrase). Compartments are openly listed, named by the user, and only available from the
+      real main vault — the switcher is hidden entirely inside the decoy vault. See
+      docs/ARCHITECTURE.md "Compartmentalised vaults".
 
 ## Layer 3 — Private intelligence & crypto-novel (the "wait, a todo app does that?" tier)
 

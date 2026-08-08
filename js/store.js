@@ -84,8 +84,15 @@ function openDB() {
 // call in this module for the rest of the session resolves against the right
 // database. A no-op if the vault didn't actually change (avoids dropping and
 // reopening the same connection on every normal-passphrase unlock).
-export function setActiveVault(isDecoy) {
-  const name = isDecoy ? DECOY_DB_NAME : DB_NAME;
+//
+// Accepts either the original boolean (isDecoy) or, for a compartmentalised
+// vault (see js/app.js "compartmentalised vaults"), the target database name
+// directly as a string — openNamedDB() already works with any name, so a
+// compartment's own "haven-vault-<id>" database needs no changes here beyond
+// accepting that string instead of forcing every caller through a two-vault
+// boolean that doesn't generalize past main/decoy.
+export function setActiveVault(isDecoyOrDbName) {
+  const name = typeof isDecoyOrDbName === "string" ? isDecoyOrDbName : (isDecoyOrDbName ? DECOY_DB_NAME : DB_NAME);
   if (name === activeDbName) return;
   activeDbName = name;
   dbPromise = null;

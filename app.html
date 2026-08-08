@@ -268,6 +268,20 @@
 <div class="app-shell">
   <header class="page-header">
     <div>
+      <div class="project-switcher-row" id="vaultSwitcherRow" hidden>
+        <div class="project-switcher-wrap">
+          <select id="vaultSwitcher" class="project-switcher" aria-label="Current vault"></select>
+          <svg class="project-switcher-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </div>
+        <button type="button" class="project-add-btn" id="addVaultBtn" aria-label="New vault">+</button>
+      </div>
+      <div class="project-add-row" id="vaultAddRow" hidden>
+        <input type="text" id="vaultAddInput" placeholder="Vault name (e.g. Work)" maxlength="60">
+        <button type="button" class="btn btn-primary btn-sm" id="vaultAddConfirmBtn">Add</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="vaultAddCancelBtn">Cancel</button>
+      </div>
       <div class="project-switcher-row">
         <div class="project-switcher-wrap">
           <select id="projectSwitcher" class="project-switcher" aria-label="Current project"></select>
@@ -1131,6 +1145,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260808f" integrity="sha384-B1RuIFHP5rKll7mXZxdzj3vTh8oejBXWRv2S/oj7ku7TpeLjJXLIPXQ9Zdfkyzzk" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260808g" integrity="sha384-wFqj0ltbCmuA23X01r1nYLhpM6UTLMUfjI2/ku1dNiwYF8OnTRFBm0ygNbbbbgIT" crossorigin="anonymous" type="module"></script>
 </body>
 </html>
