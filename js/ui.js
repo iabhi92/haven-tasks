@@ -432,6 +432,14 @@ function readSelfDestructMode() {
   return { mode: "time", expiresAt: Date.now() + SELF_DESTRUCT_DURATIONS_MS[value] };
 }
 
+export function readNoteForm() {
+  return {
+    title: document.getElementById("noteTitle").value.trim(),
+    body: document.getElementById("noteBody").value,
+    tags: parseTagsInput(document.getElementById("noteTags").value),
+  };
+}
+
 export function readAddForm() {
   return {
     title: document.getElementById("addTitle").value.trim(),
@@ -902,6 +910,19 @@ export function renderAutomationRulesList(rules, { onDelete } = {}) {
   }
 }
 
+// "Updated 2 hours ago" style relative time, falling back to an absolute
+// date once it's far enough back that "N days ago" stops being useful.
+const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+function relativeTime(ms) {
+  const diffSeconds = Math.round((ms - Date.now()) / 1000);
+  const abs = Math.abs(diffSeconds);
+  if (abs < 60) return "just now";
+  if (abs < 3600) return RELATIVE_TIME_FORMATTER.format(Math.round(diffSeconds / 60), "minute");
+  if (abs < 86400) return RELATIVE_TIME_FORMATTER.format(Math.round(diffSeconds / 3600), "hour");
+  if (abs < 86400 * 6) return RELATIVE_TIME_FORMATTER.format(Math.round(diffSeconds / 86400), "day");
+  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function renderNotesList(notes, { onOpen, onDelete } = {}) {
   const container = document.getElementById("notesList");
   container.textContent = "";
@@ -918,7 +939,9 @@ export function renderNotesList(notes, { onOpen, onDelete } = {}) {
       const preview = note.body.length > 160 ? note.body.slice(0, 160) + "…" : note.body;
       card.appendChild(el("p", "note-card-body", preview));
     }
-    card.appendChild(el("p", "note-card-meta", "Updated " + new Date(note.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })));
+    const tags = tagChips(note.tags);
+    if (tags) card.appendChild(tags);
+    card.appendChild(el("p", "note-card-meta", "Updated " + relativeTime(note.updatedAt)));
     card.addEventListener("click", () => onOpen && onOpen(note));
 
     const delBtn = el("button", "note-card-delete", "Delete");

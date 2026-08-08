@@ -45,6 +45,7 @@ import {
   renderHistoryReport,
   renderAutomationRulesList,
   renderNotesList,
+  readNoteForm,
   renderInsights,
   renderCalendar,
   renderAssistantTaskOptions,
@@ -68,7 +69,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260808b";
+} from "./ui.js?v=20260808c";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -718,19 +719,20 @@ async function loadNotes() {
   notes = decrypted;
 }
 
-async function addNote(title, body) {
-  const note = { id: uuid(), title, body, createdAt: now(), updatedAt: now() };
+async function addNote(title, body, tags = []) {
+  const note = { id: uuid(), title, body, tags, createdAt: now(), updatedAt: now() };
   const { iv, ciphertext } = await encryptTask(note, dek);
   await putNote({ id: note.id, iv, ciphertext });
   notes.unshift(note);
   renderNotesList(notes, { onOpen: openNoteModal, onDelete: removeNote });
 }
 
-async function updateNote(id, title, body) {
+async function updateNote(id, title, body, tags = []) {
   const note = notes.find((n) => n.id === id);
   if (!note) return;
   note.title = title;
   note.body = body;
+  note.tags = tags;
   note.updatedAt = now();
   const { iv, ciphertext } = await encryptTask(note, dek);
   await putNote({ id, iv, ciphertext });
@@ -746,13 +748,20 @@ async function removeNote(id) {
 
 let editingNoteId = null;
 
+function updateNoteBodyCounter() {
+  const body = document.getElementById("noteBody");
+  document.getElementById("noteBodyCounter").textContent = `${body.value.length} / ${body.maxLength}`;
+}
+
 function openNoteModal(note = null) {
   editingNoteId = note ? note.id : null;
   document.getElementById("noteModalTitle").textContent = note ? "Edit note" : "New note";
   document.getElementById("noteTitle").value = note ? note.title : "";
   document.getElementById("noteBody").value = note ? note.body : "";
+  document.getElementById("noteTags").value = note && note.tags ? note.tags.join(", ") : "";
   document.getElementById("noteDeleteBtn").hidden = !note;
   document.getElementById("noteModal").hidden = false;
+  updateNoteBodyCounter();
   document.getElementById("noteTitle").focus();
 }
 
@@ -770,6 +779,7 @@ function wireNoteModal() {
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) closeNoteModal();
   });
+  document.getElementById("noteBody").addEventListener("input", updateNoteBodyCounter);
 
   document.getElementById("noteDeleteBtn").addEventListener("click", async () => {
     if (!editingNoteId) return;
@@ -779,13 +789,12 @@ function wireNoteModal() {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const title = document.getElementById("noteTitle").value.trim();
-    const body = document.getElementById("noteBody").value;
+    const { title, body, tags } = readNoteForm();
     if (!title) return;
     if (editingNoteId) {
-      await updateNote(editingNoteId, title, body);
+      await updateNote(editingNoteId, title, body, tags);
     } else {
-      await addNote(title, body);
+      await addNote(title, body, tags);
     }
     closeNoteModal();
   });

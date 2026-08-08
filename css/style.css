@@ -1465,6 +1465,22 @@ body { display: flex; }
   border-color: var(--accent);
 }
 .field textarea { resize: vertical; }
+.field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.field-label-row label { margin-bottom: 6px; }
+.char-counter {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.field-optional {
+  font-weight: 400;
+  color: var(--text-faint);
+}
 
 /* ---------- password field: show/hide toggle, strength meter, match indicator ---------- */
 .field-password { position: relative; }

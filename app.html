@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260809f" integrity="sha384-5d9bfPVi+1TCZwHXEfyzrT8IST0hjJucMyfLqbTyylmyWoXifmJ5tfJybTEAKPlM" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260809g" integrity="sha384-ah2/QHCNX1yqhKUOFu9N/chT1EiXiWnWFstHSNHQcdWricRcSUJR1qDxZVzbflC1" crossorigin="anonymous">
 </head>
 <body>
 
@@ -1022,8 +1022,15 @@
         <input type="text" id="noteTitle" maxlength="200" required>
       </div>
       <div class="field">
-        <label for="noteBody">Note</label>
+        <div class="field-label-row">
+          <label for="noteBody">Note</label>
+          <span class="char-counter" id="noteBodyCounter">0 / 20000</span>
+        </div>
         <textarea id="noteBody" rows="10" maxlength="20000"></textarea>
+      </div>
+      <div class="field">
+        <label for="noteTags">Tags <span class="field-optional">(optional)</span></label>
+        <input type="text" id="noteTags" placeholder="work, urgent, school" maxlength="200">
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-danger" id="noteDeleteBtn" hidden>Delete</button>
@@ -1124,6 +1131,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260808c" integrity="sha384-fCLAJ3rpgvweRZtspdtH23N1XXJFjpHlm9MdwJAd53t1N20LIe/rB5Y2OjWu++5R" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260808d" integrity="sha384-ue0Az+rhI+z2B5DGZN2S4dMjdqGsv82mvNTfMEsc1uXThTF0xB1OV3fYJ5Sf3RFc" crossorigin="anonymous" type="module"></script>
 </body>
 </html>
