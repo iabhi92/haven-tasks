@@ -666,6 +666,68 @@
 .landing-honest ul { margin: 0 0 24px; padding-left: 20px; color: var(--lp-ink-soft); font-size: 14.5px; line-height: 1.8; max-width: 640px; }
 .landing-honest a:not(.lp-btn) { font-weight: 700; color: var(--lp-ink); text-decoration: underline; text-underline-offset: 3px; }
 
+/* ---------- early-adopter reviews ---------- */
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.testimonial-card {
+  grid-column: span 1;
+  background: #fff;
+  border: 3px solid var(--lp-border);
+  border-radius: 16px;
+  box-shadow: var(--lp-shadow);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.testimonial-card--wide { grid-column: span 2; }
+.testimonial-card--accent { background: var(--lp-mint); }
+/* --lp-ink-faint (#6d6d6d) is only 4.0:1 on --lp-mint (#c3f400) -- fails AA's
+   4.5:1 for normal text, even though it's fine (5.17:1) on white. Use the
+   darker ink for this one card's role label instead of the shared muted tone. */
+.testimonial-card--accent .testimonial-role { color: var(--lp-ink); }
+.testimonial-person { display: flex; align-items: center; gap: 14px; }
+.testimonial-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--lp-border);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.testimonial-name { font-family: var(--lp-heading-font); font-weight: 700; font-size: 16px; margin: 0; }
+.testimonial-role {
+  font-family: var(--lp-mono-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lp-ink-faint);
+  margin: 2px 0 0;
+}
+.testimonial-quote {
+  font-family: var(--lp-body-font);
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--lp-ink);
+  margin: 0;
+}
+/* Cascading "flash-in" as the section scrolls into view -- 40ms/card stays
+   inside the 30-50ms-per-item range for staggered reveals, layered on top of
+   .reveal-up's existing 0.7s transition rather than inventing a new one. */
+.testimonials-grid .reveal-up:nth-child(1) { transition-delay: 0s; }
+.testimonials-grid .reveal-up:nth-child(2) { transition-delay: 0.04s; }
+.testimonials-grid .reveal-up:nth-child(3) { transition-delay: 0.08s; }
+.testimonials-grid .reveal-up:nth-child(4) { transition-delay: 0.12s; }
+.testimonials-grid .reveal-up:nth-child(5) { transition-delay: 0.16s; }
+@media (max-width: 860px) {
+  .testimonials-grid { grid-template-columns: 1fr; }
+  .testimonial-card--wide { grid-column: span 1; }
+}
+
 /* ---------- final CTA ---------- */
 .landing-final-cta { padding: 20px 40px 96px; text-align: center; }
 .landing-final-cta-card {
