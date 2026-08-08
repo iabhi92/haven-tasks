@@ -3089,20 +3089,40 @@ function shareServerUrl() {
   return (config && config.server) || DEFAULT_SHARE_SERVER;
 }
 
-async function createShareLink(task, { ttlSeconds, maxViews } = {}) {
-  const shareDek = await generateDek();
-  const snapshot = {};
-  for (const field of SHARE_FIELDS) snapshot[field] = task[field];
+// Selective disclosure: each field the sender chooses to share gets its own
+// fresh key, so "share title, not notes" is a real cryptographic boundary,
+// not a UI filter — the relay only ever stores ciphertext for fields the
+// sender actually included (data minimization, not just "safely encrypted
+// either way"), and a recipient can only decrypt the fields whose key is in
+// their link's fragment. `fields` defaults to everything, matching the
+// original all-or-nothing behavior for any existing caller. See
+// docs/ARCHITECTURE.md "Selective disclosure share links".
+async function createShareLink(task, { ttlSeconds, maxViews, fields = SHARE_FIELDS } = {}) {
+  const bundledFields = {};
+  const keyMap = {};
+  for (const field of fields) {
+    const fieldDek = await generateDek();
+    const { iv, ciphertext } = await encryptTask(task[field] ?? null, fieldDek);
+    bundledFields[field] = { iv, ciphertext };
+    keyMap[field] = bufToBase64Url(await crypto.subtle.exportKey("raw", fieldDek));
+  }
 
-  const { iv, ciphertext } = await encryptTask(snapshot, shareDek);
-  const rawKey = await crypto.subtle.exportKey("raw", shareDek);
+  // The outer iv/ciphertext pair the relay stores is repurposed here to
+  // carry the whole per-field bundle as one opaque JSON string — the server
+  // never parses either field (docs/ARCHITECTURE.md §5b), so this needs no
+  // server-side change. The outer "iv" itself is unused by decryption (each
+  // field carries its own); it's still a real random value, not a fixed
+  // placeholder, so a stored share never looks structurally different from
+  // one before this feature.
+  const outerIv = bufToBase64(crypto.getRandomValues(new Uint8Array(12)));
+  const ciphertext = JSON.stringify({ fields: bundledFields });
   const server = shareServerUrl();
-  const { id } = await pushShare(server, iv, ciphertext, { ttlSeconds, maxViews });
+  const { id } = await pushShare(server, outerIv, ciphertext, { ttlSeconds, maxViews });
 
   const url = new URL("shared.html", location.href);
   url.searchParams.set("server", server);
   url.searchParams.set("id", id);
-  url.hash = bufToBase64Url(rawKey);
+  url.hash = bufToBase64Url(new TextEncoder().encode(JSON.stringify(keyMap)));
   return { url: url.toString(), id, server };
 }
 
@@ -3114,6 +3134,7 @@ function openShareModal(task) {
   document.getElementById("shareRevokeStatus").classList.remove("is-ok");
   document.getElementById("shareExpiry").value = "604800";
   document.getElementById("shareMaxViews").value = "";
+  for (const f of SHARE_FIELDS) document.getElementById("shareField" + f).checked = true;
   document.getElementById("shareBeforeSection").hidden = false;
   document.getElementById("shareAfterSection").hidden = true;
   document.getElementById("shareLinkOutput").value = "";
@@ -3146,13 +3167,18 @@ function wireShareModal() {
   createBtn.addEventListener("click", async () => {
     if (!shareModalTask) return;
     errorEl.textContent = "";
+    const fields = SHARE_FIELDS.filter((f) => document.getElementById("shareField" + f).checked);
+    if (fields.length === 0) {
+      errorEl.textContent = "Pick at least one field to share.";
+      return;
+    }
     createBtn.disabled = true;
     createBtn.textContent = "Creating…";
     try {
       const ttlSeconds = Number(document.getElementById("shareExpiry").value);
       const maxViewsRaw = document.getElementById("shareMaxViews").value;
       const maxViews = maxViewsRaw ? Number(maxViewsRaw) : undefined;
-      const created = await createShareLink(shareModalTask, { ttlSeconds, maxViews });
+      const created = await createShareLink(shareModalTask, { ttlSeconds, maxViews, fields });
       shareModalCreated = created;
       output.value = created.url;
       document.getElementById("shareBeforeSection").hidden = true;

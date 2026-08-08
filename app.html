@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260809i" integrity="sha384-2SwDRrxyVNnEn09HPlOgVjsjQpywPy/90cEg99KIlN7Qxi0L/GU6Asl5Fmx7xrHP" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260809k" integrity="sha384-HbsnfWAoXsdJHG/4g8RUiKurUNC01EmOUVR34KgSa2i7RGvP57ZAXvHubXwE2ucY" crossorigin="anonymous">
 </head>
 <body>
 
@@ -709,6 +709,23 @@
           </select>
         </div>
       </div>
+      <div class="field">
+        <label>What to share</label>
+        <div class="share-field-checks">
+          <label><input type="checkbox" id="shareFieldtitle" checked> Title</label>
+          <label><input type="checkbox" id="shareFieldnotes" checked> Notes</label>
+          <label><input type="checkbox" id="shareFieldstatus" checked> Status</label>
+          <label><input type="checkbox" id="shareFieldpriority" checked> Priority</label>
+          <label><input type="checkbox" id="shareFielddueDate" checked> Due date</label>
+          <label><input type="checkbox" id="shareFieldtags" checked> Tags</label>
+          <label><input type="checkbox" id="shareFieldsubtasks" checked> Subtasks</label>
+        </div>
+        <p class="modal-help">
+          Each field you leave checked gets its own key in the link. Uncheck one and its
+          ciphertext never even leaves your device — not "encrypted but shared," genuinely not
+          sent.
+        </p>
+      </div>
       <p class="modal-help" id="shareError" role="alert"></p>
       <div class="modal-actions-right sync-close-row">
         <button type="button" class="btn btn-ghost" id="shareCancelBtn">Cancel</button>
@@ -1161,6 +1178,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260808i" integrity="sha384-xlU3bUf4OwQtVNiRBFfmEfNaDU9WC+5tdvsjQXzXdMkBxiyKB+Y6fPiYOAtikmnz" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260808j" integrity="sha384-1qaSWxWE2VxxXN9PdAHUK1F/L7CJBBr9GaWTRyfE8iUY50CHM2EvyGxIAepg4+Ej" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

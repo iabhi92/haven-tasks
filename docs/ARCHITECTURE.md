@@ -811,6 +811,49 @@ originally called out in docs/THREAT_MODEL.md's A4b:
 - **What the relay server learns:** ciphertext size, creation/expiry timestamps, the share id, and
   request timing. Never the plaintext task, never the key.
 
+### Selective disclosure share links (extends the above)
+
+"Share the title, not the notes" as a real cryptographic boundary, not a display filter applied
+after the fact — the whole point being that a field left unchecked never leaves the device in any
+form, ciphertext included, not just "encrypted but the recipient wasn't given the key."
+
+- **One fresh key per shared field, not one key for the whole task.** `createShareLink()`
+  (`js/app.js`) loops over the sender's chosen field list (defaults to every field, matching the
+  original all-or-nothing behavior for any caller that doesn't specify one) and calls
+  `generateDek()`/`encryptTask()` once per field — the exact same primitives §5b already used for
+  the whole-task snapshot, just invoked per-field instead of once.
+- **No server changes.** The relay's `POST /share` has always treated `iv`/`ciphertext` as opaque
+  strings it never parses (§5b) — so the per-field bundle `{fields: {title: {iv, ciphertext},
+  ...}}` rides inside the existing `ciphertext` parameter unchanged, and the outer `iv` parameter
+  (now unused by decryption, since each field carries its own) is still populated with a real
+  random value rather than a fixed placeholder, so a stored share never looks structurally
+  different from one made before this feature. This is why "select which fields" needed no
+  `server/routes.py` changes at all.
+- **Where the keys live:** the URL fragment carries a JSON object, `{field: base64url key}`, one
+  entry per shared field — still only in the fragment, still never transmitted to any server, same
+  guarantee §5b already relies on. A recipient's browser can only decrypt the fields whose key
+  actually appears in their copy of the link.
+- **Format detection, not a version flag.** `js/shared.js`'s `parseFragmentKey()` distinguishes
+  this format from a pre-existing single-key link by trying to decode the fragment as strict UTF-8
+  then parse it as JSON — real AES key bytes essentially never happen to also be valid UTF-8, let
+  alone valid JSON, so this reliably tells the two apart without needing to encode a format
+  version anywhere. A share created before this feature keeps working for its original expiry: the
+  viewer falls back to decrypting the whole snapshot with the single key, exactly as it always did.
+  Verified for real: constructed an old-format share directly via the pre-existing primitives
+  (bypassing the new field-selection code entirely) and confirmed the viewer still rendered it
+  correctly, with none of the new "not shared" notes appearing (correct — that link never had the
+  concept of an omitted field).
+- **The viewer marks omissions explicitly.** A field with no key in the fragment renders as a
+  plain "🔒 \<Field\> not shared" note (or an inline badge for status/priority, which — unlike
+  notes/tags/subtasks — always have a real value on every task, so silently vanishing from the
+  badge row would read as "no priority" rather than "priority not shared"). `dueDate` is the one
+  deliberate exception: a normal task can legitimately have no due date at all, so an omitted due
+  date stays silently absent rather than getting its own badge — the same lower-stakes ambiguity a
+  task with no due date already has today.
+- **Honest scope limit:** still local to this one share action — there's no "default sharing
+  profile" or persisted per-recipient preference; every share starts from every field checked and
+  the sender re-chooses each time.
+
 ## 5c. Tamper-evident signed task history (Layer 2)
 
 Makes silent edits, deletions, or backdating of local task data provable rather than merely

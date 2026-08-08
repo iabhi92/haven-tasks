@@ -253,7 +253,14 @@ data."*
       server — see docs/ARCHITECTURE.md "Ephemeral tasks" for the honest
       scope note on what this does and doesn't guarantee.
 - [ ] Post-quantum hybrid key wrapping (harvest-now-decrypt-later defense) — High · Signal: high
-- [ ] Selective disclosure / per-field encryption (share title, not notes) — High
+- [x] Selective disclosure / per-field encryption (share title, not notes) — High. Shipped:
+      extends the existing fragment-key share links (Layer 2, above) — each field the sender
+      chooses to include gets its own fresh key and its own ciphertext; an unchecked field's
+      ciphertext never even reaches the relay server, not just "encrypted but withheld." No server
+      changes needed — the relay already treats `iv`/`ciphertext` as opaque strings, so the
+      per-field bundle rides inside the existing `POST /share` contract unchanged. Old,
+      pre-this-feature share links keep working (detected automatically, not via a version flag)
+      for their original expiry. See docs/ARCHITECTURE.md "Selective disclosure share links".
 - [ ] Proof-of-completion — prove you finished N tasks without revealing which — Research
 
 ## Layer 4 — Collaboration under E2EE (the flagship cluster — hardest, biggest)

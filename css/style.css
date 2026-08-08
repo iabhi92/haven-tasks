@@ -894,6 +894,7 @@ body { display: flex; }
 .badge-status-todo { color: var(--status-todo); background: var(--surface-sunken); }
 .badge-status-in-progress { color: var(--status-progress); background: color-mix(in srgb, var(--status-progress) 14%, transparent); }
 .badge-status-done { color: var(--status-done); background: color-mix(in srgb, var(--status-done) 14%, transparent); }
+.share-view-not-shared-badge { color: var(--text-faint); background: var(--surface-sunken); font-style: italic; }
 
 .badge-due {
   color: var(--text-muted);
@@ -1580,6 +1581,20 @@ body { display: flex; }
   gap: 10px;
 }
 
+.share-field-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px 10px;
+}
+.share-field-checks label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+}
+
 .subtask-list {
   display: flex;
   flex-direction: column;
@@ -1821,6 +1836,12 @@ body { display: flex; }
   letter-spacing: 0.03em;
   color: var(--text-faint);
   margin: 0 0 8px;
+}
+.share-view-not-shared {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-faint);
+  margin: 0 0 12px;
 }
 .share-view-footer {
   margin-top: 22px;
