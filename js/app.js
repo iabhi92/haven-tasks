@@ -1146,8 +1146,29 @@ async function deleteTasksWithUndo(ids) {
   });
 }
 
-function exportTasks() {
-  const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: "application/json" });
+// Signed the same way a history entry is signed — same per-device Ed25519
+// identity (historySigningKey), same canonicalBytes()-then-sign shape — so
+// re-import (on this device or another) can prove the file's tasks array is
+// exactly what was exported, unmodified since. Honest scope, same as
+// history verification: this proves the file wasn't altered *after*
+// signing under the embedded key; it does not independently vouch for
+// *whose* key that is if the backup came from an unfamiliar device — that
+// would need out-of-band key trust, a separate feature. See
+// docs/ARCHITECTURE.md "Verifiable, signed backups".
+function backupEnvelopeContent(tasksList) {
+  return { version: 1, exportedAt: now(), tasks: tasksList };
+}
+
+async function exportTasks() {
+  const envelope = backupEnvelopeContent(tasks);
+  let signedEnvelope = envelope;
+  if (historySigningKey) {
+    const withKey = { ...envelope, publicKey: historySigningPublicKeyB64 };
+    const signature = bufToBase64(await signBytes(historySigningKey, await canonicalBytes(withKey)));
+    signedEnvelope = { ...withKey, signature };
+  } // else: locked/no signing identity yet — fall back to an unsigned export rather than throw
+
+  const blob = new Blob([JSON.stringify(signedEnvelope, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.getElementById("exportLink");
   const stamp = new Date().toISOString().slice(0, 10);
@@ -1167,6 +1188,24 @@ function exportTasks() {
 // would be a real, separate feature (its own passphrase/key entry UX), not
 // implemented here.
 const MAX_IMPORT_RECORDS = 500; // matches server/routes.py's MAX_RECORDS_PER_PUSH, same reasoning
+
+// Verifies a signed backup envelope (see backupEnvelopeContent()/exportTasks()).
+// Returns "verified" | "invalid" | "unsigned" — a tri-state report, not a
+// pass/fail gate: import proceeds regardless (data is always mergeable via
+// the existing last-write-wins path below), the same "report, don't block"
+// posture verifyHistoryChain() already uses for history entries.
+async function verifyBackupSignature(parsed) {
+  if (!parsed.signature || !parsed.publicKey) return "unsigned";
+  try {
+    const { signature, ...withKey } = parsed;
+    const publicKey = await importSigningPublicKey(base64ToBuf(parsed.publicKey));
+    const data = await canonicalBytes(withKey);
+    const valid = await verifyBytes(publicKey, data, base64ToBuf(signature));
+    return valid ? "verified" : "invalid";
+  } catch {
+    return "invalid";
+  }
+}
 
 function normalizeImportedTask(raw, fallbackStatus) {
   if (!raw || typeof raw !== "object") return null;
@@ -1241,12 +1280,24 @@ async function importTasksFromJSON(file) {
     showInfoToast("Import failed: that file isn't valid JSON.");
     return;
   }
-  if (!Array.isArray(parsed)) {
-    showInfoToast("Import failed: expected a JSON array of tasks (the format Haven's own export produces).");
+
+  // Two valid shapes: a signed backup envelope (current export format,
+  // { version, exportedAt, tasks, publicKey, signature }) or a bare array
+  // (every export made before this feature shipped — still importable,
+  // just unverifiable, since it was never signed in the first place).
+  let taskList, signatureStatus;
+  if (Array.isArray(parsed)) {
+    taskList = parsed;
+    signatureStatus = "unsigned";
+  } else if (parsed && Array.isArray(parsed.tasks)) {
+    taskList = parsed.tasks;
+    signatureStatus = await verifyBackupSignature(parsed);
+  } else {
+    showInfoToast("Import failed: expected a Haven backup file (a JSON array of tasks, or Haven's own signed export format).");
     return;
   }
 
-  const items = parsed.slice(0, MAX_IMPORT_RECORDS);
+  const items = taskList.slice(0, MAX_IMPORT_RECORDS);
   let added = 0, updated = 0, skipped = 0;
   const toPersist = [];
 
@@ -1270,8 +1321,15 @@ async function importTasksFromJSON(file) {
   render();
   for (const { task, op } of toPersist) await persistTask(task, op);
 
-  const skippedNote = parsed.length > MAX_IMPORT_RECORDS ? ` (file had ${parsed.length}, only the first ${MAX_IMPORT_RECORDS} were read)` : "";
-  showInfoToast(`Import done: ${added} added, ${updated} updated, ${skipped} skipped${skippedNote}.`);
+  const skippedNote = taskList.length > MAX_IMPORT_RECORDS ? ` (file had ${taskList.length}, only the first ${MAX_IMPORT_RECORDS} were read)` : "";
+  // Report, don't gate — import always proceeds (the merge above is already
+  // safe/non-destructive via last-write-wins), same posture verifyHistoryChain()
+  // takes: tell the user what was found, let them judge it.
+  const signatureNote =
+    signatureStatus === "verified" ? " Backup signature verified ✓ — this file matches what was exported, unmodified."
+    : signatureStatus === "invalid" ? " ⚠ Backup signature does NOT match this file's contents — it may have been modified since export."
+    : " (Unsigned backup — exported before this feature existed, or from another source.)";
+  showInfoToast(`Import done: ${added} added, ${updated} updated, ${skipped} skipped${skippedNote}.${signatureNote}`);
 }
 
 async function importTasksFromFile(file) {

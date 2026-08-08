@@ -818,6 +818,40 @@ tampering *detectable* two different ways instead of purely assumed-away.
   file, hash it, compare) before considering a deploy complete, rather than trusting the deploy
   tool's own "success" output alone.
 
+## 5e. Verifiable, signed backups (Layer 2)
+
+Extends §5c's identity to the one other place task data leaves the app as plaintext: a JSON
+export. Proves a backup file's contents are exactly what was exported, unmodified since — the
+same "provable, not just promised" property §5c gives the local history log, applied to a file
+that can sit on a USB drive or in an email attachment for years.
+
+- **No new key.** `exportTasks()` (`js/app.js`) signs with the same per-device `historySigningKey`
+  §5c already unwraps on unlock — one identity, two uses (history entries and backups), not a
+  second keypair to generate, wrap, or explain to the user.
+- **Envelope shape:** `{version, exportedAt, tasks, publicKey, signature}` — `signature` is over
+  the canonical JSON of everything except itself (`backupEnvelopeContent()` + the same
+  `canonicalBytes()` helper §5c's entries use), and `publicKey` travels *inside* the file so the
+  file is self-contained: verifying it needs nothing but the file itself, not a lookup against
+  this device's current keyring.
+- **Verification (`verifyBackupSignature()`) is a tri-state report, not a gate.** Re-importing a
+  `.json` file returns one of `verified` / `invalid` / `unsigned`, shown directly in the import
+  toast — the import itself always proceeds regardless (the existing last-write-wins merge is
+  already safe/non-destructive), the same "report, don't block" posture `verifyHistoryChain()`
+  takes on history entries. A failed or missing signature is something to notice, not something
+  that silently prevents recovering your own data.
+- **Backward compatible on purpose.** Every export made before this feature shipped is a bare JSON
+  array with no envelope at all; `importTasksFromJSON()` still accepts that shape (reported as
+  `unsigned`, since there was never a signature to check) rather than breaking old backups.
+- **Honest scope limit.** This proves *content* integrity since signing time — it does not prove
+  *provenance* in the sense of vouching for the signer's identity if the file arrives from an
+  unfamiliar source: the public key is embedded in the file itself, so a party who could tamper
+  with the file's tasks could in principle also swap in a different keypair's public key and
+  re-sign with it, and the file would still verify — just under a key that never touched this
+  device's own `signingKeyLog`. Detecting *that* would need out-of-band key trust (e.g. pinning an
+  expected key from a previous, trusted export) — a real, harder feature, not implemented here.
+  What this does guarantee: a backup re-imported on the *same* device/vault that produced it, or
+  compared byte-for-byte against a copy known to be untouched, is provably unaltered.
+
 ## 6. The "You vs The Server" reveal
 
 Purely a rendering of data the app already has — no new crypto.

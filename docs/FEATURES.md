@@ -107,7 +107,17 @@ data."*
       tag (`scripts/generate-integrity.mjs`) plus a published `integrity.json` covering everything
       SRI can't reach (ES module imports — a real browser-platform gap, not skipped). See
       docs/ARCHITECTURE.md §5d for exactly what's browser-enforced vs. independently-checkable.
-- [ ] Verifiable, signed backups (prove an export wasn't tampered with) — Med
+- [x] Verifiable, signed backups (prove an export wasn't tampered with) — Med. Shipped: reuses
+      the exact same per-device Ed25519 identity that signs history-log entries — no new key,
+      no new UX for the user to manage. `exportTasks()` signs `{version, exportedAt, tasks,
+      publicKey}`; re-importing runs the same verify step `verifyHistoryChain()` uses and reports
+      a tri-state result (verified / signature invalid / unsigned legacy backup) in the import
+      toast rather than gating the import — consistent with this app's "report, don't block"
+      posture elsewhere. **Honest scope limit:** this proves the file's contents match what was
+      signed at export time (tamper-after-export detection); it does not vouch for *whose* key
+      signed it if the backup came from an unfamiliar device — that would need out-of-band key
+      trust, a separate, harder feature. Old (pre-feature) plain-array exports still import fine,
+      just unverifiable. See docs/ARCHITECTURE.md "Verifiable, signed backups".
 
 ### The OMG feature (cheap, flashy, honest)
 
