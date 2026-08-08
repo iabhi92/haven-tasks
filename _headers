@@ -9,9 +9,12 @@
 # app.html's own <meta> CSP tag and docs/ARCHITECTURE.md "On-device AI
 # assistant" for why each was needed. Applied sitewide since this file has
 # one policy for everything, but they're inert on every page that isn't
-# app.html.
+# app.html. static.cloudflareinsights.com is allowed because the zone has
+# Cloudflare Web Analytics' automatic beacon injection enabled -- Cloudflare
+# injects that script into every HTML response at the edge, so it has to be
+# allowed sitewide too, not opted into per page.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;
+  Content-Security-Policy: default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval' https://static.cloudflareinsights.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer

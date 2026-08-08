@@ -6,7 +6,7 @@
 <!-- Same connect-src widening as app.html, for the same reason: the server to
      fetch the share from is named in the URL's query string, not knowable in
      advance. See docs/THREAT_MODEL.md and app.html's own comment on this. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex, nofollow">
 <title>Shared task — Haven</title>
