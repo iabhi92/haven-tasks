@@ -3,8 +3,12 @@
 scoped by bearer token, and nothing else. See docs/ARCHITECTURE.md §5.
 """
 
+import json
+import os
 import secrets
 import time
+import urllib.error
+import urllib.request
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -37,6 +41,60 @@ MIN_SHARE_TTL_SECONDS = 60
 MAX_SHARE_TTL_SECONDS = 30 * 24 * 60 * 60
 MIN_SHARE_MAX_VIEWS = 1
 MAX_SHARE_MAX_VIEWS = 1000
+
+# Visitor-count badge for the portfolio (iabhi92.online) to fetch cross-origin. This backend
+# already has no persistent worker/cron on Render's free tier (see docs/ARCHITECTURE.md), so
+# caching on read — like the crackrsa status endpoint does — is the only way to avoid re-querying
+# Cloudflare's API on every portfolio page load. ponytail: single-process in-memory cache, resets
+# on a Render cold start; fine for a vanity counter, upgrade to a real store if that ever matters.
+CF_API_TOKEN = os.environ.get("CF_API_TOKEN")
+CF_ZONE_ID = os.environ.get("CF_ZONE_ID")
+VISITOR_CACHE_SECONDS = 3600
+VISITOR_WINDOW_DAYS = 30
+_visitor_cache = {"value": None, "fetched_at": 0.0}
+
+_VISITOR_QUERY = """
+query ($zoneTag: String!, $since: Date!, $until: Date!) {
+  viewer {
+    zones(filter: {zoneTag: $zoneTag}) {
+      httpRequests1dGroups(limit: 31, filter: {date_geq: $since, date_leq: $until}) {
+        sum { requests }
+      }
+    }
+  }
+}
+"""
+
+
+def _fetch_visitor_count():
+    now = time.time()
+    if _visitor_cache["value"] is not None and now - _visitor_cache["fetched_at"] < VISITOR_CACHE_SECONDS:
+        return _visitor_cache["value"]
+    if not CF_API_TOKEN or not CF_ZONE_ID:
+        return None
+
+    since = time.strftime("%Y-%m-%d", time.gmtime(now - VISITOR_WINDOW_DAYS * 86400))
+    until = time.strftime("%Y-%m-%d", time.gmtime(now))
+    body = json.dumps({
+        "query": _VISITOR_QUERY,
+        "variables": {"zoneTag": CF_ZONE_ID, "since": since, "until": until},
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.cloudflare.com/client/v4/graphql",
+        data=body,
+        headers={"Authorization": f"Bearer {CF_API_TOKEN}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read())
+        groups = data["data"]["viewer"]["zones"][0]["httpRequests1dGroups"]
+        total = sum(g["sum"]["requests"] for g in groups)
+    except (urllib.error.URLError, KeyError, IndexError, TypeError, ValueError):
+        return None
+
+    _visitor_cache["value"] = total
+    _visitor_cache["fetched_at"] = now
+    return total
 
 
 def _extract_token():
@@ -198,3 +256,8 @@ def delete_share_route(share_id):
     if not deleted:
         return jsonify({"error": "share not found"}), 404
     return jsonify({"ok": True})
+
+
+@bp.route("/api/visitors", methods=["GET"])
+def visitors():
+    return jsonify({"pageViews30d": _fetch_visitor_count()})
