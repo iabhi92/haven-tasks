@@ -16,3 +16,17 @@
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# Versioned static assets (cache-busted via ?v= query strings — see
+# CLAUDE.md's cache-busting discipline) are safe to cache aggressively:
+# a content change always ships under a new ?v= URL, so the browser cache
+# never serves stale bytes under the old URL.
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+/vendor/*
+  Cache-Control: public, max-age=31536000, immutable
+/img/*
+  Cache-Control: public, max-age=31536000, immutable

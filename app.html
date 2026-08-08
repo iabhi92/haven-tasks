@@ -29,6 +29,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Private todos. No account, works offline, and nobody, including us, can read them.">
+<meta name="robots" content="index, follow">
 <title>Haven — private tasks</title>
 <link rel="canonical" href="https://taskhavens.com/app">
 <link rel="icon" href="/favicon.ico">
@@ -86,7 +87,7 @@
         four random words work well.</p>
       <p class="lock-error" id="setupError" role="alert"></p>
       <button type="submit" class="btn btn-primary lock-submit">Continue</button>
-      <a class="lock-link" href="security.html">Read the security model</a>
+      <a class="lock-link" href="/security">Read the security model</a>
     </form>
 
     <div class="lock-form" id="recoveryCodeScreen" hidden>
@@ -181,7 +182,7 @@
 </div>
 
 <div class="rail" id="rail" hidden>
-  <a href="index.html" class="rail-logo" aria-label="Haven home">H</a>
+  <a href="/" class="rail-logo" aria-label="Haven home">H</a>
   <nav class="rail-nav" role="tablist" aria-label="View">
     <button type="button" class="rail-btn is-active" id="viewBoardBtn" role="tab" aria-selected="true" aria-label="Board view" title="Board">
       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="2.5" width="6" height="15" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect><rect x="11.5" y="2.5" width="6" height="9" rx="1.6" stroke="currentColor" stroke-width="1.6"></rect></svg>
