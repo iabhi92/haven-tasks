@@ -322,7 +322,7 @@ export function setEmptyState({ hasAnyTasks, hasVisibleTasks, view }) {
 
 // Tags are stored as a plain string[] on the task object (same encrypted envelope,
 // no separate tag entity) — freeform, deduped, order-preserved, empty strings dropped.
-function parseTagsInput(value) {
+export function parseTagsInput(value) {
   const seen = new Set();
   const tags = [];
   for (const raw of value.split(",")) {
@@ -913,13 +913,18 @@ export function renderAutomationRulesList(rules, { onDelete } = {}) {
 // "Updated 2 hours ago" style relative time, falling back to an absolute
 // date once it's far enough back that "N days ago" stops being useful.
 const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-function relativeTime(ms) {
+export function relativeTime(ms) {
   const diffSeconds = Math.round((ms - Date.now()) / 1000);
-  const abs = Math.abs(diffSeconds);
-  if (abs < 60) return "just now";
-  if (abs < 3600) return RELATIVE_TIME_FORMATTER.format(Math.round(diffSeconds / 60), "minute");
-  if (abs < 86400) return RELATIVE_TIME_FORMATTER.format(Math.round(diffSeconds / 3600), "hour");
-  if (abs < 86400 * 6) return RELATIVE_TIME_FORMATTER.format(Math.round(diffSeconds / 86400), "day");
+  if (Math.abs(diffSeconds) < 60) return "just now";
+  // Bucket on the *rounded* unit value, not the raw seconds — otherwise
+  // e.g. 3599s (59:59) rounds to "60 minutes ago" instead of promoting to
+  // "1 hour ago" at the minute/hour boundary (and same for hour/day).
+  const minutes = Math.round(diffSeconds / 60);
+  if (Math.abs(minutes) < 60) return RELATIVE_TIME_FORMATTER.format(minutes, "minute");
+  const hours = Math.round(diffSeconds / 3600);
+  if (Math.abs(hours) < 24) return RELATIVE_TIME_FORMATTER.format(hours, "hour");
+  const days = Math.round(diffSeconds / 86400);
+  if (Math.abs(days) < 6) return RELATIVE_TIME_FORMATTER.format(days, "day");
   return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 

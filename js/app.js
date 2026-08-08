@@ -69,7 +69,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260808c";
+} from "./ui.js?v=20260808d";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,

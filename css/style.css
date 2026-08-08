@@ -1471,7 +1471,6 @@ body { display: flex; }
   justify-content: space-between;
   gap: 8px;
 }
-.field-label-row label { margin-bottom: 6px; }
 .char-counter {
   font-size: 11px;
   color: var(--text-faint);
