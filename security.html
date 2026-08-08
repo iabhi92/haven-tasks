@@ -95,7 +95,7 @@
       Each task is encrypted with <strong>AES-256-GCM</strong>, an authenticated cipher, so a
       tampered ciphertext fails to decrypt rather than silently decrypting into garbage. The key
       used isn't your passphrase directly; your passphrase is run through
-      <strong>PBKDF2</strong> (100,000+ iterations) to derive a key-encryption key, which in turn
+      <strong>PBKDF2</strong> (600,000 iterations) to derive a key-encryption key, which in turn
       unwraps the actual per-vault data-encryption key. That extra layer means changing your
       passphrase later doesn't require re-encrypting every task, only re-wrapping one key.
     </p>
