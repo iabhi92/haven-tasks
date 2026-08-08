@@ -69,7 +69,7 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260808d";
+} from "./ui.js?v=20260808e";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -94,6 +94,10 @@ import {
   signBytes,
   verifyBytes,
   sha256Hex,
+  createTimeLockPuzzle,
+  stepTimeLockPuzzle,
+  deriveTimeLockKey,
+  TIME_LOCK_PUZZLE_START,
   recoveryCodeToBytes,
   bytesToRecoveryCode,
   splitSecret,
@@ -102,7 +106,7 @@ import {
   decodeShare,
   generateHardwareSecret,
   wrapRawBytes,
-} from "./crypto.js?v=20260807a";
+} from "./crypto.js?v=20260809i";
 import {
   isWebAuthnAvailable,
   registerPasskey,
@@ -569,6 +573,10 @@ function render() {
         showInfoToast("This task self-destructed and can no longer be opened.");
         return;
       }
+      if (task.timeLocked) {
+        continueSolvingTimeLock(task.id, () => render());
+        return;
+      }
       // Registers this view (and erases the task if it just burned its last
       // one) *before* opening the modal — but still opens with the content
       // already decrypted into `task`, so a "burns after 1 view" task is
@@ -740,6 +748,133 @@ function destructedTaskStub(previous, erasedAt) {
     destructed: true,
     erasedAt,
   };
+}
+
+// ---------- time-locked tasks (Layer 3) ----------
+// See docs/ARCHITECTURE.md "Time-locked tasks" and js/crypto.js's
+// "time-lock puzzle" section for the mechanism itself. Same per-task-key
+// shape as self-destruct (§4d) — content is encrypted under a fresh
+// non-shared key — except that key is wrapped under a puzzle-derived key
+// instead of the vault DEK, so decrypting requires actually solving the
+// puzzle, not just holding the vault's key.
+
+// The in-memory placeholder for a still-locked task — mirrors
+// destructedTaskStub()'s shape (every render/filter/sort path treats it
+// like a normal task with empty content) plus `timeLocked: true` and the
+// puzzle's own (non-secret) progress, so the UI can show a progress bar
+// without needing the decrypted task at all.
+function timeLockedTaskStub(record) {
+  return {
+    id: record.id,
+    title: "",
+    project: "Inbox",
+    notes: "",
+    status: "todo",
+    priority: "medium",
+    dueDate: null,
+    tags: [],
+    subtasks: [],
+    recurrence: null,
+    order: 0,
+    createdAt: record.timeLock.createdAt,
+    updatedAt: record.updatedAt,
+    timeLocked: true,
+    timeLock: { squarings: record.timeLock.squarings, squaringsSolved: record.timeLock.solveProgress.squaringsSolved },
+  };
+}
+
+// Creates a task whose content is unreadable until its puzzle is solved.
+// Bypasses persistTask() entirely (unlike self-destruct, which reuses it
+// via newSelfDestructSpec) because the wrapping key here comes from the
+// puzzle, not from `dek` — different enough machinery that folding it into
+// persistTask's branches would obscure both.
+async function createTimeLockedTask(task, squarings) {
+  const { n, target } = await createTimeLockPuzzle(squarings);
+  const timeLockKey = await deriveTimeLockKey(target); // target itself is never persisted — see crypto.js
+
+  const rawTaskKey = await generateDek();
+  const rawTaskKeyBytes = await crypto.subtle.exportKey("raw", rawTaskKey);
+  const { wrappedDek: wrappedTaskKey, wrapIv: taskKeyWrapIv } = await wrapDek(rawTaskKey, timeLockKey);
+  const taskKey = await importDek(rawTaskKeyBytes, false);
+
+  const { iv, ciphertext } = await encryptTask(task, taskKey);
+  const timeLock = {
+    n,
+    squarings,
+    wrappedTaskKey,
+    taskKeyWrapIv,
+    solveProgress: { current: TIME_LOCK_PUZZLE_START, squaringsSolved: 0 },
+    createdAt: task.createdAt,
+  };
+  const record = { id: task.id, iv, ciphertext, updatedAt: task.updatedAt, timeLock };
+  await putTask(record);
+  await appendSignedHistoryEntry(task.id, "create", iv, ciphertext);
+}
+
+let timeLockSolveInProgress = null; // task id currently solving — one at a time, keeps chunking simple
+
+// Chunked, yielding solve loop — never blocks the UI thread for more than
+// one chunk's worth of squarings (this app has hit a real main-thread-
+// freeze bug before, from the AI assistant; see docs/ARCHITECTURE.md "On-
+// device AI assistant" — chunking here is deliberate, not incidental).
+// Progress is persisted after every chunk so a reload resumes instead of
+// restarting: an intermediate squaring result is safe to store (see
+// crypto.js), it only lets you continue the sequential work, not skip it.
+const TIME_LOCK_CHUNK_SIZE = 20000;
+
+async function continueSolvingTimeLock(taskId, onProgress) {
+  if (timeLockSolveInProgress) return; // already solving (this task or another)
+  timeLockSolveInProgress = taskId;
+  try {
+    while (true) {
+      const record = await getTask(taskId);
+      if (!record || !record.timeLock) return; // deleted, or already converted to a normal task
+      const { n, squarings, solveProgress } = record.timeLock;
+      const remaining = squarings - solveProgress.squaringsSolved;
+      if (remaining <= 0) break;
+
+      const stepSize = Math.min(TIME_LOCK_CHUNK_SIZE, remaining);
+      const next = stepTimeLockPuzzle(n, solveProgress.current, stepSize);
+      const squaringsSolved = solveProgress.squaringsSolved + stepSize;
+      await putTask({ ...record, timeLock: { ...record.timeLock, solveProgress: { current: next, squaringsSolved } } });
+
+      const idx = tasks.findIndex((t) => t.id === taskId);
+      if (idx !== -1 && tasks[idx].timeLocked) {
+        tasks[idx] = { ...tasks[idx], timeLock: { squarings, squaringsSolved } };
+        onProgress && onProgress(squaringsSolved, squarings);
+      }
+
+      if (squaringsSolved >= squarings) {
+        await finishTimeLockedTask(taskId, next);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0)); // yield to the event loop between chunks
+    }
+  } finally {
+    timeLockSolveInProgress = null;
+  }
+}
+
+// The puzzle's solved once squaringsSolved reaches squarings — from then on
+// there's nothing left to prove, so this converts the task back into a
+// normal one (re-wrapped under the vault DEK) rather than requiring the
+// puzzle to be re-solved on every future open.
+async function finishTimeLockedTask(taskId, solvedTarget) {
+  const record = await getTask(taskId);
+  if (!record || !record.timeLock) return;
+  const timeLockKey = await deriveTimeLockKey(solvedTarget);
+  const rawTaskKeyBytes = await unwrapDek(record.timeLock.wrappedTaskKey, record.timeLock.taskKeyWrapIv, timeLockKey);
+  const taskKey = await importDek(rawTaskKeyBytes, false);
+  const task = await decryptTask(record, taskKey);
+
+  const { iv, ciphertext } = await encryptTask(task, dek);
+  await putTask({ id: taskId, iv, ciphertext, updatedAt: task.updatedAt }); // no timeLock field — now a normal record
+  await appendSignedHistoryEntry(taskId, "update", iv, ciphertext);
+
+  const idx = tasks.findIndex((t) => t.id === taskId);
+  if (idx !== -1) tasks[idx] = task;
+  render();
+  showInfoToast(`"${task.title}" unlocked.`);
 }
 
 // Time-based fuses: checked against the in-memory task list (cheap — no IO
@@ -1085,7 +1220,12 @@ async function loadAndDecryptTasks() {
   ephemeralTaskKeys.clear();
   for (const record of records) {
     try {
-      if (record.selfDestruct) {
+      if (record.timeLock) {
+        // Still locked: no key exists to decrypt with yet (that's the whole
+        // point) — a stub built straight from the record's own non-secret
+        // progress, same idea as the destructed-stub branch below.
+        decrypted.push(timeLockedTaskStub(record));
+      } else if (record.selfDestruct) {
         if (!record.selfDestruct.wrappedTaskKey) {
           decrypted.push(
             destructedTaskStub({ id: record.id, status: record.selfDestruct.status, ...emptyTaskDefaults() }, record.selfDestruct.erasedAt)
@@ -1114,7 +1254,7 @@ function emptyTaskDefaults() {
   return { project: "Inbox", priority: "medium", order: 0, createdAt: null };
 }
 
-async function addTask({ title, project, notes, status, priority, dueDate, tags, subtasks, recurrence, selfDestruct }) {
+async function addTask({ title, project, notes, status, priority, dueDate, tags, subtasks, recurrence, selfDestruct, timeLockSquarings }) {
   const resolvedStatus = status || "todo";
   let task = {
     id: uuid(),
@@ -1136,6 +1276,16 @@ async function addTask({ title, project, notes, status, priority, dueDate, tags,
   // immediately after.
   const ruled = evaluateTask(automationRules, "onCreateWithTag", task);
   if (ruled) task = { ...ruled, updatedAt: now() };
+
+  // Mutually exclusive with self-destruct (see the addTimeLockMode field's
+  // help text) — timeLockSquarings wins if somehow both were set, since a
+  // task that can't be opened yet has nothing to burn.
+  if (timeLockSquarings) {
+    await createTimeLockedTask(task, timeLockSquarings);
+    tasks.push(timeLockedTaskStub({ id: task.id, updatedAt: task.updatedAt, timeLock: { squarings: timeLockSquarings, createdAt: task.createdAt, solveProgress: { squaringsSolved: 0 } } }));
+    render();
+    return;
+  }
 
   const displayTask = selfDestruct ? { ...task, selfDestruct: { ...selfDestruct, status: task.status, viewsUsed: 0 } } : task;
   tasks.push(displayTask);
@@ -2727,7 +2877,21 @@ function wireAddModal() {
     renderAddSubtasks();
     openAddModal();
     document.getElementById("addProject").value = activeProject;
+    document.getElementById("addSelfDestructMode").value = "";
+    document.getElementById("addTimeLockMode").value = "";
+    document.getElementById("addSelfDestructMode").disabled = false;
+    document.getElementById("addTimeLockMode").disabled = false;
     if (dek) updateAddReveal();
+  });
+
+  // Mutually exclusive (see docs/ARCHITECTURE.md "Time-locked tasks") —
+  // picking one disables the other, rather than silently letting the last
+  // one picked win at submit time.
+  document.getElementById("addSelfDestructMode").addEventListener("change", (e) => {
+    document.getElementById("addTimeLockMode").disabled = !!e.target.value;
+  });
+  document.getElementById("addTimeLockMode").addEventListener("change", (e) => {
+    document.getElementById("addSelfDestructMode").disabled = !!e.target.value;
   });
 
   for (const id of ["addTitle", "addProject", "addNotes", "addStatus", "addPriority", "addDueDate", "addRecurrence", "addTags"]) {

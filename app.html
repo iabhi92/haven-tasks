@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260809h" integrity="sha384-IwhQgCXzNup/I90N1VUqJSen0CmLqARicUmfj5kcnMrag6ogUlZfje9baB+SJnqg" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260809i" integrity="sha384-2SwDRrxyVNnEn09HPlOgVjsjQpywPy/90cEg99KIlN7Qxi0L/GU6Asl5Fmx7xrHP" crossorigin="anonymous">
 </head>
 <body>
 
@@ -816,6 +816,22 @@
         </p>
       </div>
 
+      <div class="field">
+        <label for="addTimeLockMode">Time-lock</label>
+        <select id="addTimeLockMode">
+          <option value="">Never (a normal task)</option>
+          <option value="demo">Locked for ~10 seconds (demo)</option>
+          <option value="2m">Locked for ~2 minutes</option>
+          <option value="10m">Locked for ~10 minutes</option>
+        </select>
+        <p class="modal-help">
+          Really encrypted, not just hidden: opening it early means solving a real computational
+          puzzle (a chain of sequential modular squarings) — there's no shortcut, not even for
+          this app's own code. Solve time depends on your device's speed. Mutually exclusive with
+          self-destruct above, and doesn't sync to other devices.
+        </p>
+      </div>
+
       <p class="reveal-intro add-reveal-intro">Watch this get encrypted as you type. It's the
         exact same function every task on your board goes through, running live on what you're
         actually about to create.</p>
@@ -1145,6 +1161,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260808g" integrity="sha384-wFqj0ltbCmuA23X01r1nYLhpM6UTLMUfjI2/ku1dNiwYF8OnTRFBm0ygNbbbbgIT" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260808i" integrity="sha384-xlU3bUf4OwQtVNiRBFfmEfNaDU9WC+5tdvsjQXzXdMkBxiyKB+Y6fPiYOAtikmnz" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

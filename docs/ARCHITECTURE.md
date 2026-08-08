@@ -670,6 +670,58 @@ the user, and switchable at will without leaving the app.
   implemented here) and aren't included in the fragment-key share-link flow (§5b). A compartment
   currently lives and dies on the one device that created it, same as a note does.
 
+## 4k. Time-locked tasks (Layer 3)
+
+A task whose content is genuinely undecryptable until real, sequential computation has been
+performed — not a UI gate on `Date.now()`. Worth being explicit about *why* it has to work this
+way: this app has no trusted server and no trusted third party to appeal to (that's the whole point
+of the architecture), so the only honest way to enforce "not yet" against an adversary who already
+holds the vault's DEK is to make "not yet" computationally expensive rather than merely checked.
+
+- **A real time-lock puzzle (Rivest-Shamir-Wagner construction), not a clock check.**
+  `js/crypto.js`'s `createTimeLockPuzzle()` generates a fresh RSA modulus `n = p·q` via Web
+  Crypto's own key generation (reusing its already-audited prime generation instead of hand-rolling
+  Miller-Rabin), reads `p`/`q` back out via JWK export to compute `phi = (p-1)(q-1)` locally, then
+  uses `phi` — the one shortcut that exists — to jump straight to the puzzle's solution in a single
+  `modPow` instead of doing the sequential work. `phi` is used once, synchronously, and never
+  returned, stored, or logged. Without it, the *only* way to compute the same value is
+  `stepTimeLockPuzzle()`'s dumb loop: repeated modular squaring, one step at a time, `squarings`
+  times, with no shortcut — that sequential cost is the entire enforcement mechanism.
+- **The per-task key is wrapped under the puzzle's solution, not under the vault DEK.** Same
+  per-task-key shape ephemeral tasks (§4d) use — a fresh AES-GCM key encrypts the task content —
+  except here it's wrapped (`wrapDek()`) under a key derived (`deriveTimeLockKey()`, SHA-256 of the
+  solution's decimal string) from the puzzle's target, computed via the fast path at creation and
+  *never persisted*. The stored record holds only the puzzle itself (`n`, `squarings`) plus the
+  wrapped key — enough to solve, nothing that shortcuts solving.
+- **Honest scope limit — this is a bounded delay, not a calendar date, and the roadmap's original
+  wording overclaimed.** A puzzle calibrated for a multi-day wait would require a browser tab
+  computing continuously for days, which is impractical to use and was impractical for this
+  project to even test. The shipped presets (~10 seconds / ~2 minutes / ~10 minutes) are
+  calibrated against a conservative, once-measured squarings-per-second estimate
+  (`TIME_LOCK_SQUARINGS_PER_SEC` in `js/ui.js`) — real device speed varies (a known, cited
+  limitation of RSW puzzles generally: a faster future device solves sooner), so actual solve time
+  trends faster than the label, deliberately never much slower.
+- **Chunked and resumable, on purpose — this app has hit a real main-thread-freeze bug before.**
+  `continueSolvingTimeLock()` (`js/app.js`) performs squarings in bounded chunks
+  (`TIME_LOCK_CHUNK_SIZE`), yielding to the event loop between each so the UI stays responsive —
+  the same lesson this project already learned the hard way with the AI assistant (§4h) freezing
+  the tab, applied proactively here instead of repeated. Progress (`solveProgress: {current,
+  squaringsSolved}`) is persisted to IndexedDB after every chunk: an intermediate squaring result
+  is safe to store, since knowing it only lets you continue the sequential work from there, not
+  skip ahead — so a reload mid-solve resumes instead of restarting. Verified for real (not
+  assumed): interrupted a solve at 14% with a hard page reload, confirmed progress survived at
+  14% (not reset to 0%), and confirmed resuming completed successfully.
+- **Solved once, not re-proven every open.** Once `squaringsSolved` reaches `squarings`, the task
+  converts back into a normal record — its content is re-encrypted under the vault DEK directly
+  (`finishTimeLockedTask()`) and the `timeLock` field is dropped. There's nothing left to prove
+  once the delay has genuinely elapsed once; requiring the puzzle to be re-solved on every future
+  open would be security theater, not an honest additional guarantee.
+- **Mutually exclusive with self-destruct in this version.** Combining "erases on open" with "can't
+  be opened yet" is a real, untested interaction this pass doesn't take on — the add-task UI
+  enforces one or the other, not both.
+- **Local-only**, same as notes (§4i) and compartments (§4j): not included in `syncNow()`'s push
+  and not wired into the fragment-key share-link flow (§5b).
+
 ## 5. Optional sync protocol
 
 The server is a dumb encrypted-blob store. It never decrypts, never sees keys, never sees

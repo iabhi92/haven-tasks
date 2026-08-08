@@ -4,7 +4,7 @@
 // docs/ARCHITECTURE.md "Fragment-key share links"), fetches the ciphertext,
 // decrypts in-page, and renders it. Nothing here is ever persisted.
 
-import { importDek, decryptTask, base64UrlToBuf } from "./crypto.js?v=20260806a";
+import { importDek, decryptTask, base64UrlToBuf } from "./crypto.js?v=20260809i";
 import { pullShare } from "./sync.js?v=20260806a";
 
 const STATUS_LABEL = { todo: "To Do", "in-progress": "In Progress", done: "Done" };

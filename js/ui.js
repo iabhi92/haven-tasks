@@ -84,6 +84,20 @@ function tagChips(tags) {
   return wrap;
 }
 
+// timeLock here is the non-secret progress shape {squarings, squaringsSolved}
+// (see timeLockedTaskStub() in js/app.js) — never the puzzle's solution.
+function timeLockProgressBar(timeLock) {
+  const pct = timeLock.squarings > 0 ? Math.min(100, Math.round((timeLock.squaringsSolved / timeLock.squarings) * 100)) : 0;
+  const wrap = el("div", "timelock-progress");
+  const track = el("div", "timelock-progress-track");
+  const fill = el("div", "timelock-progress-fill");
+  fill.style.width = pct + "%";
+  track.appendChild(fill);
+  wrap.appendChild(track);
+  wrap.appendChild(el("span", "timelock-progress-label", pct === 0 ? "Click to start unlocking" : `${pct}% solved — click to continue`));
+  return wrap;
+}
+
 function dueBadge(dueDate) {
   const info = dueBadgeInfo(dueDate);
   if (!info) return null;
@@ -93,14 +107,15 @@ function dueBadge(dueDate) {
 export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selectionMode, selectedIds, onToggleSelect }) {
   const selected = !!(selectedIds && selectedIds.has(task.id));
   const destructedCls = task.destructed ? " is-destructed" : "";
+  const timeLockedCls = task.timeLocked ? " is-timelocked" : "";
   // Overdue takes visual precedence over priority on the card's accent
   // stripe (see .task-card[data-priority] / .task-card.is-overdue in
   // style.css) — a done task is never "overdue" regardless of its date.
-  const overdueCls = !task.destructed && task.status !== "done" && dueBadgeInfo(task.dueDate)?.cls.includes("is-overdue") ? " is-overdue" : "";
-  const card = el("div", "task-card" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : "") + destructedCls + overdueCls);
-  card.draggable = !selectionMode && !task.destructed;
+  const overdueCls = !task.destructed && !task.timeLocked && task.status !== "done" && dueBadgeInfo(task.dueDate)?.cls.includes("is-overdue") ? " is-overdue" : "";
+  const card = el("div", "task-card" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : "") + destructedCls + timeLockedCls + overdueCls);
+  card.draggable = !selectionMode && !task.destructed && !task.timeLocked;
   card.dataset.id = task.id;
-  if (!task.destructed) card.dataset.priority = task.priority;
+  if (!task.destructed && !task.timeLocked) card.dataset.priority = task.priority;
   card.setAttribute("role", "listitem");
   card.tabIndex = 0;
 
@@ -119,6 +134,16 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selection
     // hidden. A dedicated placeholder rather than trying to fit "erased" into
     // the normal card layout, so it can't be mistaken for a blank task.
     card.appendChild(el("p", "destructed-label", "🔥 This task self-destructed"));
+    card.addEventListener("click", () => (selectionMode ? onToggleSelect(task.id) : onOpen(task)));
+    return card;
+  }
+
+  if (task.timeLocked) {
+    // No title/notes to show — genuinely not decrypted yet, not just
+    // hidden by the UI. Click continues the real solve (see onOpen in
+    // js/app.js), not an edit — there's nothing decrypted to edit.
+    card.appendChild(el("p", "timelock-label", "🔒 Time-locked task"));
+    card.appendChild(timeLockProgressBar(task.timeLock));
     card.addEventListener("click", () => (selectionMode ? onToggleSelect(task.id) : onOpen(task)));
     return card;
   }
@@ -166,7 +191,8 @@ export function createTaskCard(task, { onOpen, onDragStart, onDragEnd, selection
 export function createListRow(task, { onOpen, onDelete, selectionMode, selectedIds, onToggleSelect }) {
   const selected = !!(selectedIds && selectedIds.has(task.id));
   const destructedCls = task.destructed ? " is-destructed" : "";
-  const row = el("div", "list-row" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : "") + destructedCls);
+  const timeLockedCls = task.timeLocked ? " is-timelocked" : "";
+  const row = el("div", "list-row" + (task.status === "done" ? " is-done" : "") + (selected ? " is-selected" : "") + destructedCls + timeLockedCls);
   row.dataset.id = task.id;
 
   const titleCell = el("span", "list-row-title-cell");
@@ -194,6 +220,15 @@ export function createListRow(task, { onOpen, onDelete, selectionMode, selectedI
     });
     actions.appendChild(delBtn);
     row.appendChild(actions);
+    row.addEventListener("click", () => (selectionMode ? onToggleSelect(task.id) : onOpen(task)));
+    return row;
+  }
+
+  if (task.timeLocked) {
+    titleRow.appendChild(el("span", "list-row-title timelock-label", "🔒 Time-locked task"));
+    titleCell.appendChild(titleRow);
+    titleCell.appendChild(timeLockProgressBar(task.timeLock));
+    row.appendChild(titleCell);
     row.addEventListener("click", () => (selectionMode ? onToggleSelect(task.id) : onOpen(task)));
     return row;
   }
@@ -432,6 +467,21 @@ function readSelfDestructMode() {
   return { mode: "time", expiresAt: Date.now() + SELF_DESTRUCT_DURATIONS_MS[value] };
 }
 
+// Squarings-per-second is a conservative, once-measured estimate (see
+// docs/ARCHITECTURE.md "Time-locked tasks") — real device speed varies, so
+// actual solve time may be faster than the label; deliberately never
+// slower by more than a small margin. Mutually exclusive with self-destruct
+// in this version — combining "erases on open" with "can't be opened yet"
+// is a real, untested interaction this pass doesn't take on.
+const TIME_LOCK_SQUARINGS_PER_SEC = 150000;
+const TIME_LOCK_DURATIONS_SEC = { demo: 10, "2m": 120, "10m": 600 };
+
+function readTimeLockMode() {
+  const value = document.getElementById("addTimeLockMode").value;
+  if (!value) return null;
+  return { squarings: TIME_LOCK_DURATIONS_SEC[value] * TIME_LOCK_SQUARINGS_PER_SEC };
+}
+
 export function readNoteForm() {
   return {
     title: document.getElementById("noteTitle").value.trim(),
@@ -451,6 +501,7 @@ export function readAddForm() {
     tags: parseTagsInput(document.getElementById("addTags").value),
     recurrence: document.getElementById("addRecurrence").value || null,
     selfDestruct: readSelfDestructMode(),
+    timeLockSquarings: readTimeLockMode()?.squarings || null,
   };
 }
 

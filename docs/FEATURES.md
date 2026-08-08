@@ -228,7 +228,17 @@ data."*
       deniable encryption" item is for; see docs/ARCHITECTURE.md "Duress / decoy vault" for
       the full honest scope, including a real timing side-channel on unlock that a sufficiently
       careful adversary could exploit.
-- [ ] Time-locked tasks — encrypted to unlock at a future date — High
+- [x] Time-locked tasks — High. Shipped: a real Rivest-Shamir-Wagner-style repeated-squaring
+      time-lock puzzle (`js/crypto.js`), not a clock check — opening early means actually
+      performing the sequential computation, not editing a timestamp. **Honest scope correction
+      from this line's original wording:** "unlock at a future **date**" overclaims what's
+      possible in a purely client-side architecture with no trusted server or third party (this
+      app's whole point) — a puzzle calibrated for a multi-day wait would mean leaving a browser
+      tab computing continuously for days, which nobody would do and this project couldn't
+      practically test. Shipped instead as a bounded, real, computationally-enforced *delay*
+      (presets: ~10 seconds / ~2 minutes / ~10 minutes), honestly labeled as such rather than
+      implying calendar-scale enforcement it can't deliver. See docs/ARCHITECTURE.md
+      "Time-locked tasks" for the full mechanism and its limits.
 - [ ] Dead-man's-switch — reveal a task to a designated person after inactivity — High
 - [x] Ephemeral / self-destructing tasks via key erasure — Med. Shipped: each
       self-destructing task is encrypted under its own per-task key (not the

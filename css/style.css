@@ -803,6 +803,37 @@ body { display: flex; }
 .list-row.is-destructed { color: var(--text-faint); }
 .list-row.is-destructed .destructed-label { font-style: italic; }
 
+.task-card.is-timelocked {
+  background: var(--accent-soft);
+  border: 2px dashed var(--accent);
+  box-shadow: none;
+  cursor: pointer;
+}
+.task-card.is-timelocked:hover { transform: none; box-shadow: none; }
+.timelock-label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.timelock-progress { display: flex; flex-direction: column; gap: 4px; }
+.timelock-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.timelock-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.15s ease;
+}
+.timelock-progress-label { font-size: 11px; color: var(--text-faint); }
+.list-row.is-timelocked { color: var(--accent); }
+.list-row.is-timelocked .list-row-title-cell { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.list-row.is-timelocked .timelock-progress { width: 200px; }
+
 .task-card.is-done .task-title {
   text-decoration: line-through;
   color: var(--text-muted);

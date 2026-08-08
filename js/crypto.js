@@ -391,3 +391,87 @@ export async function sha256Hex(dataBytes) {
   const digest = await crypto.subtle.digest("SHA-256", dataBytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+// ---------- time-lock puzzle (Layer 3) ----------
+// A real Rivest-Shamir-Wagner-style repeated-squaring puzzle, not a clock
+// check — see docs/ARCHITECTURE.md "Time-locked tasks" for why this app's
+// architecture (no trusted server, no trusted third party) makes a client-
+// clock check alone dishonest to call "encrypted to unlock at a future
+// date": whoever holds the vault DEK could just edit the stored record.
+// Solving requires N *sequential* modular squarings — no shortcut exists
+// once the one secret that provides one (phi, below) is discarded.
+
+function bufToBigInt(buf) {
+  let result = 0n;
+  for (const b of new Uint8Array(buf)) result = (result << 8n) | BigInt(b);
+  return result;
+}
+
+function modPow(base, exp, mod) {
+  let result = 1n;
+  base = ((base % mod) + mod) % mod;
+  while (exp > 0n) {
+    if (exp & 1n) result = (result * base) % mod;
+    exp >>= 1n;
+    base = (base * base) % mod;
+  }
+  return result;
+}
+
+const TIME_LOCK_BASE = 2n; // standard RSW base; gcd(2, n) = 1 for any odd n = p*q
+
+// Generates a fresh RSA modulus via Web Crypto — reusing its already-audited
+// prime generation instead of hand-rolling Miller-Rabin — then reads p/q
+// back out via JWK export to compute phi(n) = (p-1)(q-1) locally. phi is
+// the "fast path" secret: knowing it lets puzzle *creation* jump straight
+// to the answer in one modPow instead of N sequential squarings. It is
+// used once, synchronously, in createTimeLockPuzzle() below, and never
+// returned, stored, or logged — solving later has no way to reconstruct it
+// from n alone (that's the RSA factoring assumption doing its normal job).
+async function generateTimeLockModulus(modulusLength = 2048) {
+  const keypair = await crypto.subtle.generateKey(
+    { name: "RSA-OAEP", modulusLength, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+    true,
+    ["encrypt", "decrypt"]
+  );
+  const jwk = await crypto.subtle.exportKey("jwk", keypair.privateKey);
+  const p = bufToBigInt(base64UrlToBuf(jwk.p));
+  const q = bufToBigInt(base64UrlToBuf(jwk.q));
+  return { n: p * q, phi: (p - 1n) * (q - 1n) };
+}
+
+// Creates a puzzle that takes exactly `squarings` sequential modular
+// squarings to solve. Returns only {n, squarings} — the puzzle itself —
+// plus `target`, the solution, kept separate in the return value so the
+// caller can use it immediately (to derive a key, see deriveTimeLockKey
+// below) without ever persisting it: storing `target` anywhere would let
+// anyone skip the puzzle entirely.
+export async function createTimeLockPuzzle(squarings) {
+  const { n, phi } = await generateTimeLockModulus();
+  const exponent = modPow(2n, BigInt(squarings), phi);
+  const target = modPow(TIME_LOCK_BASE, exponent, n);
+  return { n: n.toString(), squarings, target: target.toString() };
+}
+
+// Performs up to `maxSteps` sequential squarings starting from `currentStr`
+// (pass TIME_LOCK_PUZZLE_START on the very first call). Callers chunk this
+// across yields (js/app.js) so a long solve never blocks the UI thread, and
+// persist the returned value as resumable progress — an intermediate
+// squaring result is safe to store: it only lets you continue the
+// sequential work from there, not skip ahead.
+export const TIME_LOCK_PUZZLE_START = TIME_LOCK_BASE.toString();
+
+export function stepTimeLockPuzzle(nStr, currentStr, maxSteps) {
+  const n = BigInt(nStr);
+  let x = BigInt(currentStr);
+  for (let i = 0; i < maxSteps; i++) x = (x * x) % n;
+  return x.toString();
+}
+
+// Derives an AES-256-GCM key from a puzzle's solution — same "hash secret
+// material into a symmetric key" pattern used elsewhere in this file,
+// applied to a BigInt's decimal string instead of raw key bytes.
+export async function deriveTimeLockKey(targetStr) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(targetStr));
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
