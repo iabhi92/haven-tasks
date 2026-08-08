@@ -253,9 +253,43 @@
 - **Defense:** `frame-ancestors 'none'` (CSP) and/or `X-Frame-Options: DENY`.
 
 ### A7. Future quantum adversary ("harvest now, decrypt later")
-- **Status:** AES-256-GCM is considered quantum-resistant for confidentiality. The asymmetric
-  surface is minimal in v1 (no public-key sharing yet). Noted as a design-aware future concern,
-  not an active v1 defense.
+- **Confidentiality is already quantum-safe.** Every primitive that protects secrecy — AES-256-GCM
+  (all task/note/backup/share content), PBKDF2-SHA256 (passphrase → key), and Shamir secret
+  sharing (social recovery) — is either symmetric or information-theoretic. Grover's algorithm
+  gives only a quadratic speedup against AES/SHA-256, cutting 256-bit security to an effective
+  ~128-bit — still infeasible, and already the basis for NIST/NSA treating AES-256 as
+  quantum-resistant. Shamir sharing isn't based on a hard math problem at all, so Grover/Shor have
+  nothing to attack. No public-key encryption is used anywhere in the confidentiality path, so
+  there is no "harvest ciphertext now, decrypt once quantum computers exist" exposure to begin
+  with. This claim was previously (incorrectly) hedged as "asymmetric surface is minimal" — as of
+  Layer 2/3 features below, the asymmetric surface is not minimal, it's just irrelevant to
+  confidentiality specifically.
+- **Real, concrete exposure: the time-locked task's RSA modulus (§4k).** `createTimeLockPuzzle()`
+  generates and stores a 2048-bit RSA modulus `n` as part of the puzzle record. The puzzle's "you
+  must wait" guarantee rests on nobody being able to factor `n` — true against every classical
+  adversary, false against a sufficiently large fault-tolerant quantum computer running Shor's
+  algorithm, which would recover `φ(n)` and let an attacker jump straight to the puzzle's solution,
+  skipping the wait entirely. **Not fixed as of this writing.** The correct fix is a verifiable
+  delay function over a class group of unknown order (Wesolowski/Pietrzak construction — the family
+  Chia's `chiavdf` uses), which has no factorization trapdoor for anyone, quantum or not.
+  Deliberately not implemented: there is no mature, audited JS/WASM library for class-group VDF
+  arithmetic, and hand-rolling binary-quadratic-form composition from scratch would be exactly the
+  kind of unreviewed novel crypto this document elsewhere argues against shipping under time
+  pressure (see the Argon2id-vs-PBKDF2 note, docs/ARCHITECTURE.md). The threat requires
+  cryptographically-relevant quantum computing that doesn't exist yet; revisit if/when a vetted
+  library appears, or if this feature's stakes ever rise enough to justify commissioning one.
+- **Lower-urgency: Ed25519 signing keys** (tamper-evident local history device keys, §5c;
+  compartment device keys, §4j) are elliptic-curve and theoretically Shor-vulnerable eventually.
+  The exposure is *future forgery of new signatures* by an attacker who breaks the curve, not
+  decryption of anything already stored — there's no retroactive "harvest now" risk since a forged
+  signature has to be produced fresh, at attack time, against whatever the verifier checks then.
+  Standard mitigation once library support matures: hybrid dual-signing (Ed25519 + ML-DSA, NIST
+  FIPS 204), so old signatures keep verifying while new ones gain PQC coverage.
+- **WebAuthn passkey unlock (§4c) doesn't inherit this risk.** The stored secret is a random
+  256-bit blob retrieved via the `largeBlob` extension, not a value derived from the authenticator's
+  own public-key assertion — so even a fully broken FIDO2 signature scheme wouldn't expose the DEK.
+  The residual risk (forging a live assertion ceremony) is a physical/remote access-control question
+  outside this app's control, not a "recorded traffic decrypted later" one.
 
 ## Explicit non-goals / honest limitations
 
