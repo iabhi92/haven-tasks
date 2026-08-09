@@ -8,13 +8,13 @@
 // No build step here either — this list is hand-maintained the same way
 // the ?v= cache-bust query strings on these same files already are. Bump
 // CACHE_NAME (and this list, if a file's ?v= changes) together with those.
-const CACHE_NAME = "haven-shell-v17";
+const CACHE_NAME = "haven-shell-v18";
 const APP_SHELL = [
   "/app.html",
   "/manifest.json",
   "/favicon.ico",
-  "/css/style.css?v=20260809l",
-  "/js/app.js?v=20260809e",
+  "/css/style.css?v=20260810a",
+  "/js/app.js?v=20260810b",
   "/js/store.js?v=20260808d",
   "/js/ui.js?v=20260808e",
   "/js/crypto.js?v=20260809i",

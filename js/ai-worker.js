@@ -21,11 +21,18 @@ const MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct";
 // mean-pooled, q8 quantized — a few MB, independent opt-in from the ~140MB chat model above
 // since someone may want fast local search without the heavier generation model).
 const EMBED_MODEL_ID = "Xenova/all-MiniLM-L6-v2";
+// English-only tiny Whisper (~39M params, q8 quantized) for on-device voice input. Reverses
+// the earlier "no voice input" call in this project's history -- that decision was about
+// *cloud* speech-to-text sending raw audio to a provider, which this doesn't: the audio never
+// leaves the tab, same as every other model here.
+const ASR_MODEL_ID = "Xenova/whisper-tiny.en";
 
 let generator = null;
 let loadPromise = null;
 let embedder = null;
 let embedLoadPromise = null;
+let transcriber = null;
+let transcriberLoadPromise = null;
 
 function extractReply(out) {
   const generated = out?.[0]?.generated_text;
@@ -117,10 +124,58 @@ async function embed(id, texts) {
   }
 }
 
+async function loadTranscriber(id) {
+  if (!transcriber && !transcriberLoadPromise) {
+    transcriberLoadPromise = (async () => {
+      env.allowLocalModels = false;
+      env.useBrowserCache = true;
+      env.backends.onnx.wasm.wasmPaths = {
+        wasm: "/vendor/transformers/ort-wasm-simd-threaded.asyncify.wasm",
+        mjs: "/vendor/transformers/ort-wasm-simd-threaded.asyncify.mjs",
+      };
+      env.backends.onnx.wasm.numThreads = 1; // same cross-origin-isolation constraint as load()
+
+      // fp32, not q8 like the two pipelines above -- both explicit "q8" and this model's own
+      // default dtype hit the same real ORT error while testing ("Can't create a session...
+      // Missing required scale: model.decoder.embed_tokens.weight_merged_0_scale"): the
+      // quantized decoder variant available for this model needs a newer onnxruntime-web
+      // MatMulNBits/QDQ feature than the vendored 1.26.0-dev build supports. fp32 sidesteps
+      // the quantization graph entirely -- a larger download, but the one that actually works.
+      transcriber = await pipeline("automatic-speech-recognition", ASR_MODEL_ID, {
+        device: "wasm",
+        dtype: "fp32",
+        progress_callback: (progress) => postMessage({ type: "progress", progress }),
+      });
+    })();
+  }
+
+  try {
+    await transcriberLoadPromise;
+    postMessage({ id, type: "done", result: null });
+  } catch (err) {
+    transcriberLoadPromise = null;
+    postMessage({ id, type: "error", error: String(err?.message || err) });
+  }
+}
+
+// audioData: Float32Array of mono PCM samples at 16kHz (see js/ai.js's decodeAudioForAsr for
+// how a MediaRecorder blob gets converted to this shape before reaching here).
+async function transcribe(id, audioData) {
+  try {
+    if (!transcriber) throw new Error("Transcriber not loaded yet.");
+    const out = await transcriber(audioData);
+    postMessage({ id, type: "done", result: String(out?.text || "").trim() });
+  } catch (err) {
+    postMessage({ id, type: "error", error: String(err?.message || err) });
+  }
+}
+
 self.addEventListener("message", (event) => {
   const { id, type } = event.data;
   if (type === "load") load(id);
   else if (type === "generate") generate(id, event.data.messages, event.data.maxNewTokens);
   else if (type === "loadEmbedder") loadEmbedder(id);
   else if (type === "embed") embed(id, event.data.texts);
+  else if (type === "loadTranscriber") loadTranscriber(id);
+  else if (type === "transcribe") transcribe(id, event.data.audioData);
 });

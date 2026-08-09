@@ -148,7 +148,7 @@ let assistantEnabled = false;
 let embedderEnabled = false;
 let taskEmbeddingCache = new Map(); // taskId -> { text, vector: number[] } — in-memory only, never persisted
 async function getAssistantModule() {
-  if (!assistantModule) assistantModule = await import("./ai.js?v=20260809a");
+  if (!assistantModule) assistantModule = await import("./ai.js?v=20260810a");
   return assistantModule;
 }
 
@@ -2857,6 +2857,88 @@ function updateSmartSearchHint() {
   }
 }
 
+// ---------- Voice input (Layer 3, js/ai.js) — a third, independent AI opt-in from the chat
+// assistant and smart search above. Reverses this project's earlier "no voice input" call:
+// that decision was specifically about *cloud* speech-to-text sending raw audio to a
+// provider, which this doesn't (Whisper runs entirely in the Worker, same as every other
+// model here — audio never leaves the tab). ----------
+
+const VOICE_MAX_RECORDING_MS = 10000; // auto-stop safety net, same reasoning as the time-lock
+                                       // puzzle's chunking: don't let something run forever unattended
+let voiceEnabled = false;
+let mediaRecorder = null;
+let voiceAutoStopTimer = null;
+
+function wireVoiceInput() {
+  const btn = document.getElementById("voiceInputBtn");
+
+  btn.addEventListener("click", async () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop(); // onstop handles the rest
+      return;
+    }
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      showInfoToast("Couldn't access the microphone — check your browser's permission for this site.");
+      return;
+    }
+
+    const chunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.addEventListener("dataavailable", (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    });
+    mediaRecorder.addEventListener("stop", async () => {
+      clearTimeout(voiceAutoStopTimer);
+      btn.classList.remove("is-recording");
+      for (const track of stream.getTracks()) track.stop();
+
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
+      const input = document.getElementById("quickAddInput");
+      const originalPlaceholder = input.placeholder;
+      input.disabled = true;
+      input.placeholder = "Transcribing…";
+      try {
+        if (!voiceEnabled) {
+          const { loadTranscriber } = await getAssistantModule();
+          input.placeholder = "Loading voice model…";
+          await loadTranscriber((progress) => {
+            if (progress.status === "progress" && progress.total) {
+              input.placeholder = `Loading voice model… ${Math.round((progress.loaded / progress.total) * 100)}%`;
+            } else if (progress.status === "progress_total" && progress.total) {
+              input.placeholder = `Loading voice model… ${Math.round(progress.progress)}%`;
+            }
+          });
+          voiceEnabled = true;
+          input.placeholder = "Transcribing…";
+        }
+        const { transcribeAudio } = await getAssistantModule();
+        const text = await transcribeAudio(blob);
+        if (text) {
+          input.value = text;
+          input.focus();
+        } else {
+          showInfoToast("Didn't catch that — try again.");
+        }
+      } catch (err) {
+        showInfoToast("Couldn't transcribe that — check your connection and try again.");
+      } finally {
+        input.disabled = false;
+        input.placeholder = originalPlaceholder;
+      }
+    });
+
+    mediaRecorder.start();
+    btn.classList.add("is-recording");
+    voiceAutoStopTimer = setTimeout(() => {
+      if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+    }, VOICE_MAX_RECORDING_MS);
+  });
+}
+
 function wireSmartSearch() {
   document.getElementById("smartSearchBtn").addEventListener("click", async () => {
     const btn = document.getElementById("smartSearchBtn");
@@ -4008,6 +4090,7 @@ async function boot() {
   wireLockButton();
   wireQuickAdd();
   wireSampleData();
+  wireVoiceInput();
   wireSearch();
   wireSmartSearch();
   wireFilterBar();

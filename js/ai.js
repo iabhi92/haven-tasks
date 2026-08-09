@@ -32,7 +32,7 @@ let onProgressCallback = null;
 
 function getWorker() {
   if (worker) return worker;
-  worker = new Worker(new URL("./ai-worker.js?v=20260809a", import.meta.url), { type: "module" });
+  worker = new Worker(new URL("./ai-worker.js?v=20260810a", import.meta.url), { type: "module" });
   worker.addEventListener("message", (event) => {
     const msg = event.data;
     if (msg.type === "progress") {
@@ -91,6 +91,55 @@ export async function loadEmbedder(onProgress) {
 // (so cosine similarity reduces to a plain dot product — see cosineSimilarity() in app.js).
 export async function embedTexts(texts) {
   return callWorker("embed", { texts });
+}
+
+const ASR_SAMPLE_RATE = 16000; // what Whisper expects — MediaRecorder's own rate varies by device
+
+let transcriberReady = false;
+
+export function isTranscriberReady() {
+  return transcriberReady;
+}
+
+// A third, independent opt-in (~40MB, separate from both the ~140MB chat model and the
+// few-MB embedder) — voice input specifically, without forcing either of the other two.
+export async function loadTranscriber(onProgress) {
+  if (transcriberReady) return;
+  onProgressCallback = onProgress || null;
+  await callWorker("loadTranscriber", {});
+  transcriberReady = true;
+}
+
+// Decodes a recorded MediaRecorder Blob into the mono, 16kHz Float32Array Whisper expects.
+// Runs on the main thread (decodeAudioData/OfflineAudioContext need a document context) —
+// only the actual model inference happens in the worker.
+async function decodeAudioForAsr(blob) {
+  const arrayBuffer = await blob.arrayBuffer();
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const decodeCtx = new AudioCtx();
+  const decoded = await decodeCtx.decodeAudioData(arrayBuffer);
+  decodeCtx.close();
+
+  // Resample to 16kHz regardless of the mic's native rate (typically 44.1k/48k) by rendering
+  // through an OfflineAudioContext at the target rate — the standard way to resample in the
+  // browser without shipping a resampling library.
+  const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * ASR_SAMPLE_RATE), ASR_SAMPLE_RATE);
+  const source = offline.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offline.destination);
+  source.start();
+  const rendered = await offline.startRendering();
+  return rendered.getChannelData(0); // mono Float32Array at 16kHz
+}
+
+// blob: a Blob from MediaRecorder (webm/opus, wav, whatever the browser produced) ->
+// Promise<string> transcript. Caller is responsible for having called loadTranscriber() first.
+export async function transcribeAudio(blob) {
+  const audioData = await decodeAudioForAsr(blob);
+  // audioData is a Float32Array backed by a real AudioBuffer -- structured-clone it as a plain
+  // array-like the worker can pass straight to the pipeline (Float32Array itself clones fine
+  // too, but .slice() ensures a plain, detached copy rather than sharing the AudioBuffer's).
+  return callWorker("transcribe", { audioData: audioData.slice() });
 }
 
 function extractReply(text) {

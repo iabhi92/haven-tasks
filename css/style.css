@@ -603,6 +603,14 @@ body { display: flex; }
   background: var(--surface-sunken);
   color: var(--accent);
 }
+.quick-add-icon.is-recording { color: var(--danger); animation: quickAddRecordPulse 1.2s ease-in-out infinite; }
+@keyframes quickAddRecordPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-add-icon.is-recording { animation: none; }
+}
 .quick-add input[type="text"] {
   flex: 1;
   border: none;

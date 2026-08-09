@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260809l" integrity="sha384-DnPuFttccC/azE9EKFZ1pBZTQ0D6dBoLPepRS+pJTgT3cX036AgOFJi6zpH2Ufgg" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260810a" integrity="sha384-T/Euzd9jziOhxapqFWMyD6x1JpQT8ZsRtnaaS6KplVlStcT8TPZjZpminNWxNk7A" crossorigin="anonymous">
 </head>
 <body>
 
@@ -344,6 +344,13 @@
     <form id="quickAddForm" class="quick-add" autocomplete="off">
       <button type="button" class="quick-add-icon" id="openAddModalBtn" aria-label="Add a task with full details">+</button>
       <input type="text" id="quickAddInput" name="title" placeholder="Add a task, try &quot;call dentist fri #health&quot;…" maxlength="200" required>
+      <button type="button" class="quick-add-icon" id="voiceInputBtn" aria-label="Add a task by voice" title="Add a task by voice">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+          <path d="M5 10a7 7 0 0 0 14 0"></path>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+        </svg>
+      </button>
       <select id="quickAddPriority" name="priority" aria-label="Priority" class="quick-add-priority">
         <option value="low">Low</option>
         <option value="medium" selected>Medium</option>
@@ -1185,6 +1192,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260809e" integrity="sha384-nDrYw97Q703A4nwUSjmuq/JYbMl3tELayjQzTDbTSLROn6jRpQbH7ydIG0U4S+bT" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260810b" integrity="sha384-LqMMLzTVJfsi0eJ+Wff6uwFjiK/MCvGG7UKdKgLvxFTIsFXvGT7h+hvSdO10V6K3" crossorigin="anonymous" type="module"></script>
 </body>
 </html>
