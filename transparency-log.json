@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "sequence": 1,
+      "timestamp": "2026-08-09T22:31:25.854Z",
+      "gitCommit": "f734c877c2df356722d88e1e03af3f1d57db2fa2",
+      "manifestHash": "sha384-pntfwQQt2wyKspxqS5SkKOm+ngD8tzVqdgEiWKA+bjAVPY8BmuDz2eVrjU0xVGhm",
+      "prevEntryHash": null,
+      "entryHash": "sha384-Nm+trY8gG+60Av8ZEpnQL7XeO1wTOmzeeJSO34QD1cGET8eElF5wfTWPlzek569E"
+    }
+  ]
+}
