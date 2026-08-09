@@ -2405,6 +2405,53 @@ function wireQuickAdd() {
   });
 }
 
+// ---------- Sample data (empty-state onboarding — also doubles as a fast, reliable way to
+// get a realistic-looking board for a live demo instead of typing tasks in front of a room) ----------
+
+function daysFromNow(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return formatLocalDate(d);
+}
+
+// Deliberately spans a few everyday themes (money, health, work) without using those exact
+// words in any title, so the semantic-search feature above has something real to find.
+const SAMPLE_TASKS = [
+  { title: "Pay rent before the 1st", status: "todo", priority: "high", dueDate: daysFromNow(3), tags: ["finance"] },
+  { title: "Review this month's budget spreadsheet", status: "todo", priority: "medium", tags: ["finance"] },
+  { title: "Book a dentist appointment", status: "todo", priority: "medium", tags: ["health"] },
+  { title: "Buy a birthday gift for mom", status: "todo", priority: "medium", dueDate: daysFromNow(6) },
+  { title: "Prepare slides for Friday's demo", status: "in-progress", priority: "high", dueDate: daysFromNow(1), tags: ["work"] },
+  { title: "Reply to Sarah's pull request comments", status: "in-progress", priority: "medium", tags: ["work"] },
+  { title: "Go for a run", status: "done", priority: "low", tags: ["health"] },
+  { title: "Read a chapter of the current book", status: "done", priority: "low" },
+];
+
+// Deliberately a different, more mundane set from SAMPLE_TASKS above — a decoy vault under
+// duress needs to look like an ordinary, unremarkable task list on its own, not an obvious
+// clone of "the real one." Same reasoning the decoy-setup modal's own copy already states
+// ("worth adding a few plausible tasks so it holds up to a glance").
+const SAMPLE_TASKS_DECOY = [
+  { title: "Pick up dry cleaning", status: "todo", priority: "low" },
+  { title: "Renew car registration", status: "todo", priority: "medium", dueDate: daysFromNow(9) },
+  { title: "Water the plants", status: "todo", priority: "low" },
+  { title: "Return library books", status: "todo", priority: "low", dueDate: daysFromNow(4) },
+  { title: "Schedule car service", status: "in-progress", priority: "medium" },
+  { title: "RSVP to Alex's wedding", status: "in-progress", priority: "medium", dueDate: daysFromNow(14) },
+  { title: "Clean out the garage", status: "done", priority: "low" },
+  { title: "Cancel unused streaming subscription", status: "done", priority: "low" },
+];
+
+function wireSampleData() {
+  document.getElementById("loadSampleTasksBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("loadSampleTasksBtn");
+    btn.disabled = true;
+    const set = activeVaultIsDecoy ? SAMPLE_TASKS_DECOY : SAMPLE_TASKS;
+    for (const t of set) await addTask(t);
+    btn.disabled = false;
+  });
+}
+
 function wireSearch() {
   const input = document.getElementById("searchInput");
   input.addEventListener("input", () => {
@@ -3960,6 +4007,7 @@ async function boot() {
   wireLockScreen();
   wireLockButton();
   wireQuickAdd();
+  wireSampleData();
   wireSearch();
   wireSmartSearch();
   wireFilterBar();

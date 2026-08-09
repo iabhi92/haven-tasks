@@ -14,7 +14,7 @@ const APP_SHELL = [
   "/manifest.json",
   "/favicon.ico",
   "/css/style.css?v=20260809l",
-  "/js/app.js?v=20260809c",
+  "/js/app.js?v=20260809e",
   "/js/store.js?v=20260808d",
   "/js/ui.js?v=20260808e",
   "/js/crypto.js?v=20260809i",
