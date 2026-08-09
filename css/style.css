@@ -456,6 +456,19 @@ body { display: flex; }
   font-size: 13px;
   color: var(--text);
 }
+.smart-search-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  margin: 0 0 16px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text);
+}
 .bulk-action-buttons {
   display: flex;
   align-items: center;

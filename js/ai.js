@@ -32,7 +32,7 @@ let onProgressCallback = null;
 
 function getWorker() {
   if (worker) return worker;
-  worker = new Worker(new URL("./ai-worker.js?v=20260808a", import.meta.url), { type: "module" });
+  worker = new Worker(new URL("./ai-worker.js?v=20260809a", import.meta.url), { type: "module" });
   worker.addEventListener("message", (event) => {
     const msg = event.data;
     if (msg.type === "progress") {
@@ -70,6 +70,27 @@ export async function loadAssistant(onProgress) {
   onProgressCallback = onProgress || null;
   await callWorker("load", {});
   ready = true;
+}
+
+let embedderReady = false;
+
+export function isEmbedderReady() {
+  return embedderReady;
+}
+
+// A separate, smaller (~few MB vs ~140MB) opt-in from the chat assistant above — someone may
+// want fast local semantic search without downloading the generation model too.
+export async function loadEmbedder(onProgress) {
+  if (embedderReady) return;
+  onProgressCallback = onProgress || null;
+  await callWorker("loadEmbedder", {});
+  embedderReady = true;
+}
+
+// texts: string[] -> Promise<number[][]>, one 384-dim vector per input text, L2-normalized
+// (so cosine similarity reduces to a plain dot product — see cosineSimilarity() in app.js).
+export async function embedTexts(texts) {
+  return callWorker("embed", { texts });
 }
 
 function extractReply(text) {

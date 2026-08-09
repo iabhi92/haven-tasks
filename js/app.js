@@ -135,6 +135,7 @@ let tagFilter = "";
 let sortMode = "manual";
 let draggedId = null;
 let dek = null; // the in-memory DEK CryptoKey — null whenever locked
+let semanticMatchIds = null; // Set<string> | null — non-null narrows visibleTasks() to a smart-search result set
 
 // ---------- AI assistant (Layer 3, js/ai.js) ----------
 // js/ai.js is dynamically imported (not a static top-of-file import like
@@ -144,8 +145,10 @@ let dek = null; // the in-memory DEK CryptoKey — null whenever locked
 // docs/ARCHITECTURE.md "On-device AI assistant".
 let assistantModule = null;
 let assistantEnabled = false;
+let embedderEnabled = false;
+let taskEmbeddingCache = new Map(); // taskId -> { text, vector: number[] } — in-memory only, never persisted
 async function getAssistantModule() {
-  if (!assistantModule) assistantModule = await import("./ai.js?v=20260808a");
+  if (!assistantModule) assistantModule = await import("./ai.js?v=20260809a");
   return assistantModule;
 }
 
@@ -344,7 +347,7 @@ function visibleTasks() {
   return tasks.filter(
     (t) =>
       projectOf(t) === activeProject &&
-      matchesSearch(t, searchQuery) &&
+      (semanticMatchIds ? semanticMatchIds.has(t.id) : matchesSearch(t, searchQuery)) &&
       matchesSmartView(t, smartView) &&
       (!priorityFilter || t.priority === priorityFilter) &&
       (!tagFilter || (t.tags || []).includes(tagFilter))
@@ -2406,7 +2409,9 @@ function wireSearch() {
   const input = document.getElementById("searchInput");
   input.addEventListener("input", () => {
     searchQuery = input.value;
+    semanticMatchIds = null; // typing again always resets back to plain substring search
     render();
+    updateSmartSearchHint();
   });
 
   document.addEventListener("keydown", (e) => {
@@ -2718,6 +2723,126 @@ function wireAssistantView() {
     render();
     setAssistantOutputText(`Added ${selected.length} subtask${selected.length === 1 ? "" : "s"} to "${task.title}".`);
     showInfoToast(`Added ${selected.length} subtask${selected.length === 1 ? "" : "s"}.`);
+  });
+}
+
+// ---------- Smart (semantic) search — on-device, opt-in, no network requests after the
+// one-time model download. A separate opt-in from the chat assistant above: someone may want
+// fast local search without the larger generation model. See docs/FEATURES.md's "On-device AI"
+// entry and docs/ARCHITECTURE.md §4h for the shared Worker/model-loading infrastructure this
+// reuses as-is. ----------
+
+function cosineSimilarity(a, b) {
+  // Both vectors are L2-normalized by the embedder (pooling: "mean", normalize: true in
+  // js/ai-worker.js), so cosine similarity reduces to a plain dot product.
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) sum += a[i] * b[i];
+  return sum;
+}
+
+function embeddingSourceText(task) {
+  return `${task.title} ${task.notes || ""}`.trim();
+}
+
+// Embeds only what's missing or changed since last time — re-editing a task's title/notes
+// invalidates just that task's cached vector, not the whole cache.
+async function ensureTaskEmbeddings(taskList) {
+  const { embedTexts } = await getAssistantModule();
+  const toEmbed = [];
+  for (const t of taskList) {
+    const text = embeddingSourceText(t);
+    const cached = taskEmbeddingCache.get(t.id);
+    if (!cached || cached.text !== text) toEmbed.push({ id: t.id, text });
+  }
+  if (toEmbed.length === 0) return;
+  const vectors = await embedTexts(toEmbed.map((e) => e.text));
+  toEmbed.forEach((e, i) => taskEmbeddingCache.set(e.id, { text: e.text, vector: vectors[i] }));
+}
+
+// Measured empirically, not guessed: a "this counts as related" absolute cosine-similarity
+// cutoff isn't reliable for short task-title-length text with this model -- a real test query
+// ("money" against "Finish quarterly tax filing") scored only 0.024, well below what an
+// eyeballed 0.35 threshold assumed. Top-K + a low noise floor is the standard, more robust
+// pattern: always surface the best available matches rather than trying to declare a fixed
+// point past which something "isn't related".
+const SMART_SEARCH_MIN_SIMILARITY = 0.05;
+const SMART_SEARCH_MAX_RESULTS = 8;
+
+async function runSmartSearch(query) {
+  const { embedTexts } = await getAssistantModule();
+  const candidates = tasks.filter((t) => projectOf(t) === activeProject);
+  await ensureTaskEmbeddings(candidates);
+  const [queryVector] = await embedTexts([query]);
+  const ranked = candidates
+    .map((t) => ({ id: t.id, score: cosineSimilarity(queryVector, taskEmbeddingCache.get(t.id).vector) }))
+    .filter((r) => r.score >= SMART_SEARCH_MIN_SIMILARITY)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, SMART_SEARCH_MAX_RESULTS);
+  semanticMatchIds = new Set(ranked.map((r) => r.id));
+  render();
+  updateSmartSearchHint();
+}
+
+function updateSmartSearchHint() {
+  const bar = document.getElementById("smartSearchBar");
+  const text = document.getElementById("smartSearchText");
+  const searchBtn = document.getElementById("smartSearchBtn");
+  const clearBtn = document.getElementById("smartSearchClearBtn");
+
+  if (semanticMatchIds) {
+    bar.hidden = false;
+    text.textContent = semanticMatchIds.size
+      ? `Showing ${semanticMatchIds.size} task${semanticMatchIds.size === 1 ? "" : "s"} related to "${searchQuery}".`
+      : `No tasks seem related to "${searchQuery}".`;
+    searchBtn.hidden = true;
+    clearBtn.hidden = false;
+    return;
+  }
+
+  const noExactMatches = searchQuery.trim().length > 1 && visibleTasks().length === 0;
+  bar.hidden = !noExactMatches;
+  if (noExactMatches) {
+    text.textContent = `No exact matches for "${searchQuery}".`;
+    searchBtn.hidden = false;
+    searchBtn.disabled = false;
+    searchBtn.textContent = "Search by meaning";
+    clearBtn.hidden = true;
+  }
+}
+
+function wireSmartSearch() {
+  document.getElementById("smartSearchBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("smartSearchBtn");
+    const query = searchQuery.trim();
+    if (!query) return;
+    btn.disabled = true;
+    try {
+      if (!embedderEnabled) {
+        btn.textContent = "Loading model…";
+        const { loadEmbedder } = await getAssistantModule();
+        await loadEmbedder((progress) => {
+          if (progress.status === "progress" && progress.total) {
+            btn.textContent = `Loading model… ${Math.round((progress.loaded / progress.total) * 100)}%`;
+          } else if (progress.status === "progress_total" && progress.total) {
+            btn.textContent = `Loading model… ${Math.round(progress.progress)}%`;
+          }
+        });
+        embedderEnabled = true;
+      }
+      btn.textContent = "Searching…";
+      await runSmartSearch(query);
+    } catch (err) {
+      showInfoToast("Couldn't run smart search — check your connection and try again.");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Search by meaning";
+    }
+  });
+
+  document.getElementById("smartSearchClearBtn").addEventListener("click", () => {
+    semanticMatchIds = null;
+    render();
+    updateSmartSearchHint();
   });
 }
 
@@ -3836,6 +3961,7 @@ async function boot() {
   wireLockButton();
   wireQuickAdd();
   wireSearch();
+  wireSmartSearch();
   wireFilterBar();
   wireSelectMode();
   wireBulkActions();

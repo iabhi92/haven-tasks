@@ -17,9 +17,15 @@
 import { pipeline, env } from "/vendor/transformers/transformers.min.js";
 
 const MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct";
+// Standard small sentence-embedding model for transformers.js semantic search (384-dim,
+// mean-pooled, q8 quantized — a few MB, independent opt-in from the ~140MB chat model above
+// since someone may want fast local search without the heavier generation model).
+const EMBED_MODEL_ID = "Xenova/all-MiniLM-L6-v2";
 
 let generator = null;
 let loadPromise = null;
+let embedder = null;
+let embedLoadPromise = null;
 
 function extractReply(out) {
   const generated = out?.[0]?.generated_text;
@@ -72,8 +78,49 @@ async function generate(id, messages, maxNewTokens) {
   }
 }
 
+async function loadEmbedder(id) {
+  if (!embedder && !embedLoadPromise) {
+    embedLoadPromise = (async () => {
+      env.allowLocalModels = false;
+      env.useBrowserCache = true;
+      env.backends.onnx.wasm.wasmPaths = {
+        wasm: "/vendor/transformers/ort-wasm-simd-threaded.asyncify.wasm",
+        mjs: "/vendor/transformers/ort-wasm-simd-threaded.asyncify.mjs",
+      };
+      env.backends.onnx.wasm.numThreads = 1; // same cross-origin-isolation constraint as load()
+
+      embedder = await pipeline("feature-extraction", EMBED_MODEL_ID, {
+        device: "wasm",
+        dtype: "q8",
+        progress_callback: (progress) => postMessage({ type: "progress", progress }),
+      });
+    })();
+  }
+
+  try {
+    await embedLoadPromise;
+    postMessage({ id, type: "done", result: null });
+  } catch (err) {
+    embedLoadPromise = null;
+    postMessage({ id, type: "error", error: String(err?.message || err) });
+  }
+}
+
+async function embed(id, texts) {
+  try {
+    if (!embedder) throw new Error("Embedder not loaded yet.");
+    const out = await embedder(texts, { pooling: "mean", normalize: true });
+    // Tensor -> plain nested arrays so it survives postMessage's structured clone.
+    postMessage({ id, type: "done", result: out.tolist() });
+  } catch (err) {
+    postMessage({ id, type: "error", error: String(err?.message || err) });
+  }
+}
+
 self.addEventListener("message", (event) => {
   const { id, type } = event.data;
   if (type === "load") load(id);
   else if (type === "generate") generate(id, event.data.messages, event.data.maxNewTokens);
+  else if (type === "loadEmbedder") loadEmbedder(id);
+  else if (type === "embed") embed(id, event.data.texts);
 });
