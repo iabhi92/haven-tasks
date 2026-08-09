@@ -107,6 +107,17 @@ data."*
       tag (`scripts/generate-integrity.mjs`) plus a published `integrity.json` covering everything
       SRI can't reach (ES module imports — a real browser-platform gap, not skipped). See
       docs/ARCHITECTURE.md §5d for exactly what's browser-enforced vs. independently-checkable.
+- [x] Deploy transparency log — extends "verifiable frontend" from a single current snapshot into
+      a history: a hash-chained, append-only record of every deploy's `integrity.json` manifest,
+      re-verified live in the visitor's own browser via `crypto.subtle`, not just displayed. Public
+      page at `/transparency`, log lives at `transparency-log.json`, append step is
+      `scripts/append-transparency-log.mjs`, independent Node verifier is
+      `scripts/verify-transparency-log.mjs`. **Honest scope limit — stated on the page itself, not
+      just here:** self-hosted, so it proves internal consistency (no entry can be altered without
+      breaking every entry after it), not tamper-*proof*ness — a host that could already serve
+      different code to different visitors could in principle serve a consistently-tampered log to
+      itself too. Real airtight protection needs independent third parties archiving entries over
+      time, same reason real Certificate Transparency needs multiple log operators, not one.
 - [x] Verifiable, signed backups (prove an export wasn't tampered with) — Med. Shipped: reuses
       the exact same per-device Ed25519 identity that signs history-log entries — no new key,
       no new UX for the user to manage. `exportTasks()` signs `{version, exportedAt, tasks,

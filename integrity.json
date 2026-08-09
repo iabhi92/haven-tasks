@@ -23,6 +23,7 @@
     "js/store.js": "sha384-ckbAPS6de+M5BCBZjwDPLmf1A12UY4x2mgWjhcN9AoTcDDCHjIWhGBDcPyEF9rRh",
     "js/sync.js": "sha384-xYWg4bhhNCxa/miC/9Dk3QDnJpDPx4ti4siGMh12j+F2pkr9LaXjalvCRuzoYmbk",
     "js/templates.js": "sha384-MmLuTk9r3sspjczM6AMDclpS6Dz1KYB4uYSjro4DQ3Gf3kVigeYD9YFcXwsVapJQ",
+    "js/transparency.js": "sha384-eireoVjyILKOsQhlIyHtXlDa4rFIe3vbYhHsKaLQInBjJ3du/OEzhymW9OA7MlC4",
     "js/ui.js": "sha384-byYrsDYNa35k4ddH/gzeYpK19kku2Fk3rbnFp364yn3xBq3gPb1Ht8TjdPRYrkPF",
     "js/ui.test.mjs": "sha384-xv0qxFFEtfiRt+QkEopetafE7e7Lop1JAxBvPa5KKw4BEk5YYOdMtdC2SkDYYj5+",
     "js/webauthn.js": "sha384-ggmUjtipV2JtNbTFwovlqDUYZfGrXK6j6EbAhXqEA1d7FfJKhaZ2DOvmKenO7xL7",

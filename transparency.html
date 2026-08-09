@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self' https://cloudflareinsights.com;">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="description" content="Every production deploy of Haven's frontend, hash-chained and independently verifiable in your own browser -- not just a claim.">
+<title>Transparency log — every deploy, verifiable</title>
+<link rel="canonical" href="https://taskhavens.com/transparency">
+<link rel="icon" href="/favicon.ico">
+<link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+<link rel="icon" type="image/png" sizes="48x48" href="img/favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="img/favicon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="img/favicon-512.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Haven">
+<meta property="og:title" content="Transparency log — every deploy, verifiable">
+<meta property="og:description" content="A hash-chained, append-only record of every production deploy's asset hashes -- verified live, in your browser, not just displayed.">
+<meta property="og:url" content="https://taskhavens.com/transparency">
+<meta property="og:image" content="https://taskhavens.com/img/hero-screenshot.png">
+<meta property="og:image:width" content="1088">
+<meta property="og:image:height" content="640">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Transparency log — every deploy, verifiable">
+<meta name="twitter:description" content="A hash-chained, append-only record of every production deploy's asset hashes -- verified live, in your browser.">
+<meta name="twitter:image" content="https://taskhavens.com/img/hero-screenshot.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Haven", "item": "https://taskhavens.com/" },
+    { "@type": "ListItem", "position": 2, "name": "Transparency log", "item": "https://taskhavens.com/transparency" }
+  ]
+}
+</script>
+
+<link rel="stylesheet" href="css/style.css?v=20260810a" integrity="sha384-T/Euzd9jziOhxapqFWMyD6x1JpQT8ZsRtnaaS6KplVlStcT8TPZjZpminNWxNk7A" crossorigin="anonymous">
+<link rel="stylesheet" href="css/landing.css?v=20260809a" integrity="sha384-lcYyZ4vWQFRESzbgL2o9lSml9hKWRuAPpmPGKDfcwr6qOGNvYuQdMc9kToLDWuiy" crossorigin="anonymous">
+<link rel="stylesheet" href="css/article.css?v=20260808b" integrity="sha384-p11yvDOg5HhvMByrXd0QayQO2eWwyAUg8Zdnxm1ZAwGPgj17EgfPogJ0DtyP7Edp" crossorigin="anonymous">
+</head>
+<body class="landing-body">
+
+
+<header class="landing-nav">
+  <a href="/" class="landing-brand" aria-label="Haven home">
+    <span class="landing-brand-mark" aria-hidden="true">H</span>
+    Haven
+  </a>
+  <nav class="landing-nav-links">
+    <a href="/features">Features</a>
+    <a href="/security">Security</a>
+    <a href="/compare">Compare</a>
+    <a href="/app" class="lp-btn lp-btn-ghost lp-btn-sm">Open Haven
+      <span class="lp-btn-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+  </nav>
+</header>
+
+<main class="article-main">
+  <p class="article-eyebrow reveal-up">Transparency</p>
+  <h1 class="article-h1 reveal-up">Every deploy, hash-chained and verifiable.</h1>
+  <p class="article-lede reveal-up">
+    Below is a record of every production deploy's asset hashes, each entry cryptographically
+    linked to the one before it. Your browser re-verifies the entire chain itself, right now,
+    below -- this page doesn't just display numbers and ask you to trust them.
+  </p>
+
+  <div class="article-body">
+
+    <section class="article-reveal-section">
+    <div class="reveal-up">
+    <h2>What this actually proves, and what it doesn't</h2>
+    <p>
+      Each entry below records the SHA-384 hashes of every CSS/JS file live on this site at
+      deploy time (the same manifest published at <a href="/integrity.json">/integrity.json</a>),
+      plus the exact git commit that produced it. Every entry also hashes the <em>previous</em>
+      entry and includes that hash in its own -- the same construction a hash chain or an
+      append-only log uses -- so altering any past entry breaks every entry after it. That's what
+      the verification below actually checks, live, using your browser's own
+      <code>crypto.subtle</code>, not a number this page just prints.
+    </p>
+    <p>
+      <strong>Honest limit:</strong> this log is self-hosted -- committed to the same git
+      repository and served from the same host as the rest of the site. It proves the deploy
+      history is internally consistent, not that it's impossible to tamper with: a host capable
+      of serving different code to different visitors could in principle also serve a
+      consistently-tampered version of this log to itself. Real, airtight protection needs
+      independent third parties fetching and archiving entries over time -- the same reason real
+      Certificate Transparency relies on multiple independent log operators, not one. Treat this
+      as meaningfully more verifiable than a claim in a privacy policy, not as an
+      information-theoretic guarantee.
+    </p>
+    </div>
+    </section>
+
+    <section class="article-reveal-section">
+    <div class="reveal-up">
+    <h2>Verification result</h2>
+    <p id="transparencySummary">Verifying in your browser…</p>
+    <div class="article-table-wrap">
+      <table class="article-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Deployed</th>
+            <th>Git commit</th>
+            <th>Manifest hash</th>
+            <th>Chain</th>
+          </tr>
+        </thead>
+        <tbody id="transparencyTableBody"></tbody>
+      </table>
+    </div>
+    </div>
+    </section>
+
+    <section class="article-reveal-section">
+    <div class="reveal-up">
+    <h2>Verify it yourself, independently</h2>
+    <p>
+      Don't take this page's word for its own check. Fetch
+      <a href="/transparency-log.json">/transparency-log.json</a> directly and run the same,
+      independent verification as a plain Node script -- no browser, no trusting this page's own
+      JavaScript to grade its own homework:
+    </p>
+    <div class="article-terminal">
+      <div class="article-terminal-head">
+        <span class="article-terminal-dot"></span>
+        <span class="article-terminal-dot"></span>
+        <span class="article-terminal-dot"></span>
+        <span class="article-terminal-label">verify-transparency-log.mjs</span>
+      </div>
+      <pre><span class="is-comment"># from a clone of github.com/iabhi92/haven-tasks</span>
+node scripts/verify-transparency-log.mjs</pre>
+    </div>
+    </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="landing-footer">
+  <div class="landing-footer-top">
+    <div class="landing-footer-brand">
+      <h3>Haven</h3>
+      <p>A private, local-first task manager.</p>
+    </div>
+    <div class="landing-footer-cols">
+      <div class="landing-footer-col">
+        <h4>Product</h4>
+        <a href="/features">Features</a>
+        <a href="/security">Security</a>
+        <a href="/compare">Compare</a>
+        <a href="https://github.com/iabhi92/haven-tasks/commits/main" target="_blank" rel="noopener">Changelog</a>
+      </div>
+      <div class="landing-footer-col">
+        <h4>Learn</h4>
+        <a href="/app">How it works</a>
+        <a href="https://github.com/iabhi92/haven-tasks/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener">Threat model</a>
+        <a href="/transparency">Transparency log</a>
+      </div>
+      <div class="landing-footer-col">
+        <h4>Community</h4>
+        <a href="https://github.com/iabhi92/haven-tasks" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/iabhi92/haven-tasks/issues" target="_blank" rel="noopener">Report a bug</a>
+        <a href="mailto:pinku2c@gmail.com">Contact</a>
+      </div>
+    </div>
+  </div>
+  <div class="landing-footer-bottom">
+    <span>Haven is free and open source</span>
+    <span>© 2026 Haven</span>
+  </div>
+</footer>
+
+<script src="vendor/gsap/gsap.min.js?v=20260807a" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+<script src="vendor/gsap/ScrollTrigger.min.js?v=20260807a" integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d" crossorigin="anonymous"></script>
+<script src="js/landing.js?v=20260809b" integrity="sha384-Uo4oCx2XNvMuKoHQW0fN+SnM2uiBjNTOYEXPFpqlbTF7LuGwwC9UeoG17pMpY4TE" crossorigin="anonymous" type="module"></script>
+<script src="js/transparency.js?v=20260810a" integrity="sha384-eireoVjyILKOsQhlIyHtXlDa4rFIe3vbYhHsKaLQInBjJ3du/OEzhymW9OA7MlC4" crossorigin="anonymous" type="module"></script>
+</body>
+</html>

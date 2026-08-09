@@ -45,15 +45,21 @@ GitHub.
 ## Deploy process
 
 Static site → Cloudflare Workers static assets. There's no CI/CD — deploy
-is manual, from a hand-built staging directory:
+is manual, from a hand-built staging directory. **Run
+`node scripts/append-transparency-log.mjs` first** (from the real repo
+directory, after `generate-integrity.mjs` and after committing — it reads
+the current `integrity.json` and `git rev-parse HEAD`), so the transparency
+log's entry for this deploy reflects what's actually about to go live, not
+a stale prior state:
 
 ```bash
 STAGE=/private/tmp/haven-deployNN   # bump NN
 mkdir -p "$STAGE/public"
 cd /Users/abhinavkumar/Desktop/private-tasks
 cp .gitignore BUILD_BRIEF.md README.md _headers app.html index.html \
-   shared.html compare.html features.html security.html robots.txt \
-   sitemap.xml integrity.json manifest.json sw.js favicon.ico "$STAGE/public/"
+   shared.html compare.html features.html security.html transparency.html \
+   robots.txt sitemap.xml integrity.json transparency-log.json \
+   manifest.json sw.js favicon.ico "$STAGE/public/"
 cp -R css js docs vendor img "$STAGE/public/"
 cat > "$STAGE/wrangler.jsonc" <<'EOF'
 {

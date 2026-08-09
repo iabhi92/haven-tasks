@@ -953,6 +953,40 @@ tampering *detectable* two different ways instead of purely assumed-away.
   file, hash it, compare) before considering a deploy complete, rather than trusting the deploy
   tool's own "success" output alone.
 
+## 5d-2. Deploy transparency log (Layer 2)
+
+Extends §5d from a single current snapshot (`integrity.json` shows what's live *right now*) into
+a history: proof of what's *ever* been live, in a form a visitor doesn't have to trust this site's
+own JavaScript to check.
+
+- **A hash-chained, append-only log**, `transparency-log.json` (repo root). Each entry records a
+  deploy's git commit and a hash of that deploy's full `integrity.json` manifest, plus the hash of
+  the *previous* entry — standard hash-chain construction, the same property a blockchain or an
+  append-only Certificate Transparency log relies on: altering any past entry changes its own hash,
+  which no longer matches what the next entry recorded, breaking the chain from that point forward
+  in a way that's detectable, not just against policy.
+- **`scripts/append-transparency-log.mjs`** computes and appends one entry; run as the last step
+  before every `wrangler deploy` (see the deploy process in `CLAUDE.md`). **Never backfilled** —
+  the log starts truthfully at the commit where it was introduced, not with fabricated entries for
+  earlier deploys that predate it; doing otherwise would be exactly the kind of claim this whole
+  feature exists to make unnecessary.
+- **Verified two independent ways, deliberately not just one:** `transparency.html` re-walks the
+  entire chain client-side using the browser's own `crypto.subtle.digest`, and
+  `scripts/verify-transparency-log.mjs` does the identical check as a plain Node script — so a
+  skeptical visitor isn't stuck trusting this page's own JS to grade its own homework. Confirmed
+  both actually catch tampering, not just pass on good input: corrupted a field in a real log entry
+  and confirmed both the page (red "✗ BROKEN" row, red summary) and the Node script (non-zero exit)
+  caught it, then confirmed restoring the original file made both pass again.
+- **Honest scope limit, stated on the page itself, not buried here:** this log is self-hosted —
+  committed to the same repository and served from the same host as everything else. It proves the
+  deploy history is *internally consistent*, not that it's *impossible* to tamper with: a host
+  capable of serving different code to different visitors could in principle also serve a
+  consistently-tampered version of this log to itself. Closing that gap for real needs independent
+  third parties fetching and archiving entries over time — the same reason real Certificate
+  Transparency requires multiple independent log operators, not one self-reporting party. This is
+  meaningfully more verifiable than a claim in a privacy policy; it is not an
+  information-theoretic guarantee.
+
 ## 5e. Verifiable, signed backups (Layer 2)
 
 Extends §5c's identity to the one other place task data leaves the app as plaintext: a JSON
