@@ -79,6 +79,14 @@
       "manifestHash": "sha384-YHcfn10qgBuXg8+Tug3YJwIkCq5mtaR3PG5F04vHBVe73Teg57D+D8BPUctZH/aw",
       "prevEntryHash": "sha384-R2wadamZen2tgoNnGOFo9WZN7o/Vc4hTBI6fawsnCIewSjlZVxnOIjgkf37c5yrD",
       "entryHash": "sha384-cd0RxpZ+VaGicd5GECe/fEC60mgO1dPgwHKrOA2MjtdrrXXk0pgz2S81MAnxXmqN"
+    },
+    {
+      "sequence": 11,
+      "timestamp": "2026-08-10T07:45:13.422Z",
+      "gitCommit": "f42c1ea0786e559b9aa36d8e4d4dbd52d832bc92",
+      "manifestHash": "sha384-T/d7vA5Csi7Cbick1JZUCbPjwQ9CNnMaGasYdFrcmG5dkyMb43OS14rQP1tOhRE/",
+      "prevEntryHash": "sha384-cd0RxpZ+VaGicd5GECe/fEC60mgO1dPgwHKrOA2MjtdrrXXk0pgz2S81MAnxXmqN",
+      "entryHash": "sha384-HNIX+or6PHzx0fmcq/gGjwmOhLgltA7ubk2USMswd4t21y0xiYGE/3eaay1KdmP+"
     }
   ]
 }
