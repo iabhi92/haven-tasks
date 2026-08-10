@@ -15,6 +15,7 @@ from flask import Blueprint, current_app, jsonify, request
 from storage import (
     create_share,
     delete_share,
+    get_deletion_log,
     get_keyring_bootstrap,
     get_records_since,
     get_share,
@@ -251,11 +252,31 @@ def get_share_route(share_id):
 @bp.route("/share/<share_id>", methods=["DELETE"])
 def delete_share_route(share_id):
     """Revocation. See delete_share's docstring for why no auth is required
-    here beyond already knowing the id."""
-    deleted = delete_share(current_app.config["SYNC_DB_PATH"], share_id)
-    if not deleted:
+    here beyond already knowing the id. Returns a deletion-log receipt
+    (docs/ARCHITECTURE.md "Cryptographic proof of deletion") the caller can
+    verify anytime against GET /deletion-log, independent of trusting this
+    response itself."""
+    now = int(time.time() * 1000)
+    receipt = delete_share(current_app.config["SYNC_DB_PATH"], share_id, now)
+    if receipt is None:
         return jsonify({"error": "share not found"}), 404
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "deletionReceipt": receipt})
+
+
+@bp.route("/deletion-log", methods=["GET"])
+def deletion_log_route():
+    """Public, unauthenticated on purpose — same reasoning as the client-side
+    deploy transparency log (docs/ARCHITECTURE.md §5d-2): the whole point is
+    that anyone, not just the person who deleted something, can independently
+    verify the chain is internally consistent. Never reveals a real share id
+    or its content, only hashes of each — see the deletion_log schema comment
+    in storage.py for what that does and doesn't prove."""
+    since_raw = request.args.get("since", "0")
+    try:
+        since = int(since_raw)
+    except ValueError:
+        return jsonify({"error": "since must be an integer sequence number"}), 400
+    return jsonify({"entries": get_deletion_log(current_app.config["SYNC_DB_PATH"], since)})
 
 
 @bp.route("/api/visitors", methods=["GET"])

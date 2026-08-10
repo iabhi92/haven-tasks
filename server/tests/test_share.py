@@ -143,7 +143,9 @@ def test_revoke_makes_share_immediately_unavailable(client):
 
     resp = client.delete(f"/share/{share_id}")
     assert resp.status_code == 200
-    assert resp.get_json() == {"ok": True}
+    body = resp.get_json()
+    assert body["ok"] is True
+    assert "deletionReceipt" in body
 
     assert client.get(f"/share/{share_id}").status_code == 404
 

@@ -1078,6 +1078,65 @@ rendered as a code a phone camera can pick up directly, no typing or copy-paste 
   URL only ever influences which QR *modules* are dark/light, never literal text reflected into
   the SVG markup.
 
+### Cryptographic proof of deletion (extends §5b)
+
+A concrete, independently-checkable claim that a revoked share (or cancelled dead-man's switch,
+which reuses the same `deleteShare()` call) was actually deleted server-side, not just marked
+gone — the same "provable, not just promised" move §5d-2's deploy transparency log already makes
+for code, applied here to a user's own data instead. `server/storage.py`'s `deletion_log` table +
+`_append_deletion_log_entry()`, `GET /deletion-log`, `scripts/verify-deletion-log.mjs`.
+
+- **Note on scope, stated up front:** the originally-planned design for this was "an exclusion
+  proof against the transparency log" — that doesn't actually work, since §5d-2's log tracks code
+  *deploys* (integrity-manifest hashes per commit), which has nothing to do with any individual
+  user's stored data. This is a separate, purpose-built log for actual data deletion, not a reuse
+  of the deploy log.
+- **What gets logged, and how it stays privacy-preserving:** on every real share deletion, the
+  server appends `{sequence, deletedAt, recordIdHash, ciphertextHash, prevEntryHash, entryHash}`.
+  Never the real share id or the ciphertext itself — only `sha256(id)` and `sha256(iv +
+  ciphertext)`. This means the log is safe to publish in full (same as the deploy log), and only
+  someone who actually held the original id and ciphertext — i.e. the person who created or
+  received that exact share — can compute the matching hash and point to "that one is mine." A
+  third party reading the log learns nothing about what existed or who deleted it.
+- **Hash-chained the same way the deploy log is**: `entry_hash` covers the full entry including
+  `prev_entry_hash`, so no entry can be altered, removed, or reordered without breaking every
+  `entry_hash` after it. `sequence` is computed explicitly before the row is inserted (not read
+  back from `AUTOINCREMENT`) so it can be part of the hash content — same reason the client-side
+  deploy-log appender does it this way.
+- **A receipt comes back from the deletion itself**, no separate request needed: `DELETE
+  /share/<id>`'s response now includes `deletionReceipt`, and the revoke-link / cancel-switch UI
+  shows it inline (`formatDeletionReceipt()`, `js/app.js`) rather than only being visible if
+  someone thinks to go check a log later.
+- **Verification is a real, separate script** (`scripts/verify-deletion-log.mjs`), not just a
+  claim the same page that deleted something makes about itself: fetches `GET /deletion-log` from
+  any server, recomputes every `entry_hash` from scratch, and — given the original `--iv
+  --ciphertext` someone already has locally from having created the share — confirms their
+  specific deletion is really in the chain. **A real cross-language hashing bug was caught and
+  fixed before this shipped, not assumed correct:** the server computes `entry_hash` over
+  `json.dumps(fields, sort_keys=True, separators=(",", ":"))`; a JS verifier using plain
+  `JSON.stringify()` on the same object would serialize keys in a different order and get a
+  completely different hash for byte-identical data, incorrectly reporting every real entry as
+  tampered. Confirmed the fix directly: Python's `sort_keys=True` output and a JS
+  `canonicalJson()` that explicitly sorts keys before stringifying were checked to produce
+  byte-identical JSON and identical SHA-256 digests before the verifier was trusted.
+- **Verified for real, end to end, including the negative case.** A real Playwright run against a
+  live local Flask instance: created a share, revoked it through the actual UI, confirmed the
+  receipt appeared in the toast, confirmed a follow-up `GET` on the share now 404s, confirmed
+  `scripts/verify-deletion-log.mjs` independently found and validated the exact entry using only
+  the `iv`/`ciphertext` a real client would have kept — and separately, hand-corrupted one entry
+  directly in the SQLite database and confirmed the verifier caught it (`entryHash mismatch`)
+  rather than silently passing.
+- **Honest scope limits:**
+  - **Covers share-link and dead-man's-switch deletion only**, not the optional sync bucket's
+    per-task tombstones. Every task delete would be extremely high-volume to log this way, and the
+    existing tombstone design doesn't distinguish "deleted because the task was completed and
+    cleaned up" from "deleted because the user wants provable erasure" — a real, harder feature,
+    not attempted here.
+  - **Proves the server's own bookkeeping is internally consistent and that the ciphertext is no
+    longer being served** — it does not, and cannot, prove a operator kept no other copy (a
+    database backup, a disk snapshot) outside what this application's own code path touches. Same
+    class of limitation §5d-2's deploy log already states plainly for code integrity.
+
 ## 5c. Tamper-evident signed task history (Layer 2)
 
 Makes silent edits, deletions, or backdating of local task data provable rather than merely

@@ -83,11 +83,16 @@ export async function pullShare(serverUrl, shareId) {
 // Revocation — see server/storage.py's delete_share docstring for why no
 // auth beyond the id itself is required. Returns true if a share was
 // actually deleted, false if it was already gone.
+// Returns the deletion-log receipt (docs/ARCHITECTURE.md "Cryptographic proof of deletion") on
+// success — {sequence, deletedAt, recordIdHash, ciphertextHash, prevEntryHash, entryHash} — a
+// concrete, independently-verifiable claim that this server actually deleted the ciphertext, not
+// just a "trust us" response. false if there was nothing to delete.
 export async function deleteShare(serverUrl, shareId) {
   const res = await fetch(`${serverUrl.replace(/\/$/, "")}/share/${encodeURIComponent(shareId)}`, {
     method: "DELETE",
   });
   if (res.status === 404) return false;
   if (!res.ok) throw new Error(`Revoking share failed: ${res.status}`);
-  return true;
+  const body = await res.json();
+  return body.deletionReceipt;
 }

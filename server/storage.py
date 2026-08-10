@@ -4,6 +4,8 @@ This module never inspects or decrypts a record's contents — it only ever
 touches `iv`/`ciphertext` as opaque strings. See docs/ARCHITECTURE.md §5.
 """
 
+import hashlib
+import json
 import sqlite3
 from contextlib import contextmanager
 
@@ -48,6 +50,25 @@ CREATE TABLE IF NOT EXISTS shares (
     expires_at INTEGER NOT NULL,
     max_views INTEGER,
     views_used INTEGER NOT NULL DEFAULT 0
+);
+
+-- Append-only, hash-chained proof that a share was actually deleted server-side, not just marked
+-- gone client-side — same "provable, not just promised" pattern as the deploy transparency log
+-- (docs/ARCHITECTURE.md §5d-2), applied to user data instead of code deploys. Never stores the
+-- real share id or ciphertext, only their hashes: record_id_hash lets someone who kept their own
+-- copy of the id prove *which* deletion is theirs without this log ever revealing ids to anyone
+-- else who reads it; ciphertext_hash lets them additionally prove *what* was deleted, since they
+-- (and only they, having held the fragment key) know the plaintext behind that ciphertext hash.
+-- entry_hash covers the whole row including prev_entry_hash, so no entry can be altered or
+-- reordered without breaking every entry_hash after it — identical chaining mechanism to the
+-- deploy log, see scripts/append-transparency-log.mjs's comment for the general pattern.
+CREATE TABLE IF NOT EXISTS deletion_log (
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    deleted_at INTEGER NOT NULL,
+    record_id_hash TEXT NOT NULL,
+    ciphertext_hash TEXT NOT NULL,
+    prev_entry_hash TEXT NOT NULL,
+    entry_hash TEXT NOT NULL
 )
 """
 
@@ -172,19 +193,80 @@ def get_share(db_path, share_id, now):
         return {"iv": row["iv"], "ciphertext": row["ciphertext"]}
 
 
-def delete_share(db_path, share_id):
+def _sha256_hex(*parts):
+    h = hashlib.sha256()
+    for part in parts:
+        h.update(part.encode("utf-8"))
+    return h.hexdigest()
+
+
+def _append_deletion_log_entry(conn, share_id, iv, ciphertext, deleted_at):
+    """Must run inside the same transaction as the row's actual deletion — see delete_share().
+    Sequence is computed explicitly (not read back from AUTOINCREMENT) so it can be included in
+    entry_hash's own content before the row exists, same reason the client-side transparency log
+    (scripts/append-transparency-log.mjs) computes it the same way."""
+    prev = conn.execute("SELECT entry_hash FROM deletion_log ORDER BY sequence DESC LIMIT 1").fetchone()
+    prev_entry_hash = prev["entry_hash"] if prev else "GENESIS"
+    sequence = (conn.execute("SELECT COALESCE(MAX(sequence), 0) AS m FROM deletion_log").fetchone()["m"]) + 1
+
+    record_id_hash = _sha256_hex(share_id)
+    ciphertext_hash = _sha256_hex(iv, ciphertext)
+    entry_hash = _sha256_hex(json.dumps(
+        {"sequence": sequence, "deletedAt": deleted_at, "recordIdHash": record_id_hash,
+         "ciphertextHash": ciphertext_hash, "prevEntryHash": prev_entry_hash},
+        sort_keys=True, separators=(",", ":"),
+    ))
+
+    conn.execute(
+        "INSERT INTO deletion_log (sequence, deleted_at, record_id_hash, ciphertext_hash, prev_entry_hash, entry_hash) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (sequence, deleted_at, record_id_hash, ciphertext_hash, prev_entry_hash, entry_hash),
+    )
+    return {
+        "sequence": sequence, "deletedAt": deleted_at, "recordIdHash": record_id_hash,
+        "ciphertextHash": ciphertext_hash, "prevEntryHash": prev_entry_hash, "entryHash": entry_hash,
+    }
+
+
+def delete_share(db_path, share_id, deleted_at):
     """Revocation: the id is the only credential this system has, so whoever
     holds it (sender or recipient) is already trusted to the same degree a
     GET would trust them — deleting it early is not a stronger capability
-    than reading it. Returns True if a row was actually deleted."""
+    than reading it. Returns the deletion-log receipt if a row was actually
+    deleted, None if there was nothing to delete (never logs a no-op)."""
     with get_connection(db_path) as conn:
+        row = conn.execute("SELECT iv, ciphertext FROM shares WHERE id = ?", (share_id,)).fetchone()
+        if row is None:
+            return None
         cur = conn.execute("DELETE FROM shares WHERE id = ?", (share_id,))
-        return cur.rowcount > 0
+        if cur.rowcount == 0:
+            return None
+        return _append_deletion_log_entry(conn, share_id, row["iv"], row["ciphertext"], deleted_at)
 
 
 def delete_expired_shares(db_path, now):
     with get_connection(db_path) as conn:
         conn.execute("DELETE FROM shares WHERE expires_at <= ?", (now,))
+
+
+def get_deletion_log(db_path, since=0):
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            "SELECT sequence, deleted_at, record_id_hash, ciphertext_hash, prev_entry_hash, entry_hash "
+            "FROM deletion_log WHERE sequence > ? ORDER BY sequence ASC",
+            (since,),
+        ).fetchall()
+        return [
+            {
+                "sequence": row["sequence"],
+                "deletedAt": row["deleted_at"],
+                "recordIdHash": row["record_id_hash"],
+                "ciphertextHash": row["ciphertext_hash"],
+                "prevEntryHash": row["prev_entry_hash"],
+                "entryHash": row["entry_hash"],
+            }
+            for row in rows
+        ]
 
 
 def get_records_since(db_path, token, since):

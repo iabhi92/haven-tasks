@@ -118,6 +118,21 @@ data."*
       different code to different visitors could in principle serve a consistently-tampered log to
       itself too. Real airtight protection needs independent third parties archiving entries over
       time, same reason real Certificate Transparency needs multiple log operators, not one.
+- [x] Cryptographic proof of deletion — High · Signal: high. Shipped: revoking a share link or
+      cancelling a dead-man's switch now returns a real, hash-chained deletion receipt from the
+      server (`server/storage.py`'s `deletion_log`, `GET /deletion-log`,
+      `scripts/verify-deletion-log.mjs`) — a concrete, independently-checkable claim instead of
+      "trust us, it's gone," the same class of proof the deploy transparency log above already
+      gives code integrity. **Scope correction from how this was originally pitched:** "an
+      exclusion proof against the transparency log" doesn't actually work — that log tracks code
+      deploys, not user data, a mismatch caught before building the wrong thing. **A real
+      cross-language hashing bug was caught and fixed before shipping:** Python's
+      `sort_keys=True` JSON serialization and a naive JS `JSON.stringify()` would hash
+      byte-identical data differently, which would have made a correct log look tampered to every
+      verifier. Confirmed the fix directly rather than assumed. **Honest scope limit:** covers
+      share-link/dead-man's-switch deletion only, not the sync bucket's per-task tombstones — see
+      docs/ARCHITECTURE.md "Cryptographic proof of deletion" for why that's a materially harder,
+      not-yet-built case.
 - [x] Verifiable, signed backups (prove an export wasn't tampered with) — Med. Shipped: reuses
       the exact same per-device Ed25519 identity that signs history-log entries — no new key,
       no new UX for the user to manage. `exportTasks()` signs `{version, exportedAt, tasks,

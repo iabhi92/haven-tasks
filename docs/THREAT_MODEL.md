@@ -106,6 +106,11 @@
     share immediately via `DELETE /share/<id>`, and optionally cap it to a fixed number of views
     (burn-after-reading) at creation time. This closes most of what used to be an open "no
     revocation" gap; see the residual risk below for what it doesn't close.
+  - **Revocation is provable, not just claimed** (docs/ARCHITECTURE.md "Cryptographic proof of
+    deletion") — the delete response includes a hash-chained receipt anyone can independently
+    verify, addressing the version of A1 where a compromised operator *says* it deleted something
+    but secretly retained it: the entry's `ciphertextHash` is checkable by anyone who held the
+    original ciphertext, without ever being visible to a third party reading the log.
 - **Residual risk, stated plainly:**
   - **Revocation isn't retroactive.** If a recipient already loaded and read the link before the
     sender revokes it, revocation stops *future* access, not the access that already happened —

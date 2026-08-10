@@ -123,7 +123,7 @@ import {
   pullKeyringBootstrap,
   pushShare,
   deleteShare,
-} from "./sync.js?v=20260807a";
+} from "./sync.js?v=20260810a";
 import { createOffer, createAnswer, completeOffer, waitForChannelOpen } from "./webrtc-pair.js?v=20260810a";
 
 const STATUSES = ["todo", "in-progress", "done"];
@@ -4010,8 +4010,8 @@ function wireShareModal() {
     revokeBtn.textContent = "Revoking…";
     revokeStatusEl.classList.remove("is-ok");
     try {
-      await deleteShare(shareModalCreated.server, shareModalCreated.id);
-      revokeStatusEl.textContent = "Revoked — this link no longer works for anyone who has it.";
+      const receipt = await deleteShare(shareModalCreated.server, shareModalCreated.id);
+      revokeStatusEl.textContent = "Revoked — this link no longer works for anyone who has it." + formatDeletionReceipt(receipt);
       revokeStatusEl.classList.add("is-ok");
       copyBtn.disabled = true;
     } catch (err) {
@@ -4020,6 +4020,15 @@ function wireShareModal() {
       revokeBtn.textContent = "Revoke link";
     }
   });
+}
+
+// A concrete, independently-checkable claim instead of just "trust us, it's gone" — see
+// docs/ARCHITECTURE.md "Cryptographic proof of deletion". Deliberately self-contained rather than
+// pointing at a repo doc most people looking at this toast will never open: the receipt itself,
+// plus what to do with it, is the whole message.
+function formatDeletionReceipt(receipt) {
+  if (!receipt) return "";
+  return ` Proof of deletion: entry #${receipt.sequence} (${receipt.entryHash.slice(0, 16)}…) — anyone can independently verify this anytime with Haven's verify-deletion-log script.`;
 }
 
 // ---------- Public dead-man's switch (extends time-locked tasks + fragment-key share links
@@ -4113,8 +4122,9 @@ async function createDeadMansSwitch({ title, notes }, squarings, { ttlSeconds, m
 }
 
 async function cancelDeadMansSwitch(id, server) {
-  await deleteShare(server, id);
+  const receipt = await deleteShare(server, id);
   removeDeadMansSwitchRecord(id);
+  return receipt;
 }
 
 function renderDeadMansSwitchList() {
@@ -4137,9 +4147,9 @@ function renderDeadMansSwitchList() {
       cancelBtn.disabled = true;
       cancelBtn.textContent = "Cancelling…";
       try {
-        await cancelDeadMansSwitch(item.id, item.server);
+        const receipt = await cancelDeadMansSwitch(item.id, item.server);
         renderDeadMansSwitchList();
-        showInfoToast("Cancelled — that link no longer works for anyone holding it.");
+        showInfoToast("Cancelled — that link no longer works for anyone holding it." + formatDeletionReceipt(receipt));
       } catch {
         cancelBtn.disabled = false;
         cancelBtn.textContent = "Cancel";
