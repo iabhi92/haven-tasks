@@ -1275,14 +1275,26 @@ hand-maintained the same way the `?v=` cache-bust query strings already are (no 
 
 **Offline banner** (`wireOfflineBanner()`, `js/app.js`) — makes an already-true fact visible rather
 than adding new capability: `navigator.onLine`/the `online`/`offline` window events drive a small
-banner, nothing about how offline behavior actually works changes. Verified for real, not assumed:
-a genuinely offline Playwright run (`context.setOffline(true)`) confirmed a task can be created
-while offline, that the app-shell itself reloads successfully from the service worker cache while
-still offline (a real `200` response served from cache, not network — §5d's PWA install doing its
-job), and that the task survives the reload and is still there once reconnected and unlocked again
-(a reload always re-locks the vault regardless of network state — the DEK is never persisted, by
-design, online or off). Coming back online also fires one immediate `autoSyncTick()` (§5-2) rather
-than waiting out the rest of the poll interval.
+banner, nothing about how offline behavior actually works changes. Coming back online also fires
+one immediate `autoSyncTick()` (§5-2) rather than waiting out the rest of the poll interval.
+
+**Verified, and one claim deliberately walked back after further testing contradicted it:** a
+genuinely offline Playwright run (`context.setOffline(true)`) confirmed the core claim solidly, on
+both a local dev server and live production — a task can be created while offline, renders
+immediately, and is still there after reconnecting and unlocking again. What did **not** hold up:
+an earlier version of this note also claimed "reloads successfully from the service worker cache
+while offline," based only on a local-HTTP test where that happened to succeed. Repeating the same
+reload against live HTTPS production gave inconsistent results across repeated trials — sometimes
+a real cache-served `200`, sometimes `net::ERR_INTERNET_DISCONNECTED`, with identical service-worker
+registration/scope/cache-population confirmed in every case. That inconsistency points at
+Chromium's CDP-driven offline simulation interacting differently with an HTTP/3 connection
+(production advertises `alt-svc: h3`) than a trivial local HTTP/1.1 one, rather than at anything in
+this app's own service-worker logic — but that's a plausible explanation, not a confirmed one, and
+it isn't something this app's own test tooling can fully settle. **Practical upshot, stated
+honestly rather than glossed over:** treat "create/edit tasks while offline" as solid for a live
+demo; don't build the demo around also reloading the page mid-airplane-mode until someone has
+confirmed that specific sequence with real airplane mode on the actual presenting device, not just
+a simulated offline flag.
 
 **Calendar view + iCal export** (`js/ical.js`, month-grid UI in `js/ui.js`'s `renderCalendar()`) —
 shows every task with a due date across all projects; exporting produces a standard RFC 5545 `.ics`
