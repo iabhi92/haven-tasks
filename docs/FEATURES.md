@@ -317,7 +317,20 @@ data."*
       copy of the wrapped key already sitting on a second device or the sync
       server — see docs/ARCHITECTURE.md "Ephemeral tasks" for the honest
       scope note on what this does and doesn't guarantee.
-- [ ] Post-quantum hybrid key wrapping (harvest-now-decrypt-later defense) — High · Signal: high
+- [x] Post-quantum hybrid key wrapping (harvest-now-decrypt-later defense) — High · Signal: high.
+      **Scope correction, caught before writing code, not after:** this line as originally
+      written doesn't actually apply to Haven — "harvest-now-decrypt-later" describes an
+      adversary recording ciphertext today to decrypt once quantum computers exist, which
+      requires a classical public-key encryption step somewhere in the confidentiality path.
+      Haven doesn't have one: AES-256-GCM content encryption and PBKDF2 passphrase-derived keys
+      are both already quantum-safe (see docs/THREAT_MODEL.md A7), so there's nothing to "harvest"
+      that a quantum computer would later help with. **What's actually real and shipped instead:**
+      post-quantum hybrid *signing* — a second, independent ML-DSA-87 signature alongside every
+      Ed25519 one on history entries and backups, addressing the threat model's own
+      already-documented real exposure (a quantum computer eventually forging new signatures
+      under the classical key). See docs/ARCHITECTURE.md "Post-quantum hybrid signing" for the
+      full mechanism, a real cross-type bug caught and fixed by testing before shipping, and the
+      honest scope limits (main vault + decoy only, not compartments or passkey unlock).
 - [x] Selective disclosure / per-field encryption (share title, not notes) — High. Shipped:
       extends the existing fragment-key share links (Layer 2, above) — each field the sender
       chooses to include gets its own fresh key and its own ciphertext; an unchecked field's

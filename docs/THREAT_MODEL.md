@@ -355,8 +355,11 @@
   The exposure is *future forgery of new signatures* by an attacker who breaks the curve, not
   decryption of anything already stored — there's no retroactive "harvest now" risk since a forged
   signature has to be produced fresh, at attack time, against whatever the verifier checks then.
-  Standard mitigation once library support matures: hybrid dual-signing (Ed25519 + ML-DSA, NIST
-  FIPS 204), so old signatures keep verifying while new ones gain PQC coverage.
+  **Mitigated for the main vault and decoy vault, as of docs/ARCHITECTURE.md §5c-2**: hybrid
+  dual-signing (Ed25519 + ML-DSA-87, NIST FIPS 204) is shipped, not just planned — old
+  classical-only signatures keep verifying exactly as before, new entries get both. **Still open
+  for compartmentalised vaults (§4j) and passkey/hardware-wrapped keys** — an explicit, stated v1
+  scope limit (smaller usage footprint, not an oversight), not a claim this document overstates.
 - **WebAuthn passkey unlock (§4c) doesn't inherit this risk.** The stored secret is a random
   256-bit blob retrieved via the `largeBlob` extension, not a value derived from the authenticator's
   own public-key assertion — so even a fully broken FIDO2 signature scheme wouldn't expose the DEK.

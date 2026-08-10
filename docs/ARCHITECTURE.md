@@ -1205,6 +1205,73 @@ detectable gap or mismatch instead of quietly succeeding.
   (as opaque signed blobs, the same "dumb blob store" pattern as `/sync/push`) and is real,
   scoped, not-yet-built future work — not a claim this version makes.
 
+## 5c-2. Post-quantum hybrid signing (Layer 3)
+
+A second, independent ML-DSA-87 signature alongside every Ed25519 one above — not a replacement,
+a hybrid: every history entry and backup that has a `pqSignature` also still has its classical
+`signature`, and verification checks both. `vendor/noble-post-quantum/` (vendored, see its
+`SOURCE.md`), `js/crypto.js`'s `generatePqSigningKeypair()`/`signBytesPq()`/`verifyBytesPq()`.
+
+- **Why signing, not a KEM — the scope correction that came before any code.** The originally
+  brainstormed pitch was "hybrid ML-KEM wrapping share-link keys." That doesn't actually work:
+  Haven's confidentiality path (AES-256-GCM content encryption, PBKDF2 passphrase-derived keys,
+  Shamir social recovery) has no classical public-key encryption step anywhere to hybridize with a
+  KEM in the first place — see A7 in docs/THREAT_MODEL.md, which already correctly identifies
+  confidentiality as quantum-safe *today*, with no "harvest now, decrypt later" exposure to begin
+  with. Signing genuinely is different: Ed25519 is a real classical algorithm a large enough
+  quantum computer could eventually forge new signatures under, and hybrid dual-signing was
+  already the threat model's own stated correct mitigation before this shipped — this is that
+  fix, not a new idea invented for this feature.
+- **ML-DSA-87** (FIPS 204, standardized CRYSTALS-Dilithium), not ML-DSA-44 or -65 — the vendored
+  library's highest of NIST's three security categories, chosen to match this app's existing
+  AES-256 posture rather than a lower one.
+- **Generated and wrapped exactly like the Ed25519 key**, one layer on top: `wrapRawBytes()` /
+  `unwrapDek()` (already generic over "some raw bytes," used elsewhere for the WebAuthn-wrapped
+  DEK) wrap the ML-DSA secret key under the same passphrase-derived KEK, in new
+  `wrappedPqSigningKey`/`pqSigningKeyWrapIv`/`pqSigningPublicKey`/`pqSigningKeyLog` keyring fields
+  paralleling `wrappedSigningKey`/`signingKeyWrapIv`/`signingPublicKey`/`signingKeyLog`. A
+  recovery-code reset rolls a fresh identity for *both* keys together, appending to both logs, for
+  the same "the old key was only ever wrapped under the now-forgotten passphrase" reason the
+  classical key already doesn't survive a reset.
+- **Additive to the signed content, not a change to it.** `historyEntryContent()` — the exact
+  object the classical signature covers — is untouched; `pqSignature` and `pqPublicKey` are plain
+  sibling fields signing/verifying the *same* canonical bytes under the second algorithm, added
+  only when a PQ identity is active. This was a deliberate safety choice: changing what the
+  classical signature covers based on whether a PQ key happens to exist would have put the
+  already-shipped Ed25519 path at risk for zero benefit — an entry from before this feature, or
+  from an excluded path below, looks exactly as it always did, and a hybrid entry's classical half
+  verifies with exactly the same code as it always has.
+- **A real bug caught by testing, not shipped on faith:** noble's `ml_dsa87.sign()`/`.verify()`
+  require an actual `Uint8Array`, unlike WebCrypto's Ed25519 functions (which accept either an
+  `ArrayBuffer` or a typed-array view) — `base64ToBuf()` returns a plain `ArrayBuffer`, so a
+  freshly round-tripped public key or signature coming out of storage silently failed verification
+  every time, even when genuinely valid. First real end-to-end test caught it immediately: a
+  freshly-signed, never-tampered entry reported "Bad PQ signature." Fixed by coercing with `new
+  Uint8Array(...)` at the `signBytesPq()`/`verifyBytesPq()` boundary rather than trusting every
+  future caller to remember the distinction.
+- **Verified for real, including a case the classical check alone can't catch:** a Playwright run
+  that hand-tampered *only* the `pqSignature` field of a real entry — leaving its classical
+  `signature` completely untouched — confirmed the integrity badge (§5c) still caught it (`Bad PQ
+  signature`), proving the hybrid check genuinely requires breaking *both* signatures, not just
+  one. Separately verified end-to-end across two devices: exported a hybrid-signed backup from one
+  vault, imported it into a completely independent second vault, and confirmed the import
+  reported "verified ✓ (classical + post-quantum)" — both signatures, checked with two different
+  algorithms, both passing on genuinely valid data.
+- **Honest v1 scope limit — covers the main vault's normal passphrase unlock/setup/reset only.**
+  Deliberately excluded, each for a real reason rather than an oversight:
+  - **Compartmentalised vaults (§4j)** each already have their own fully independent classical
+    signing identity; extending that to a parallel PQ identity per compartment was judged not
+    worth the added keyring surface for a Layer-2 feature with a much smaller usage footprint than
+    the main vault. Entries created in a compartment are signed classically only — handled by the
+    same "no `pqSignature` present" case every pre-PQC entry already needs to be a non-error for.
+  - **Passkey/WebAuthn unlock (§4c) and hardware-wrapped keys** don't generate or unwrap a PQ
+    identity either, explicitly nulled out on that path rather than left stale — the same reason:
+    a rarer, opt-in unlock method, not the primary flow.
+  - **The decoy vault is *not* excluded** — `ensureLocalSigningKeyOnUnlock()`'s existing
+    `isDecoy` field-suffix parameterization already covers both vaults uniformly, so the decoy
+    vault gets its own fully independent PQ identity for free, the same "not a second-class
+    version of the feature" treatment its classical identity already gets.
+
 ## 5d. Verifiable frontend (Layer 2)
 
 Closes the biggest structurally-honest gap in this whole threat model: everything above proves the

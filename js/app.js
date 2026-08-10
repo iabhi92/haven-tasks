@@ -71,7 +71,7 @@ import {
   setRecoveryError,
   setResetError,
   HISTORY_BREAK_REASON_SHORT,
-} from "./ui.js?v=20260808f";
+} from "./ui.js?v=20260808g";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -95,6 +95,11 @@ import {
   unwrapSigningKey,
   signBytes,
   verifyBytes,
+  generatePqSigningKeypair,
+  wrapPqSigningKey,
+  unwrapPqSigningKey,
+  signBytesPq,
+  verifyBytesPq,
   sha256Hex,
   createTimeLockPuzzle,
   stepTimeLockPuzzle,
@@ -108,7 +113,7 @@ import {
   decodeShare,
   generateHardwareSecret,
   wrapRawBytes,
-} from "./crypto.js?v=20260809i";
+} from "./crypto.js?v=20260810b";
 import {
   isWebAuthnAvailable,
   registerPasskey,
@@ -247,6 +252,13 @@ async function getAssistantModule() {
 // DEK, unwrapped alongside it at unlock, null whenever locked.
 let historySigningKey = null; // private CryptoKey, sign-only
 let historySigningPublicKeyB64 = null; // this device's *current* public key
+// Second, independent post-quantum identity (docs/ARCHITECTURE.md "Post-quantum hybrid
+// signing") — raw ML-DSA-87 secret key bytes, not a WebCrypto CryptoKey (not a WebCrypto
+// algorithm). Stays null for vaults/unlock paths that don't have one yet (see the honest scope
+// note there); every signer already has to tolerate that, same as tolerating a missing
+// historySigningKey while locked.
+let historyPqSigningKey = null;
+let historyPqSigningPublicKeyB64 = null;
 // The hash of the most-recently-appended entry's full signed content, used
 // as the next entry's prevHash. Cached in memory rather than re-read from
 // IndexedDB on every mutation; (re)initialized from the real last entry at
@@ -314,6 +326,8 @@ let projects = []; // explicitly-created projects, decrypted; see loadProjects()
 let mainVaultDek = null; // stashed once at main-vault unlock; needed to unwrap every compartment's DEK
 let mainHistorySigningKey = null;
 let mainHistorySigningPublicKeyB64 = null;
+let mainHistoryPqSigningKey = null;
+let mainHistoryPqSigningPublicKeyB64 = null;
 let activeVaultId = "main"; // "main" | a compartment's id — never "decoy", compartments don't apply there
 
 let selectionMode = false;
@@ -349,6 +363,8 @@ let pendingDek = null;
 let pendingRecoveryCode = null;
 let pendingSigningKey = null;
 let pendingSigningPublicKeyB64 = null;
+let pendingPqSigningKey = null;
+let pendingPqSigningPublicKeyB64 = null;
 
 // DEK recovered via recovery code, pending a new passphrase to re-wrap it under.
 let recoveredDek = null;
@@ -607,6 +623,8 @@ async function switchToVault(vaultId) {
     dek = mainVaultDek;
     historySigningKey = mainHistorySigningKey;
     historySigningPublicKeyB64 = mainHistorySigningPublicKeyB64;
+    historyPqSigningKey = mainHistoryPqSigningKey;
+    historyPqSigningPublicKeyB64 = mainHistoryPqSigningPublicKeyB64;
     setActiveVault(false);
   } else {
     const keyring = await getKeyring();
@@ -616,6 +634,11 @@ async function switchToVault(vaultId) {
     dek = await importDek(rawDekBytes);
     historySigningKey = await unwrapSigningKey(vault.wrappedSigningKey, vault.signingKeyWrapIv, mainVaultDek);
     historySigningPublicKeyB64 = vault.signingPublicKey;
+    // Compartments don't get a post-quantum identity in this v1 (docs/ARCHITECTURE.md's honest
+    // scope note) — entries created while one is active are signed classically only, the same
+    // way entries from before this feature existed already are.
+    historyPqSigningKey = null;
+    historyPqSigningPublicKeyB64 = null;
     setActiveVault(compartmentVaultDbName(vaultId));
   }
 
@@ -1184,11 +1207,18 @@ async function canonicalBytes(obj) {
   return new TextEncoder().encode(JSON.stringify(obj));
 }
 
-// An entry's "own hash" (used as the *next* entry's prevHash) covers the
-// signature too, like a git commit hash covers its own signature — so a
-// resigned-but-otherwise-identical forged entry still breaks the chain.
+// An entry's "own hash" (used as the *next* entry's prevHash) covers the signature too, like a
+// git commit hash covers its own signature — so a resigned-but-otherwise-identical forged entry
+// still breaks the chain. Covers pqSignature the same way, when present, for the same reason —
+// tampering with just the post-quantum half of a hybrid-signed entry must break the chain too.
 async function historyEntryHash(entry) {
-  return sha256Hex(await canonicalBytes({ ...historyEntryContent(entry), signature: entry.signature }));
+  return sha256Hex(
+    await canonicalBytes({
+      ...historyEntryContent(entry),
+      signature: entry.signature,
+      ...(entry.pqSignature ? { pqSignature: entry.pqSignature } : {}),
+    })
+  );
 }
 
 async function primeHistoryChainTip() {
@@ -1208,22 +1238,43 @@ async function ensureLocalSigningKeyOnUnlock(keyring, kek, isDecoy = false) {
   if (keyring[f("wrappedSigningKey")]) {
     historySigningKey = await unwrapSigningKey(keyring[f("wrappedSigningKey")], keyring[f("signingKeyWrapIv")], kek);
     historySigningPublicKeyB64 = keyring[f("signingPublicKey")];
-    await primeHistoryChainTip();
-    return;
+  } else {
+    const signingKeypair = await generateSigningKeypair();
+    const signingPublicKeyB64 = bufToBase64(await exportSigningPublicKey(signingKeypair.publicKey));
+    const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, kek);
+    keyring = {
+      ...keyring,
+      [f("signingPublicKey")]: signingPublicKeyB64,
+      [f("wrappedSigningKey")]: wrappedSigningKey,
+      [f("signingKeyWrapIv")]: signingKeyWrapIv,
+      [f("signingKeyLog")]: [{ publicKey: signingPublicKeyB64, startedAt: now() }],
+    };
+    await putKeyring(keyring);
+    historySigningKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, kek);
+    historySigningPublicKeyB64 = signingPublicKeyB64;
   }
-  const signingKeypair = await generateSigningKeypair();
-  const signingPublicKeyB64 = bufToBase64(await exportSigningPublicKey(signingKeypair.publicKey));
-  const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, kek);
-  await putKeyring({
-    ...keyring,
-    [f("signingPublicKey")]: signingPublicKeyB64,
-    [f("wrappedSigningKey")]: wrappedSigningKey,
-    [f("signingKeyWrapIv")]: signingKeyWrapIv,
-    [f("signingKeyLog")]: [{ publicKey: signingPublicKeyB64, startedAt: now() }],
-  });
-  historySigningKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, kek);
-  historySigningPublicKeyB64 = signingPublicKeyB64;
-  await primeHistoryChainTip(); // no local entries predate this device's very first key
+
+  // Same migrate-on-next-unlock pattern as the Ed25519 key above, one layer on top: a vault
+  // that already has a classical key but predates this feature won't have a PQ one yet either.
+  if (keyring[f("wrappedPqSigningKey")]) {
+    historyPqSigningKey = await unwrapPqSigningKey(keyring[f("wrappedPqSigningKey")], keyring[f("pqSigningKeyWrapIv")], kek);
+    historyPqSigningPublicKeyB64 = keyring[f("pqSigningPublicKey")];
+  } else {
+    const { publicKey, secretKey } = await generatePqSigningKeypair();
+    const pqSigningPublicKeyB64 = bufToBase64(publicKey);
+    const { wrappedPqSigningKey, pqSigningKeyWrapIv } = await wrapPqSigningKey(secretKey, kek);
+    await putKeyring({
+      ...keyring,
+      [f("pqSigningPublicKey")]: pqSigningPublicKeyB64,
+      [f("wrappedPqSigningKey")]: wrappedPqSigningKey,
+      [f("pqSigningKeyWrapIv")]: pqSigningKeyWrapIv,
+      [f("pqSigningKeyLog")]: [{ publicKey: pqSigningPublicKeyB64, startedAt: now() }],
+    });
+    historyPqSigningKey = secretKey;
+    historyPqSigningPublicKeyB64 = pqSigningPublicKeyB64;
+  }
+
+  await primeHistoryChainTip();
 }
 
 async function appendSignedHistoryEntry(taskId, op, iv, ciphertext) {
@@ -1238,8 +1289,19 @@ async function appendSignedHistoryEntry(taskId, op, iv, ciphertext) {
     timestamp: now(),
     publicKey: historySigningPublicKeyB64,
   });
-  const signature = bufToBase64(await signBytes(historySigningKey, await canonicalBytes(content)));
-  const entry = { ...content, signature };
+  const contentBytes = await canonicalBytes(content);
+  const signature = bufToBase64(await signBytes(historySigningKey, contentBytes));
+  // Hybrid, not a replacement: the same content gets a second, independent signature under
+  // ML-DSA-87 whenever this session has a post-quantum identity active (docs/ARCHITECTURE.md
+  // "Post-quantum hybrid signing") — omitted entirely, not signed with a placeholder, for
+  // sessions/vaults that don't have one yet (compartments, passkey unlock, pre-PQC entries).
+  const pqSignature = historyPqSigningKey ? bufToBase64(signBytesPq(historyPqSigningKey, contentBytes)) : null;
+  // pqPublicKey is a plain sibling field, not part of historyEntryContent()'s signed shape —
+  // deliberately, so the classical signature's own input never changes shape based on whether a
+  // PQ identity happens to be active, keeping the Ed25519 path's behavior exactly as it always
+  // was. The real trust boundary is verifyHistoryChain()'s pqSigningKeyLog check, not where this
+  // field lives — same as how a swapped-out publicKey is caught by its own trustedKeys check.
+  const entry = { ...content, signature, ...(pqSignature ? { pqSignature, pqPublicKey: historyPqSigningPublicKeyB64 } : {}) };
   await appendHistoryEntry(entry);
   historyChainTip = await historyEntryHash(entry);
 }
@@ -1258,6 +1320,10 @@ async function verifyHistoryChain() {
   const keyring = await getKeyring();
   const signingKeyLog = activeVaultIsDecoy ? keyring?.signingKeyLogDecoy : keyring?.signingKeyLog;
   const trustedKeys = new Set((signingKeyLog || []).map((k) => k.publicKey));
+  // Same trust model as the classical key's signingKeyLog, one layer on top — see
+  // docs/ARCHITECTURE.md "Post-quantum hybrid signing".
+  const pqSigningKeyLog = activeVaultIsDecoy ? keyring?.pqSigningKeyLogDecoy : keyring?.pqSigningKeyLog;
+  const trustedPqKeys = new Set((pqSigningKeyLog || []).map((k) => k.publicKey));
 
   let expectedPrevHash = "GENESIS";
   let firstBreak = null;
@@ -1281,6 +1347,25 @@ async function verifyHistoryChain() {
         signatureValid = false;
       }
       if (!signatureValid) reason = "bad-signature";
+
+      // No pqSignature at all is a legitimate, expected state (a compartment, a
+      // passkey-unlocked session, or an entry from before this feature existed) — not
+      // checked, not flagged. An entry that *has* one gets it verified exactly as strictly
+      // as the classical signature above.
+      if (!reason && entry.pqSignature) {
+        if (!trustedPqKeys.has(entry.pqPublicKey ?? entry.publicKey)) {
+          reason = "untrusted-pq-signer";
+        } else {
+          let pqValid;
+          try {
+            const data = await canonicalBytes(historyEntryContent(entry));
+            pqValid = verifyBytesPq(base64ToBuf(entry.pqPublicKey ?? entry.publicKey), data, base64ToBuf(entry.pqSignature));
+          } catch {
+            pqValid = false;
+          }
+          if (!pqValid) reason = "bad-pq-signature";
+        }
+      }
     }
 
     const ownHash = await historyEntryHash(entry);
@@ -1535,6 +1620,13 @@ async function exportTasks() {
     const withKey = { ...envelope, publicKey: historySigningPublicKeyB64 };
     const signature = bufToBase64(await signBytes(historySigningKey, await canonicalBytes(withKey)));
     signedEnvelope = { ...withKey, signature };
+    // Hybrid, same as history entries — a second, independent signature under the session's
+    // post-quantum identity when one is active. See docs/ARCHITECTURE.md "Post-quantum hybrid
+    // signing" for why this, not a wrapped KEM, is the correctly-scoped PQC feature here.
+    if (historyPqSigningKey) {
+      const pqSignature = bufToBase64(signBytesPq(historyPqSigningKey, await canonicalBytes(withKey)));
+      signedEnvelope = { ...signedEnvelope, pqPublicKey: historyPqSigningPublicKeyB64, pqSignature };
+    }
   } // else: locked/no signing identity yet — fall back to an unsigned export rather than throw
 
   const blob = new Blob([JSON.stringify(signedEnvelope, null, 2)], { type: "application/json" });
@@ -1559,19 +1651,29 @@ async function exportTasks() {
 // implemented here.
 const MAX_IMPORT_RECORDS = 500; // matches server/routes.py's MAX_RECORDS_PER_PUSH, same reasoning
 
-// Verifies a signed backup envelope (see backupEnvelopeContent()/exportTasks()).
-// Returns "verified" | "invalid" | "unsigned" — a tri-state report, not a
-// pass/fail gate: import proceeds regardless (data is always mergeable via
-// the existing last-write-wins path below), the same "report, don't block"
-// posture verifyHistoryChain() already uses for history entries.
+// Verifies a signed backup envelope (see backupEnvelopeContent()/exportTasks()). Returns
+// "verified-pq" | "verified" | "invalid" | "unsigned" — a report, not a pass/fail gate: import
+// proceeds regardless (data is always mergeable via the existing last-write-wins path below),
+// the same "report, don't block" posture verifyHistoryChain() already uses for history entries.
+// "verified-pq" means both the classical and post-quantum signatures checked out; "verified"
+// means only the classical one is present (an older export, or one made without a PQ identity
+// active) and it's valid.
 async function verifyBackupSignature(parsed) {
   if (!parsed.signature || !parsed.publicKey) return "unsigned";
   try {
-    const { signature, ...withKey } = parsed;
+    const { signature, pqSignature, pqPublicKey, ...withKey } = parsed;
     const publicKey = await importSigningPublicKey(base64ToBuf(parsed.publicKey));
     const data = await canonicalBytes(withKey);
     const valid = await verifyBytes(publicKey, data, base64ToBuf(signature));
-    return valid ? "verified" : "invalid";
+    if (!valid) return "invalid";
+    if (!pqSignature || !pqPublicKey) return "verified";
+    let pqValid;
+    try {
+      pqValid = verifyBytesPq(base64ToBuf(pqPublicKey), data, base64ToBuf(pqSignature));
+    } catch {
+      pqValid = false;
+    }
+    return pqValid ? "verified-pq" : "invalid";
   } catch {
     return "invalid";
   }
@@ -1707,7 +1809,8 @@ async function importTasksFromJSON(file) {
   // safe/non-destructive via last-write-wins), same posture verifyHistoryChain()
   // takes: tell the user what was found, let them judge it.
   const signatureNote =
-    signatureStatus === "verified" ? " Backup signature verified ✓ — this file matches what was exported, unmodified."
+    signatureStatus === "verified-pq" ? " Backup signature verified ✓ (classical + post-quantum) — this file matches what was exported, unmodified."
+    : signatureStatus === "verified" ? " Backup signature verified ✓ — this file matches what was exported, unmodified."
     : signatureStatus === "invalid" ? " ⚠ Backup signature does NOT match this file's contents — it may have been modified since export."
     : " (Unsigned backup — exported before this feature existed, or from another source.)";
   showInfoToast(`Import done: ${added} added, ${updated} updated, ${skipped} skipped${skippedNote}.${signatureNote}`);
@@ -2332,12 +2435,20 @@ async function unlockWithPasskey() {
     const rawSigningKeyBytes = await unwrapDek(keyring.wrappedSigningKeyHardware, keyring.signingKeyWrapIvHardware, kekHw);
     historySigningKey = await crypto.subtle.importKey("pkcs8", rawSigningKeyBytes, { name: "Ed25519" }, false, ["sign"]);
     historySigningPublicKeyB64 = keyring.signingPublicKey;
+    // Passkey/hardware unlock doesn't get a post-quantum identity in this v1 (docs/
+    // ARCHITECTURE.md's honest scope note) — explicitly nulled rather than left whatever a
+    // previous vault/session happened to leave behind, so entries signed during a
+    // passkey-unlocked session are never mistaken for having real PQ coverage.
+    historyPqSigningKey = null;
+    historyPqSigningPublicKeyB64 = null;
     await primeHistoryChainTip();
     // Passkey unlock is always the main vault (decoy has no passkey path) —
     // cache for compartment-vault switching, see the module comment above.
     mainVaultDek = dek;
     mainHistorySigningKey = historySigningKey;
     mainHistorySigningPublicKeyB64 = historySigningPublicKeyB64;
+    mainHistoryPqSigningKey = null;
+    mainHistoryPqSigningPublicKeyB64 = null;
     activeVaultId = "main";
   } catch (err) {
     setUnlockError("Couldn't unlock with this passkey.");
@@ -4282,6 +4393,16 @@ async function getSecurityChecklistItems() {
       meta: lastBackupAt > 0 ? `Last exported ${new Date(lastBackupAt).toLocaleDateString()}.` : "Never exported.",
       action: { label: "Export now", fn: exportTasks },
     },
+    {
+      title: "Post-quantum signing",
+      done: !!historyPqSigningKey,
+      meta: historyPqSigningKey
+        ? "New history entries and backups get a second, independent ML-DSA-87 signature alongside the classical one."
+        : activeVaultIsDecoy || activeVaultId !== "main"
+          ? "Not active in this vault/compartment — see the security page for what this does and doesn't cover yet."
+          : "Not active for this session — unlock with your passphrase to enable it.",
+      action: null, // not a toggle — active automatically for the main vault's normal passphrase unlock
+    },
   ];
 }
 
@@ -4671,9 +4792,18 @@ function wireLockScreen() {
     const signingPublicKeyB64 = bufToBase64(signingPublicKeyRaw);
     const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, kek);
 
+    // Second, independent post-quantum signing identity alongside the classical one above —
+    // see docs/ARCHITECTURE.md "Post-quantum hybrid signing". Same "not wrapped under KEK_r"
+    // scope choice as the Ed25519 key: a recovery-code reset rolls a fresh identity for both.
+    const { publicKey: pqPublicKey, secretKey: pqSecretKey } = await generatePqSigningKeypair();
+    const pqSigningPublicKeyB64 = bufToBase64(pqPublicKey);
+    const { wrappedPqSigningKey, pqSigningKeyWrapIv } = await wrapPqSigningKey(pqSecretKey, kek);
+
     pendingDek = await importDek(rawDekBytes);
     pendingSigningKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, kek);
     pendingSigningPublicKeyB64 = signingPublicKeyB64;
+    pendingPqSigningKey = pqSecretKey;
+    pendingPqSigningPublicKeyB64 = pqSigningPublicKeyB64;
     pendingKeyring = {
       kdf: KDF_NAME,
       kdfParams: { iterations: PBKDF2_ITERATIONS },
@@ -4687,6 +4817,10 @@ function wireLockScreen() {
       wrappedSigningKey,
       signingKeyWrapIv,
       signingKeyLog: [{ publicKey: signingPublicKeyB64, startedAt: now() }],
+      pqSigningPublicKey: pqSigningPublicKeyB64,
+      wrappedPqSigningKey,
+      pqSigningKeyWrapIv,
+      pqSigningKeyLog: [{ publicKey: pqSigningPublicKeyB64, startedAt: now() }],
       version: 1,
     };
     pendingRecoveryCode = recoveryCode;
@@ -4715,18 +4849,24 @@ function wireLockScreen() {
     dek = pendingDek;
     historySigningKey = pendingSigningKey;
     historySigningPublicKeyB64 = pendingSigningPublicKeyB64;
+    historyPqSigningKey = pendingPqSigningKey;
+    historyPqSigningPublicKeyB64 = pendingPqSigningPublicKeyB64;
     historyChainTip = "GENESIS"; // brand-new vault, nothing in the log yet
     // Fresh setup is always the main vault — cache for compartment-vault
     // switching, see the module comment above.
     mainVaultDek = dek;
     mainHistorySigningKey = historySigningKey;
     mainHistorySigningPublicKeyB64 = historySigningPublicKeyB64;
+    mainHistoryPqSigningKey = historyPqSigningKey;
+    mainHistoryPqSigningPublicKeyB64 = historyPqSigningPublicKeyB64;
     activeVaultId = "main";
     pendingKeyring = null;
     pendingDek = null;
     pendingRecoveryCode = null;
     pendingSigningKey = null;
     pendingSigningPublicKeyB64 = null;
+    pendingPqSigningKey = null;
+    pendingPqSigningPublicKeyB64 = null;
     await afterUnlock();
   });
 
@@ -4785,10 +4925,14 @@ function wireLockScreen() {
       mainVaultDek = dek;
       mainHistorySigningKey = historySigningKey;
       mainHistorySigningPublicKeyB64 = historySigningPublicKeyB64;
+      mainHistoryPqSigningKey = historyPqSigningKey;
+      mainHistoryPqSigningPublicKeyB64 = historyPqSigningPublicKeyB64;
     } else {
       mainVaultDek = null;
       mainHistorySigningKey = null;
       mainHistorySigningPublicKeyB64 = null;
+      mainHistoryPqSigningKey = null;
+      mainHistoryPqSigningPublicKeyB64 = null;
     }
 
     // Same reasoning as the setup path — the passphrase's job is done once it's
@@ -4867,6 +5011,13 @@ function wireLockScreen() {
     const { wrappedSigningKey, signingKeyWrapIv } = await wrapSigningKey(signingKeypair.privateKey, newKek);
     const signingKeyLog = [...(keyring.signingKeyLog || []), { publicKey: signingPublicKeyB64, startedAt: now() }];
 
+    // Same "roll a fresh identity, append to the log" reasoning applies to the post-quantum
+    // key too — see docs/ARCHITECTURE.md "Post-quantum hybrid signing".
+    const { publicKey: pqPublicKey, secretKey: pqSecretKey } = await generatePqSigningKeypair();
+    const pqSigningPublicKeyB64 = bufToBase64(pqPublicKey);
+    const { wrappedPqSigningKey, pqSigningKeyWrapIv } = await wrapPqSigningKey(pqSecretKey, newKek);
+    const pqSigningKeyLog = [...(keyring.pqSigningKeyLog || []), { publicKey: pqSigningPublicKeyB64, startedAt: now() }];
+
     await putKeyring({
       ...keyring,
       salt: bufToBase64(newSalt),
@@ -4876,12 +5027,18 @@ function wireLockScreen() {
       wrappedSigningKey,
       signingKeyWrapIv,
       signingKeyLog,
+      pqSigningPublicKey: pqSigningPublicKeyB64,
+      wrappedPqSigningKey,
+      pqSigningKeyWrapIv,
+      pqSigningKeyLog,
     });
 
     const rawDekBytes = await unwrapDek(newWrappedDek, newWrapIv, newKek);
     dek = await importDek(rawDekBytes);
     historySigningKey = await unwrapSigningKey(wrappedSigningKey, signingKeyWrapIv, newKek);
     historySigningPublicKeyB64 = signingPublicKeyB64;
+    historyPqSigningKey = pqSecretKey;
+    historyPqSigningPublicKeyB64 = pqSigningPublicKeyB64;
     await primeHistoryChainTip();
     recoveredDek = null;
     // A passphrase reset re-wraps the *same* DEK under a new KEK — the DEK
@@ -4891,6 +5048,8 @@ function wireLockScreen() {
     mainVaultDek = dek;
     mainHistorySigningKey = historySigningKey;
     mainHistorySigningPublicKeyB64 = historySigningPublicKeyB64;
+    mainHistoryPqSigningKey = historyPqSigningKey;
+    mainHistoryPqSigningPublicKeyB64 = historyPqSigningPublicKeyB64;
     activeVaultId = "main";
 
     document.getElementById("resetPassphrase").value = "";
@@ -4905,10 +5064,14 @@ function wireLockButton() {
     dek = null;
     historySigningKey = null;
     historySigningPublicKeyB64 = null;
+    historyPqSigningKey = null;
+    historyPqSigningPublicKeyB64 = null;
     historyChainTip = "GENESIS";
     mainVaultDek = null;
     mainHistorySigningKey = null;
     mainHistorySigningPublicKeyB64 = null;
+    mainHistoryPqSigningKey = null;
+    mainHistoryPqSigningPublicKeyB64 = null;
     activeVaultId = "main";
     tasks = [];
     ephemeralTaskKeys.clear();

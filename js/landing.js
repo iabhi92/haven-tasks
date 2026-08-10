@@ -3,7 +3,7 @@
 // non-persisted demo key. Nothing typed here is ever stored or sent
 // anywhere; it exists only to show real ciphertext bytes for a real
 // plaintext, per the same idea as the app's own reveal page.
-import { generateDek, encryptTask } from "./crypto.js?v=20260809i";
+import { generateDek, encryptTask } from "./crypto.js?v=20260810b";
 
 // Only index.html has the live encryption demo — this file is also now
 // shared by compare.html/features.html/security.html purely for the motion

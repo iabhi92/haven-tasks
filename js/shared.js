@@ -13,7 +13,7 @@
 // ciphertext — still valid for up to their original expiry, so this viewer
 // tells the two apart (see parseFragmentKey()) rather than breaking them.
 
-import { importDek, decryptTask, base64UrlToBuf } from "./crypto.js?v=20260809i";
+import { importDek, decryptTask, base64UrlToBuf } from "./crypto.js?v=20260810b";
 import { pullShare } from "./sync.js?v=20260806a";
 
 const STATUS_LABEL = { todo: "To Do", "in-progress": "In Progress", done: "Done" };

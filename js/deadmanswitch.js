@@ -15,7 +15,7 @@
 // loses the progress" tradeoff a private time-locked task's resumable IndexedDB progress
 // deliberately avoids for a page with no vault to store progress in.
 
-import { importDek, decryptTask, unwrapDek, stepTimeLockPuzzle, deriveTimeLockKey, TIME_LOCK_PUZZLE_START } from "./crypto.js?v=20260809i";
+import { importDek, decryptTask, unwrapDek, stepTimeLockPuzzle, deriveTimeLockKey, TIME_LOCK_PUZZLE_START } from "./crypto.js?v=20260810b";
 import { pullShare } from "./sync.js?v=20260806a";
 
 // Same conservative, once-measured estimate js/ui.js's private time-lock presets use — real

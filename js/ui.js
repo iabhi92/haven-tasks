@@ -785,12 +785,16 @@ const HISTORY_BREAK_REASON_TEXT = {
   "chain-broken": "This entry's link to the one before it doesn't match — something was inserted, removed, or reordered in the log.",
   "untrusted-signer": "This entry was signed by a key that was never one of this device's own signing keys.",
   "bad-signature": "This entry's signature doesn't match its content — something in it was changed after it was signed.",
+  "untrusted-pq-signer": "This entry's post-quantum signature was made with a key that was never one of this device's own — same check as \"untrusted signer\", for the second, hybrid signature.",
+  "bad-pq-signature": "This entry's post-quantum signature doesn't match its content — the classical signature checked out, but the hybrid one didn't.",
 };
 
 export const HISTORY_BREAK_REASON_SHORT = {
   "chain-broken": "Broken link",
   "untrusted-signer": "Untrusted signer",
   "bad-signature": "Bad signature",
+  "untrusted-pq-signer": "Untrusted PQ signer",
+  "bad-pq-signature": "Bad PQ signature",
 };
 
 const HISTORY_OP_LABEL = { create: "Created", update: "Updated", delete: "Deleted", selfDestruct: "Self-destructed" };

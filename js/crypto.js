@@ -385,6 +385,64 @@ export async function verifyBytes(publicKey, dataBytes, signatureBytes) {
   return crypto.subtle.verify("Ed25519", publicKey, signatureBytes, dataBytes);
 }
 
+// ---------- post-quantum hybrid signing (Layer 3) ----------
+// A second, independent signature alongside the Ed25519 one above — ML-DSA-87 (FIPS 204, the
+// standardized form of CRYSTALS-Dilithium), the highest of NIST's three security categories,
+// matching this app's existing AES-256 posture rather than a lower one. Hybrid, not a
+// replacement: every history entry/backup that has a pqSignature also still has its classical
+// signature, and verification checks both. See docs/ARCHITECTURE.md "Post-quantum hybrid signing"
+// for exactly why this is the one place in this app where "hybrid PQC" is a real, correctly-scoped
+// claim — Haven's confidentiality path (AES-256-GCM, PBKDF2) has no classical public-key
+// encryption step to hybridize with a KEM in the first place, unlike signing, which genuinely
+// does have a classical algorithm (Ed25519) that a quantum computer could eventually forge new
+// signatures under.
+//
+// ml_dsa87 (not the vendored library's ml_dsa44/ml_dsa65) chosen to match: Category 5 is the
+// highest NIST security level FIPS 204 defines, the signature-scheme analogue of choosing AES-256
+// over AES-128.
+import { ml_dsa87 } from "/vendor/noble-post-quantum/ml-dsa.js";
+
+// Deterministic from a 32-byte seed, unlike Ed25519's non-deterministic WebCrypto generateKey —
+// the seed itself is never retained past this call, only its keygen() output.
+export async function generatePqSigningKeypair() {
+  const seed = crypto.getRandomValues(new Uint8Array(32));
+  const { publicKey, secretKey } = ml_dsa87.keygen(seed);
+  return { publicKey, secretKey };
+}
+
+// The secret key is already raw bytes (not a WebCrypto CryptoKey — ML-DSA isn't a WebCrypto
+// algorithm), so this wraps it directly with wrapRawBytes() rather than exporting first.
+export async function wrapPqSigningKey(secretKey, kek) {
+  const { wrapped, iv } = await wrapRawBytes(secretKey, kek);
+  return { wrappedPqSigningKey: wrapped, pqSigningKeyWrapIv: iv };
+}
+
+// unwrapDek() is reused here exactly as the hardware-unlock path already reuses it for a signing
+// key's raw bytes (see docs/ARCHITECTURE.md "WebAuthn passkey unlock") — it's just AES-GCM
+// decrypt, indifferent to whether the plaintext is a DEK or something else.
+export async function unwrapPqSigningKey(wrappedPqSigningKey, pqSigningKeyWrapIv, kek) {
+  const raw = await unwrapDek(wrappedPqSigningKey, pqSigningKeyWrapIv, kek);
+  return new Uint8Array(raw);
+}
+
+// A real bug caught by testing, not a guess: unlike WebCrypto's Ed25519 functions (which accept
+// either an ArrayBuffer or a typed-array view for byte arguments), noble's ml_dsa87.sign/verify
+// require an actual Uint8Array specifically — base64ToBuf() returns a plain ArrayBuffer, which a
+// freshly round-tripped public key/signature would be after coming out of storage. Passing one
+// straight through silently made every genuinely valid signature fail verification. Coercing with
+// `new Uint8Array(...)` here (a no-op if already a Uint8Array, a correct wrap otherwise) fixes it
+// at the boundary so no caller needs to remember this.
+export function signBytesPq(secretKey, dataBytes) {
+  return ml_dsa87.sign(new Uint8Array(dataBytes), new Uint8Array(secretKey));
+}
+
+// Wrapped in a try/catch by every caller, same defensive posture verifyBytes()'s Ed25519 callers
+// already use in verifyHistoryChain() — a malformed or wrong-length key/signature should read as
+// "doesn't verify," not crash the whole check.
+export function verifyBytesPq(publicKey, dataBytes, signatureBytes) {
+  return ml_dsa87.verify(new Uint8Array(signatureBytes), new Uint8Array(dataBytes), new Uint8Array(publicKey));
+}
+
 // Hex, not base64: history entries are inspectable/exportable JSON meant to
 // be eyeballed and diffed, where hex reads unambiguously at a glance.
 export async function sha256Hex(dataBytes) {

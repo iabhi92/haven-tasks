@@ -102,6 +102,13 @@ const otherFiles = [
   ...listFiles("vendor/transformers", ".wasm"),
   ...listFiles("vendor/transformers/onnxruntime-common", ".js"),
   ...listFiles("vendor/qrcode", ".mjs"),
+  // listFiles() doesn't recurse, and this one vendored library (unlike qrcode/transformers)
+  // has real nested directories mirroring its upstream npm package layout — see
+  // vendor/noble-post-quantum/SOURCE.md for why each of these three levels exists.
+  ...listFiles("vendor/noble-post-quantum", ".js"),
+  ...listFiles("vendor/noble-post-quantum/curves", ".js"),
+  ...listFiles("vendor/noble-post-quantum/curves/abstract", ".js"),
+  ...listFiles("vendor/noble-post-quantum/hashes", ".js"),
 ]
   .filter((f) => !ENTRY_ASSETS.some((a) => a.file === f))
   .concat(listFiles("css", ".css").filter((f) => !ENTRY_ASSETS.some((a) => a.file === f)));
