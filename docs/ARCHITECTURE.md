@@ -1325,6 +1325,29 @@ columns still imports what Haven does recognize. Every imported row becomes a br
 the normal `addTask()` path (CSV rows carry no id of their own to merge against, unlike Haven's own
 JSON export/import round-trip).
 
+- **A dedicated Todoist path, not just generic aliasing.** Todoist's real CSV export isn't a flat
+  task list — one file is a whole project, and `TYPE` marks each row as `task`, `section` (a
+  project divider, not a task), or `note` (a comment on the task above it), with `INDENT` marking
+  sub-task nesting. Feeding that through the generic aliaser would have silently imported section
+  headers and note text as bogus tasks — this was a real, verified gap, not a hypothetical one
+  (confirmed by testing before fixing it). `isTodoistExport()`/`parseTodoistCSV()` detect the
+  `TYPE`/`CONTENT`/`INDENT` column signature and handle it properly: `section` rows become the
+  Haven `project` for tasks that follow, `note` rows fold into the preceding task's own `notes`
+  (the only place Haven's model has room for free text below task level), and `INDENT > 1` becomes
+  a Haven sub-task. **Honest scope limit:** Haven only supports one flat level of sub-tasks, unlike
+  Todoist's arbitrary nesting depth — a third-level Todoist indent still flattens onto the nearest
+  *top-level* task's sub-task list rather than attempting a nested tree Haven's data model has no
+  room for.
+- **Notion needs no dedicated path** — a Notion database export is a standard flat CSV with
+  ordinary column names (`Name`, `Status`, `Due Date`, `Priority`, `Tags`), which the existing
+  generic aliaser already handles correctly, checkbox/select-style values included (verified with
+  a realistic constructed sample, `js/csv.test.mjs`'s tests 17).
+- **Multi-project imports get called out, not left silent.** A Todoist export spanning several
+  sections creates tasks across several Haven projects, but the board only ever shows one project
+  at a time — without a heads-up, tasks landing outside whatever project happened to be open would
+  look like the import silently did nothing. The import toast now names which project(s) received
+  new tasks when it's not the one currently open.
+
 **Time tracking + Pomodoro** (`js/app.js`, edit-modal UI) — a 25-minute countdown scoped to
 whichever task's edit modal is currently open; no background timer survives closing it. Elapsed
 time accumulates into a plain `timeSpentSeconds` task field — an ordinary encrypted field, no new

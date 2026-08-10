@@ -145,15 +145,93 @@ export function csvRowToTask(row) {
   };
 }
 
+// Todoist's real CSV export isn't a flat table of tasks — one file is a whole project, and each
+// row's TYPE says what kind of row it is: "task" (an actual to-do), "section" (a header dividing
+// the project, not a task itself), or "note" (a comment attached to the task above it). Feeding
+// that straight through the generic aliaser above would silently import section headers and note
+// text AS bogus tasks — CONTENT is the one column every row type happens to have, so csvRowToTask
+// would happily accept all of them. INDENT (1 = top-level, 2+ = nested under the nearest
+// shallower task) is Todoist's own sub-task nesting, mapped onto Haven's existing `subtasks`.
+function isTodoistExport(headers) {
+  return headers.includes("type") && headers.includes("content") && headers.includes("indent");
+}
+
+function parseTodoistCSV(rows, fieldMap) {
+  const tasks = [];
+  let currentSection = "Inbox";
+  // Haven only supports one flat level of subtasks (no subtask-of-a-subtask), unlike Todoist's
+  // arbitrary indent depth — every indent > 1 flattens onto the nearest top-level task's own
+  // subtasks list, rather than attempting a nested tree Haven's data model has no room for.
+  let currentTopLevelTask = null;
+
+  for (let i = 1; i < rows.length; i++) {
+    const raw = {};
+    for (let col = 0; col < fieldMap.length; col++) {
+      const field = fieldMap[col];
+      if (field && rows[i][col] !== undefined) raw[field] = rows[i][col];
+    }
+    const typeCol = rows[i][fieldMap.indexOf("__type")];
+    const indentCol = Number(rows[i][fieldMap.indexOf("__indent")]) || 1;
+    const type = (typeCol || "task").trim().toLowerCase();
+
+    if (type === "section") {
+      currentSection = raw.title ? raw.title.trim() : currentSection;
+      currentTopLevelTask = null;
+      continue;
+    }
+
+    if (type === "note") {
+      // Best-effort: attach to the current top-level task's own notes, since that's the only
+      // place Haven's model has room for free text below task level — a note with nothing
+      // above it (malformed export, or the very first row) has nowhere sensible to go.
+      if (currentTopLevelTask && raw.title) {
+        currentTopLevelTask.notes = currentTopLevelTask.notes
+          ? `${currentTopLevelTask.notes}\n${raw.title.trim()}`
+          : raw.title.trim();
+      }
+      continue;
+    }
+
+    // type === "task" (or unrecognized — treat as a task rather than silently dropping a row)
+    const task = csvRowToTask(raw);
+    if (!task) continue;
+
+    if (indentCol > 1 && currentTopLevelTask) {
+      currentTopLevelTask.subtasks.push({ id: cryptoRandomId(), title: task.title, done: task.status === "done" });
+    } else {
+      task.project = currentSection;
+      task.subtasks = [];
+      tasks.push(task);
+      currentTopLevelTask = task;
+    }
+  }
+  return tasks;
+}
+
+function cryptoRandomId() {
+  return (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `sub-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 // Full pipeline: raw CSV text -> array of partial task objects, using the
 // first row as headers. Unknown columns are silently ignored rather than
-// rejected — an export with extra app-specific columns (Todoist's INDENT,
-// AUTHOR, etc.) should still import what Haven does recognize.
+// rejected — an export with extra app-specific columns (Todoist's AUTHOR,
+// etc.) should still import what Haven does recognize.
 export function parseCSVToTasks(text) {
   const rows = parseCSV(text);
   if (rows.length === 0) return [];
   const headers = rows[0].map(normalizeHeaderKey);
   const fieldMap = headers.map((h) => HEADER_ALIASES[h] || null);
+
+  if (isTodoistExport(headers)) {
+    // Keep TYPE/INDENT's raw column positions alongside the aliased field map, without polluting
+    // HEADER_ALIASES with columns no other app's export uses this same way.
+    const todoistFieldMap = headers.map((h) => {
+      if (h === "type") return "__type";
+      if (h === "indent") return "__indent";
+      return HEADER_ALIASES[h] || null;
+    });
+    return parseTodoistCSV(rows, todoistFieldMap);
+  }
 
   const tasks = [];
   for (let i = 1; i < rows.length; i++) {

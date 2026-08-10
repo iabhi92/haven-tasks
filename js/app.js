@@ -1621,7 +1621,9 @@ async function importTasksFromCSV(file) {
   const created = items.map((row) => ({
     id: uuid(),
     ...row,
-    subtasks: [],
+    // Only default to empty — a Todoist export's own rows can already carry real subtasks
+    // (parseTodoistCSV()'s indent-based nesting), which this must not stomp on.
+    subtasks: row.subtasks || [],
     recurrence: null,
     order: nextOrder(row.status || "todo"),
     createdAt: now(),
@@ -1633,7 +1635,16 @@ async function importTasksFromCSV(file) {
   for (const task of created) await persistTask(task, "create");
 
   const skippedNote = rows.length > MAX_IMPORT_RECORDS ? ` (file had ${rows.length} rows, only the first ${MAX_IMPORT_RECORDS} were read)` : "";
-  showInfoToast(`Import done: ${created.length} tasks added from CSV${skippedNote}.`);
+  // A Todoist export's own sections become distinct Haven projects (parseTodoistCSV()) — without
+  // calling that out, tasks landing outside the currently open project look like they vanished,
+  // since the board only ever shows one project at a time.
+  const importedProjects = [...new Set(created.map((t) => t.project || "Inbox"))];
+  const projectNote = importedProjects.length > 1
+    ? ` Across ${importedProjects.length} projects (${importedProjects.join(", ")}) — use the project switcher to see them all.`
+    : importedProjects[0] && importedProjects[0] !== activeProject
+      ? ` Into "${importedProjects[0]}" — use the project switcher to see them.`
+      : "";
+  showInfoToast(`Import done: ${created.length} tasks added from CSV${skippedNote}.${projectNote}`);
 }
 
 // Merge, not overwrite: an imported task with an id that already exists

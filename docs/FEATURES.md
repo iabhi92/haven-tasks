@@ -338,10 +338,20 @@ data."*
 - [x] Import from other task apps — Med. Shipped as CSV import
       (js/csv.js) with alias-based column mapping (Title/Content/Task,
       Due/Date/Deadline, Priority, Tags/Labels, etc.) covering common
-      Todoist/TickTick/generic spreadsheet export shapes. **Best-effort
-      aliasing, not a maintained per-app integration** — export schemas
-      vary and change without notice; unrecognized columns are silently
-      ignored rather than rejecting the whole file.
+      generic spreadsheet export shapes, plus a **dedicated Todoist parser**
+      (not just aliasing) that correctly handles Todoist's real export shape
+      — `TYPE=section/task/note` rows and `INDENT`-based sub-task nesting,
+      which generic column-aliasing alone would have silently mangled into
+      bogus tasks for section headers and notes. This was a real, verified
+      gap (confirmed by testing a realistic Todoist export before fixing
+      it), not a hypothetical one. Notion needed no dedicated path — its
+      exports are already standard flat CSVs the generic aliasing handles
+      correctly, verified against a realistic constructed sample.
+      **Best-effort aliasing, not a maintained per-app integration** for
+      anything other than Todoist's now-explicitly-handled shape — export
+      schemas vary and change without notice; unrecognized columns are
+      silently ignored rather than rejecting the whole file. See
+      docs/ARCHITECTURE.md "CSV import" for the Todoist-specific mechanism.
 - [x] Time-tracking + Pomodoro per task — Low. Shipped: a 25-minute
       countdown timer scoped to whichever task's edit modal is open,
       accumulating into a running `timeSpentSeconds` total that persists

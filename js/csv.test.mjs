@@ -85,6 +85,74 @@ await test("11. status aliases map completed/done/yes to Haven's 'done'", async 
   assert.equal(tasks[1].status, "todo");
 });
 
+// ---- Real Todoist export shape: TYPE=section/task/note rows, INDENT-based nesting ----
+// Based on Todoist's documented CSV export columns: TYPE,CONTENT,PRIORITY,INDENT,AUTHOR,
+// RESPONSIBLE,DATE,DATE_LANG,TIMEZONE. A section row is a project divider, not a task; a note
+// row is a comment on the task above it; INDENT > 1 is a sub-task of the nearest task above it.
+
+const TODOIST_CSV = [
+  "TYPE,CONTENT,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE",
+  "section,Groceries,,,,,,,",
+  "task,Buy milk,4,1,,,2026-08-20,en,",
+  "task,2% milk,1,2,,,,,",
+  "note,Get the organic kind,,,,,,,",
+  "task,Buy eggs,1,1,,,,,",
+  "section,Errands,,,,,,,",
+  "task,Pick up dry cleaning,2,1,,,,,",
+].join("\n");
+
+await test("12. Todoist section rows become the task's project, not a task themselves", async () => {
+  const tasks = parseCSVToTasks(TODOIST_CSV);
+  assert.equal(tasks.some((t) => t.title === "Groceries" || t.title === "Errands"), false);
+  assert.equal(tasks.find((t) => t.title === "Buy milk").project, "Groceries");
+  assert.equal(tasks.find((t) => t.title === "Pick up dry cleaning").project, "Errands");
+});
+
+await test("13. Todoist note rows fold into the preceding task's notes, not a separate task", async () => {
+  const tasks = parseCSVToTasks(TODOIST_CSV);
+  assert.equal(tasks.some((t) => t.title === "Get the organic kind"), false);
+  assert.equal(tasks.find((t) => t.title === "Buy milk").notes, "Get the organic kind");
+});
+
+await test("14. Todoist INDENT > 1 becomes a Haven subtask, not a separate top-level task", async () => {
+  const tasks = parseCSVToTasks(TODOIST_CSV);
+  assert.equal(tasks.some((t) => t.title === "2% milk"), false);
+  const buyMilk = tasks.find((t) => t.title === "Buy milk");
+  assert.equal(buyMilk.subtasks.length, 1);
+  assert.equal(buyMilk.subtasks[0].title, "2% milk");
+  assert.equal(buyMilk.subtasks[0].done, false);
+});
+
+await test("15. Todoist's inverted numeric priority (4=highest) still maps correctly", async () => {
+  const tasks = parseCSVToTasks(TODOIST_CSV);
+  assert.equal(tasks.find((t) => t.title === "Buy milk").priority, "high");
+  assert.equal(tasks.find((t) => t.title === "Buy eggs").priority, "low");
+});
+
+await test("16. Todoist export produces exactly the 3 real top-level tasks, not 7 rows' worth", async () => {
+  const tasks = parseCSVToTasks(TODOIST_CSV);
+  assert.equal(tasks.length, 3);
+});
+
+// ---- Realistic Notion database export: standard flat CSV, checkbox/select-style values ----
+const NOTION_CSV = [
+  'Name,Status,Due Date,Priority,Tags',
+  'Write proposal,Not started,2026-08-15,High,"Work, Urgent"',
+  'Buy birthday gift,Done,,Low,Personal',
+].join("\n");
+
+await test("17. a realistic Notion export maps through the generic aliaser correctly", async () => {
+  const tasks = parseCSVToTasks(NOTION_CSV);
+  assert.equal(tasks.length, 2);
+  const proposal = tasks.find((t) => t.title === "Write proposal");
+  assert.equal(proposal.status, "todo"); // "Not started" isn't a done/in-progress alias
+  assert.equal(proposal.dueDate, "2026-08-15");
+  assert.equal(proposal.priority, "high");
+  assert.deepEqual(proposal.tags, ["Work", "Urgent"]);
+  const gift = tasks.find((t) => t.title === "Buy birthday gift");
+  assert.equal(gift.status, "done");
+});
+
 // ---- report ----
 let allPassed = true;
 for (const r of results) {
