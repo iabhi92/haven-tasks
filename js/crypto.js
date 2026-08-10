@@ -466,6 +466,65 @@ export async function sha256Hex(dataBytes) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// ---------- Merkle tree (selective-disclosure inclusion proofs, docs/ARCHITECTURE.md
+// "Selective Merkle-inclusion proofs") ----------
+// A minimal, generic Merkle tree over an ordered list of pre-computed leaf hashes (hex strings) —
+// proves one entry is included among a set without revealing any of the others. Deliberately just
+// repeated SHA-256, not a new dependency or a novel scheme: this is the same well-understood
+// primitive Bitcoin/Certificate Transparency use, not something invented for this project.
+
+async function merkleParentHash(leftHex, rightHex) {
+  return sha256Hex(new TextEncoder().encode(leftHex + rightHex));
+}
+
+// Odd layers duplicate the last node rather than promoting it unchanged — the standard convention
+// (same one Bitcoin's Merkle trees use) — so every non-root layer has a well-defined sibling for
+// every node, keeping proof generation and verification symmetric.
+export async function buildMerkleLayers(leafHashes) {
+  if (leafHashes.length === 0) return [[]];
+  const layers = [leafHashes];
+  let current = leafHashes;
+  while (current.length > 1) {
+    const next = [];
+    for (let i = 0; i < current.length; i += 2) {
+      const left = current[i];
+      const right = i + 1 < current.length ? current[i + 1] : current[i];
+      next.push(await merkleParentHash(left, right));
+    }
+    layers.push(next);
+    current = next;
+  }
+  return layers;
+}
+
+export function merkleRoot(layers) {
+  return layers[layers.length - 1][0];
+}
+
+// The sibling hash at each layer from leaf to root, plus which side it's on — exactly what
+// verifyMerkleProof() needs to recompute the root from a single leaf, without seeing any other leaf.
+export function getMerkleProof(layers, leafIndex) {
+  const proof = [];
+  let index = leafIndex;
+  for (let layer = 0; layer < layers.length - 1; layer++) {
+    const currentLayer = layers[layer];
+    const isRightNode = index % 2 === 1;
+    const siblingIndex = isRightNode ? index - 1 : index + 1;
+    const sibling = siblingIndex < currentLayer.length ? currentLayer[siblingIndex] : currentLayer[index];
+    proof.push({ hash: sibling, position: isRightNode ? "left" : "right" });
+    index = Math.floor(index / 2);
+  }
+  return proof;
+}
+
+export async function verifyMerkleProof(leafHash, proof, root) {
+  let hash = leafHash;
+  for (const step of proof) {
+    hash = step.position === "left" ? await merkleParentHash(step.hash, hash) : await merkleParentHash(hash, step.hash);
+  }
+  return hash === root;
+}
+
 // ---------- time-lock puzzle (Layer 3) ----------
 // A real Rivest-Shamir-Wagner-style repeated-squaring puzzle, not a clock
 // check — see docs/ARCHITECTURE.md "Time-locked tasks" for why this app's

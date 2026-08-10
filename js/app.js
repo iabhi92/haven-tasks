@@ -119,7 +119,10 @@ import {
   wrapRawBytes,
   encryptBlob,
   decryptBlob,
-} from "./crypto.js?v=20260811a";
+  buildMerkleLayers,
+  merkleRoot,
+  getMerkleProof,
+} from "./crypto.js?v=20260811b";
 import {
   isWebAuthnAvailable,
   registerPasskey,
@@ -1672,6 +1675,30 @@ async function exportTasks() {
 // full history log can confirm this certificate wasn't backdated against it — a lighter-weight
 // property than a full Merkle-inclusion proof (that's real, separate future work), but a genuine
 // one: the chain tip itself only ever moves forward, appended-to, never rewritten.
+// Builds a Merkle tree over every entry currently in this vault's tamper-evident history log
+// (docs/ARCHITECTURE.md "Selective Merkle-inclusion proofs") and returns an inclusion proof for
+// the most recent entry belonging to `taskId` — proof that a specific entry is part of the signed
+// log without revealing any other task's entries, the log's genuine size, or any entry's content.
+// Two claims, not cryptographically fused into one: this proves chain *inclusion*; it's the
+// envelope's own signature (below) that vouches for the task fields shown alongside it. Returns
+// null if the task has no history entry yet (e.g. history logging was off when it was created).
+async function buildTaskMerkleProof(taskId) {
+  const allEntries = await getAllHistoryEntries();
+  const entryIndex = allEntries.map((e) => e.taskId).lastIndexOf(taskId);
+  if (entryIndex === -1) return null;
+
+  const leafHashes = await Promise.all(allEntries.map((e) => historyEntryHash(e)));
+  const layers = await buildMerkleLayers(leafHashes);
+  return {
+    root: merkleRoot(layers),
+    leafHash: leafHashes[entryIndex],
+    leafCount: leafHashes.length,
+    proof: getMerkleProof(layers, entryIndex),
+    entryOp: allEntries[entryIndex].op,
+    entryTimestamp: allEntries[entryIndex].timestamp,
+  };
+}
+
 async function exportTaskCertificate(task) {
   if (!historySigningKey) {
     showInfoToast("No signing identity is active yet — try again after unlocking normally.");
@@ -1682,6 +1709,7 @@ async function exportTaskCertificate(task) {
     kind: "task-certificate",
     exportedAt: now(),
     historyChainTip,
+    merkleProof: await buildTaskMerkleProof(task.id),
     task: {
       id: task.id,
       title: task.title,

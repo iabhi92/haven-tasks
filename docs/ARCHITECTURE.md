@@ -1543,28 +1543,60 @@ that can sit on a USB drive or in an email attachment for years.
   What this does guarantee: a backup re-imported on the *same* device/vault that produced it, or
   compared byte-for-byte against a copy known to be untouched, is provably unaltered.
 
-## 5e-2. Redacted task certificates (Layer 2)
+## 5e-2. Redacted task certificates + selective Merkle-inclusion proofs (Layer 2)
 
 A narrower sibling of §5e's full signed backup: `exportTaskCertificate()` in `js/app.js` signs one
 task, not the whole list — "prove this specific task existed with this content" without handing
 over everything else in the vault. Same hybrid Ed25519 + post-quantum signing machinery as
 `exportTasks()`, same envelope shape (`version`, `signature`, `publicKey`, and the PQ fields when a
-PQ identity is active), just a smaller `task` object in place of a `tasks` array — and one addition
-neither the full export nor a history entry alone provides: `historyChainTip`, the signed history
-log's current tip hash (§5c) at export time, giving a verifier who also holds (or later obtains)
-the full log a way to confirm the certificate wasn't backdated against it. This is a real but
-lighter-weight property than a full Merkle-inclusion proof would give — it doesn't prove *this
-task's own history entry* is in the chain, only that the chain had reached this tip by export time.
-A genuine inclusion proof is real, separate follow-up work, not represented as already done here.
+PQ identity is active), just a smaller `task` object in place of a `tasks` array.
+
+**Two separate claims, deliberately not fused into one:**
+1. **The signature** vouches for the task fields and proof metadata shown, as a package — standard
+   Ed25519 (+ PQ when active) over the whole envelope, same as every other signed export in this
+   app.
+2. **A Merkle-inclusion proof** (`buildTaskMerkleProof()`) vouches for something the signature
+   alone can't: that a specific entry in the vault's tamper-evident history log (§5c) — this task's
+   most recent one — is genuinely part of that log, *without revealing any other task's entry*.
+   `crypto.js`'s `buildMerkleLayers()`/`getMerkleProof()`/`verifyMerkleProof()` build a standard
+   Merkle tree (the same primitive Bitcoin/Certificate Transparency use — SHA-256, odd-layer nodes
+   duplicated, no novel construction) over every entry's `historyEntryHash()` currently in the log,
+   and the certificate carries only the target leaf plus its O(log n) sibling path to the root —
+   `leafCount` entries exist, but a verifier only ever sees the one that's theirs. This supersedes
+   the earlier, weaker "just embed the chain tip hash" approach this section previously described:
+   a chain tip alone proves the *log* had reached some point, not that *this task's* entry is
+   actually in it — the Merkle proof proves the stronger, more specific claim.
 
 - **Same selective-disclosure axis as the fragment-key share links (§5b): title, not notes.** The
   certificate includes `id`, `title`, `status`, `priority`, `dueDate`, `project`, `updatedAt` —
   never `notes`, the field most likely to contain the sensitive part of a task. Reuses the exact
   disclosure boundary already established for share links rather than inventing a new one.
-- **Verified for real:** a task with a deliberately sensitive note ("this is a secret note...")
-  exported a certificate confirmed, by direct inspection of the downloaded file, to include the
-  title and exclude the `notes` field entirely — and to carry a valid `signature`/`publicKey` and a
-  non-empty `historyChainTip`.
+- **Independently verifiable without the Haven app at all**: `scripts/verify-task-certificate.mjs`
+  is a single, dependency-free Node file (Node's own Web Crypto for Ed25519 + SHA-256, nothing
+  vendored) a recipient can read top to bottom and run themselves —
+  `node scripts/verify-task-certificate.mjs <file>` — rather than being asked to trust the app that
+  produced the file. Reports the Ed25519 signature and Merkle proof as separate PASS/FAIL lines,
+  matching the "two separate claims" framing above; the post-quantum signature is reported as
+  present/absent but not deep-verified by this script (would require vendoring
+  `noble-post-quantum` into a script meant to stay a single readable file — verify that part via
+  the Haven app itself if it matters for a given use case).
+- **Honest scope limit:** the Merkle proof establishes chain inclusion; it does not, by itself,
+  cryptographically bind the certificate's plaintext `task` fields to that specific log entry's
+  `payloadHash` (which covers the task's *ciphertext*, not plaintext a third party could never
+  re-derive without the vault's DEK anyway) — that binding exists only through both being part of
+  the same signed envelope, i.e. through claim 1, not an independent property of claim 2. Said
+  plainly: don't read "the Merkle proof verified" as "therefore the title is correct" — that's what
+  the signature is for. The two checks are complementary, not redundant, and the verifier script's
+  output keeps them visibly separate rather than collapsing them into one boolean.
+- **Verified for real:** a task with a deliberately sensitive note, alongside three sibling tasks
+  (so the log had real neighbors to keep hidden, not a trivially small tree), produced a
+  certificate whose Merkle proof carried only 3 sibling hashes for a 5-entry log — confirmed, by
+  direct inspection, to exclude the `notes` field and to pass both checks in the standalone
+  verifier. Then three real tamper scenarios against the *same* certificate, each independently
+  confirmed rejected by the verifier: an edited task title (signature check fails, since the title
+  is signed content), a corrupted Merkle leaf hash (proof check fails — doesn't recompute to the
+  claimed root), and a forged/garbage signature (signature check fails). All three produced the
+  correct failure mode, not a false pass.
 
 ## 5f. Public dead-man's switch (Layer 2)
 
