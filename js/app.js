@@ -262,6 +262,8 @@ let historyChainTip = "GENESIS";
 // a repeat export, same discipline as the main `dek`.
 const ephemeralTaskKeys = new Map(); // taskId -> CryptoKey
 let ephemeralSweepInterval = null;
+let autoSyncTimer = null;
+let autoSyncInFlight = false;
 
 // ---------- local automation rules (Layer 3) ----------
 // Runs entirely client-side against the already-decrypted in-memory task
@@ -1799,12 +1801,63 @@ async function syncNow() {
 
   if (toRepush.length) await pushRecords(config.server, config.token, toRepush);
 
-  localStorage.setItem(SYNC_LAST_KEY, String(now()));
+  // A real race caught by testing under fast auto-sync polling, not a guess: the cursor must
+  // advance only as far as the newest updatedAt actually pulled, never to wall-clock now(). The
+  // server filters strictly by `updated_at > since` (server/storage.py's get_records_since) — if
+  // `since` jumped to now() regardless of what was pulled, a record another device created but
+  // hasn't pushed yet (its updatedAt is a moment in this device's past, but nobody has ever
+  // fetched it from the server) would permanently read as "older than since" the instant this
+  // device's own clock passes it, and would never be requested again even once the other device
+  // does push it. This is the general form of the exact bug mergeTaskFields()'s docstring
+  // describes for a re-pushed merge's own timestamp — same root cause, different code path,
+  // here made likely rather than rare once syncing runs on a fast timer instead of a human
+  // clicking a button every so often.
+  const newWatermark = remoteRecords.reduce((max, r) => Math.max(max, r.updatedAt), since);
+  localStorage.setItem(SYNC_LAST_KEY, String(newWatermark));
 
   tasks = await loadAndDecryptTasks();
   render();
 
   return { pushed: syncableRecords.length, pulled: remoteRecords.length, merged: toRepush.length };
+}
+
+// Background polling so a second device's change shows up here without anyone finding and
+// clicking "Sync now" — syncNow() itself was always manual-trigger-only before this. Silent by
+// design: a background tick failing (offline, a server hiccup) shouldn't interrupt anyone who
+// isn't actively looking at a sync error; the manual button still surfaces real errors when
+// someone is. Paused while the tab is hidden — no point syncing a page nobody's looking at — and
+// re-ticks immediately on becoming visible again rather than waiting out the rest of the interval.
+const AUTO_SYNC_INTERVAL_MS = 4000;
+
+async function autoSyncTick() {
+  if (autoSyncInFlight || document.visibilityState !== "visible") return;
+  if (activeVaultIsDecoy || !getSyncConfig()) return;
+  autoSyncInFlight = true;
+  try {
+    await syncNow();
+    if (view === "reveal") await refreshDbDump();
+  } catch {
+    // See module comment above — intentionally silent.
+  } finally {
+    autoSyncInFlight = false;
+  }
+}
+
+function onAutoSyncVisibilityChange() {
+  if (document.visibilityState === "visible") autoSyncTick();
+}
+
+function startAutoSync() {
+  if (autoSyncTimer) return;
+  autoSyncTimer = setInterval(autoSyncTick, AUTO_SYNC_INTERVAL_MS);
+  document.addEventListener("visibilitychange", onAutoSyncVisibilityChange);
+}
+
+function stopAutoSync() {
+  if (!autoSyncTimer) return;
+  clearInterval(autoSyncTimer);
+  autoSyncTimer = null;
+  document.removeEventListener("visibilitychange", onAutoSyncVisibilityChange);
 }
 
 function refreshSyncModalState() {
@@ -2283,6 +2336,7 @@ async function createSyncBucket(server, setupError, statusEl) {
     });
     setSyncConfig(server, token);
     localStorage.setItem(SYNC_LAST_KEY, "0");
+    startAutoSync();
     refreshSyncModalState();
     const result = await syncNow();
     statusEl.textContent = `Synced. Pushed ${result.pushed}, pulled ${result.pulled}.`;
@@ -2355,6 +2409,7 @@ async function joinSyncBucket(server, token, setupError, statusEl) {
   dek = await importDek(sharedDekBytes);
   setSyncConfig(server, token);
   localStorage.setItem(SYNC_LAST_KEY, "0");
+  startAutoSync();
 
   refreshSyncModalState();
   statusEl.textContent = "Syncing…";
@@ -2397,6 +2452,7 @@ function wireSyncModal() {
 
   document.getElementById("disableSyncBtn").addEventListener("click", () => {
     clearSyncConfig();
+    stopAutoSync();
     refreshSyncModalState();
   });
 
@@ -3170,18 +3226,23 @@ async function updateReveal(title) {
   );
 }
 
+// The real, currently-stored records — exactly what DevTools would show, just surfaced inside
+// the app itself instead of making the user go find it. Also called automatically after every
+// auto-sync tick (see autoSyncTick()) so a second device's change becomes visible ciphertext here
+// within a few seconds, not only on a manual click — the point of leaving this open during a
+// live demo is watching it actually change, not taking a single static snapshot of it.
+async function refreshDbDump() {
+  const records = await getAllTasks();
+  document.getElementById("dbDumpOutput").textContent = JSON.stringify(records, null, 2);
+}
+
 function wireRevealView() {
   const input = document.getElementById("revealDemoInput");
   input.addEventListener("input", () => {
     if (dek) updateReveal(input.value);
   });
 
-  document.getElementById("dumpDbBtn").addEventListener("click", async () => {
-    // The real, currently-stored records — exactly what DevTools would show,
-    // just surfaced inside the app itself instead of making the user go find it.
-    const records = await getAllTasks();
-    document.getElementById("dbDumpOutput").textContent = JSON.stringify(records, null, 2);
-  });
+  document.getElementById("dumpDbBtn").addEventListener("click", refreshDbDump);
 }
 
 function wireHistoryView() {
@@ -3986,6 +4047,7 @@ function getCmdkItems() {
         setView(view);
         render();
         updateReveal(document.getElementById("revealDemoInput").value);
+        refreshDbDump();
       },
     },
     {
@@ -4099,6 +4161,8 @@ async function afterUnlock() {
   // rather than left running against a null `dek`.
   if (ephemeralSweepInterval) clearInterval(ephemeralSweepInterval);
   ephemeralSweepInterval = setInterval(() => scheduleEphemeralSweep(), 20000);
+
+  if (getSyncConfig()) startAutoSync();
 }
 
 // Shared by both the direct "enter your recovery code" form and the
@@ -4509,6 +4573,7 @@ function wireLockButton() {
       clearInterval(ephemeralSweepInterval);
       ephemeralSweepInterval = null;
     }
+    stopAutoSync();
     // Reset to the main vault so the *next* unlock attempt always tries the
     // real passphrase first again — nothing should remember which vault was
     // open last across a lock.

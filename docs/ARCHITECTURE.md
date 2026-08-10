@@ -778,6 +778,46 @@ plaintext.
   row server-side (`iv`/`ciphertext` set to `NULL` on the same row, not just a flag toggled) — see
   `server/storage.py`'s `upsert_records`.
 
+## 5-2. Background auto-sync
+
+`syncNow()` itself (§5) was manual-trigger-only from Phase 6 onward — it only ever ran from three
+places: enabling sync, joining sync, and a "Sync now" button. Nothing polled in the background,
+so a second device's change only appeared after someone noticed and clicked. `startAutoSync()` /
+`autoSyncTick()` (`js/app.js`) add a background poll (`AUTO_SYNC_INTERVAL_MS = 4000`) that calls
+the exact same `syncNow()`, no separate code path.
+
+- **Started on unlock if sync is already configured, and immediately on enabling/joining sync** —
+  stopped on lock and on disabling sync. Same `setInterval`-on-unlock,
+  `clearInterval`-on-lock lifecycle `ephemeralSweepInterval` already used, for consistency.
+- **Paused while the tab is hidden** (`document.visibilityState`), with an immediate catch-up tick
+  on becoming visible again rather than waiting out the rest of the interval — no point polling a
+  page nobody's looking at, and no point making someone wait when they come back to it.
+- **Silent on failure, deliberately.** A background tick failing (offline, a server hiccup)
+  shouldn't interrupt anyone who isn't actively watching a sync status line; the manual button
+  still surfaces real errors to someone who is.
+- **A real race this surfaced, not a hypothetical one.** `syncNow()` used to advance its pull
+  cursor (`SYNC_LAST_KEY`) to wall-clock `now()` after every call, regardless of what was actually
+  pulled. The server's pull filter is strictly `updated_at > since` (`server/storage.py`). Under
+  manual, human-paced syncing this was rarely reachable; under a 4-second poll it became a fast,
+  repeatable failure: if Device A creates a record and Device B's *own* next tick runs before
+  Device A has pushed it, B's cursor advances to "now" anyway on that no-op tick — and because
+  A's record keeps its original creation timestamp when it's eventually pushed, that timestamp is
+  now permanently in B's past. B would never pull that record, on any future tick, because
+  `since` only ever moves forward. This is the general form of a bug already caught once before
+  in a narrower spot — see `mergeTaskFields()`'s own docstring for the first occurrence, on a
+  re-pushed merge's timestamp specifically. **Fix:** the cursor now advances only to the newest
+  `updatedAt` actually present among that call's pulled records (`Math.max` over `remoteRecords`,
+  never wall-clock time) — a device that pulled nothing leaves its cursor exactly where it was,
+  so a not-yet-pushed record from another device can still be found on a later tick, however long
+  that takes. Verified with a real two-device Playwright run: a task added on one device with
+  neither device ever touching "Sync now" appeared on the other within one poll interval,
+  repeatably, after the fix — and reliably failed to appear at all before it.
+- **The reveal view (§6) refreshes with it.** `refreshDbDump()` — the "how your data is protected"
+  panel's raw-ciphertext dump — now populates automatically on opening that view (previously
+  needed a manual click) and refreshes again after every auto-sync tick while that view is open,
+  so leaving it open during a live demo shows real, changing ciphertext as a second device's
+  edits arrive, not a single static snapshot.
+
 ## 5a-2. Field-group CRDT merge (Layer 2)
 
 Closes a previously-documented honest gap (this doc used to say "CRDT-based merge is later" —

@@ -27,8 +27,14 @@
 - **Defense:** the server only ever holds ciphertext + non-secret metadata. Keys are derived
   on-device and never transmitted. The operator cannot decrypt tasks.
 - **Residual risk:** the server learns metadata — record counts, ciphertext sizes, update timing,
-  sync-token activity. A malicious *frontend* host (a different party than the sync server in this
-  architecture, but the same class of risk) could also serve **malicious frontend code** (see A5).
+  sync-token activity. Background auto-sync (docs/ARCHITECTURE.md §5-2) makes this timing signal
+  more precise than before: a request roughly every 4 seconds while a device is unlocked and the
+  tab is visible, rather than only whenever a human happened to click "Sync now" — an operator can
+  now infer "this device currently has the app open and focused" far more exactly than the old
+  human-paced, irregular request pattern allowed. It still learns nothing about *what* changed,
+  only *that* a device is active. A malicious *frontend* host (a different party than the sync
+  server in this architecture, but the same class of risk) could also serve **malicious frontend
+  code** (see A5).
   This is the most important honest limitation: E2EE in a web app trusts the code delivery.
   Mitigations: self-hosting, SRI-pinned entry scripts/stylesheets and a published integrity
   manifest for everything else (docs/ARCHITECTURE.md §5d — shipped, not just a Mitigations bullet
