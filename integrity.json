@@ -4,10 +4,10 @@
   "files": {
     "css/article.css": "sha384-p11yvDOg5HhvMByrXd0QayQO2eWwyAUg8Zdnxm1ZAwGPgj17EgfPogJ0DtyP7Edp",
     "css/landing.css": "sha384-lcYyZ4vWQFRESzbgL2o9lSml9hKWRuAPpmPGKDfcwr6qOGNvYuQdMc9kToLDWuiy",
-    "css/style.css": "sha384-4AX/QjiyY7kt36BhmV+SkXkeigyfILbSdmNeon56bw700rLI3luG9sOmIuRGnFuE",
+    "css/style.css": "sha384-ScqaK8mLlOW83plD6oP+Njf1eZfVDmWvndzxynfmuED0UcvimqgoJi8oNVacP9Xo",
     "js/ai-worker.js": "sha384-/YIxQ0bbhn/L9T+3a1zjDHNKYoUF//6/sqeOPtfHZbS4KumG/+oNZJbgUBKzM0D3",
     "js/ai.js": "sha384-/FFMPDoVZR95yXqz6RN/kwCTLUbGmJRkjzVV0CsMjKCs/FB7StVeDh2cPHAevuHR",
-    "js/app.js": "sha384-VZLPOt8iyq2rsWlimPHx9im9yMQJtowVc9r3sKl0T5PVOojITP6/1KHaNsY7RUK6",
+    "js/app.js": "sha384-3Z3toSOjnP2w1aMoBgL711EPfg60cQiFYo9dIEwM6C7tCCrmTw8mAM8w11ArsMu5",
     "js/automation.js": "sha384-0TFNgP5DNFkvqwOOqzmTxHc7RFPUXWNhSDPGKvyc1abTfmx72NOJNPiWXqR6418K",
     "js/automation.test.mjs": "sha384-Hhw+AFYMjQ0leAdmxKXWqA214QIvXSL6PbIozkYG9lbClx1TukEl+7lhgSmS9zv5",
     "js/crypto.js": "sha384-1qKne4YuVvnKbtks6YzZh/J3JaeD9ePRIO+YcsOo3DYGXMUY5d5tvNyAx+CCUTO3",

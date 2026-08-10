@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260810d" integrity="sha384-4AX/QjiyY7kt36BhmV+SkXkeigyfILbSdmNeon56bw700rLI3luG9sOmIuRGnFuE" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260810e" integrity="sha384-ScqaK8mLlOW83plD6oP+Njf1eZfVDmWvndzxynfmuED0UcvimqgoJi8oNVacP9Xo" crossorigin="anonymous">
 </head>
 <body>
 
@@ -831,6 +831,20 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="securityChecklistModal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="securityChecklistModalTitle">
+    <h2 id="securityChecklistModalTitle">Vault security checklist</h2>
+    <p class="modal-help">
+      A plain read of what's actually configured on this vault right now — not a score, and
+      nothing here is inferred or assumed.
+    </p>
+    <div id="securityChecklistList"></div>
+    <div class="modal-actions-right">
+      <button type="button" class="btn btn-primary" id="securityChecklistDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="addModal" hidden>
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
     <h2 id="addModalTitle">Add task</h2>
@@ -1260,6 +1274,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260810d" integrity="sha384-VZLPOt8iyq2rsWlimPHx9im9yMQJtowVc9r3sKl0T5PVOojITP6/1KHaNsY7RUK6" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260810e" integrity="sha384-3Z3toSOjnP2w1aMoBgL711EPfg60cQiFYo9dIEwM6C7tCCrmTw8mAM8w11ArsMu5" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

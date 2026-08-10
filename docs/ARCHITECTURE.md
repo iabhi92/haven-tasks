@@ -670,6 +670,34 @@ the user, and switchable at will without leaving the app.
   implemented here) and aren't included in the fragment-key share-link flow (§5b). A compartment
   currently lives and dies on the one device that created it, same as a note does.
 
+## 4j-2. Vault security-posture checklist (Layer 2)
+
+A command-palette modal ("Security checklist") that reads real, already-persisted state and
+reports it plainly — no score, no fabricated signal for anything the app can't actually verify.
+
+- **Every item reads state that already exists for another reason** — nothing was added just to
+  populate this screen, except two small persistence points noted below:
+  - *Recovery code saved*: `keyring.recoveryCodeConfirmedAt`, written the moment the setup flow's
+    "Continue to Haven" button is clicked (gated on the existing "I've saved this" checkbox) —
+    previously that checkbox only unblocked the button and was discarded, this persists the
+    timestamp. Vaults created before this shipped simply have no value here, honestly reported as
+    "not recorded" rather than assumed false.
+  - *Recent backup exported*: a single `localStorage` timestamp (`haven-last-backup-at`) written at
+    the end of `exportTasks()`, checked against a 30-day window.
+  - *Passkey unlock*, *decoy vault*, *synced to another device* read `keyring.webauthnCredentialId`,
+    `keyring.saltDecoy`, and `getSyncConfig()` respectively — all pre-existing fields this feature
+    only reads, never writes.
+- **Each unmet item's "Set up" button closes this modal and opens the real modal for that
+  feature** (`openPasskeyModal`, `openDecoyVaultModal`, `openSyncModal`) rather than duplicating
+  any setup UI — this screen is a dashboard over existing flows, not a new one.
+- **Deliberately excluded, not an oversight:** passphrase strength (the passphrase itself is never
+  retained anywhere after the KEK is derived from it at setup — there is nothing left to grade
+  after the fact) and social recovery share distribution (the app generates and displays shares
+  once; whether they were actually given to k-of-n trusted people happens entirely outside the
+  app's visibility). A checkmark for either would be reporting something the app doesn't actually
+  know, which is the specific failure mode this feature exists to avoid — see the "real bytes, not
+  a simulated hacker aesthetic" principle in §6.
+
 ## 4k. Time-locked tasks (Layer 3)
 
 A task whose content is genuinely undecryptable until real, sequential computation has been

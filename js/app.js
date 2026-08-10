@@ -326,6 +326,7 @@ let shareModalCreated = null;
 const SYNC_SERVER_KEY = "haven-sync-server";
 const SYNC_TOKEN_KEY = "haven-sync-token";
 const SYNC_LAST_KEY = "haven-sync-last";
+const LAST_BACKUP_AT_KEY = "haven-last-backup-at";
 
 // Share links relay through a server too (someone has to host the ciphertext
 // between sender and recipient), but unlike sync it needs no per-user setup:
@@ -1538,6 +1539,7 @@ async function exportTasks() {
   link.download = `haven-tasks-${stamp}.json`;
   link.click();
   URL.revokeObjectURL(url);
+  localStorage.setItem(LAST_BACKUP_AT_KEY, String(now()));
 }
 
 // exportTasks() writes plain JSON (the already-decrypted in-memory task
@@ -2609,6 +2611,7 @@ function wireSearch() {
       closeAddModal();
       closeCmdk();
       closeDeadManSwitchModal();
+      closeSecurityChecklistModal();
     }
   });
 }
@@ -3790,6 +3793,108 @@ function wireDeadManSwitchModal() {
   document.getElementById("dmsDoneBtn").addEventListener("click", () => closeDeadManSwitchModal());
 }
 
+// ---------- Vault security-posture checklist ----------
+// A plain read of what's actually configured, not a fabricated score. Every item here reads
+// real, persisted keyring/localStorage state; nothing is inferred. Deliberately excluded:
+// passphrase strength (never stored, by design — there's nothing to check after setup) and
+// social recovery distribution (the app hands out shares once and has no way to know whether
+// they were actually given to anyone). See docs/ARCHITECTURE.md "Vault security checklist".
+
+async function getSecurityChecklistItems() {
+  const keyring = await getKeyring();
+  const syncConfig = getSyncConfig();
+  const lastBackupAt = Number(localStorage.getItem(LAST_BACKUP_AT_KEY) || 0);
+  const backupRecent = lastBackupAt > 0 && now() - lastBackupAt < 30 * 24 * 60 * 60 * 1000;
+
+  return [
+    {
+      title: "Recovery code saved",
+      done: !!keyring.recoveryCodeConfirmedAt,
+      meta: keyring.recoveryCodeConfirmedAt
+        ? `Confirmed at setup, ${new Date(keyring.recoveryCodeConfirmedAt).toLocaleDateString()}.`
+        : "Not recorded — vaults created before this checklist shipped don't have this timestamp.",
+      action: null, // the code itself can't be re-shown after setup, by design
+    },
+    {
+      title: "Passkey unlock",
+      done: !!keyring.webauthnCredentialId,
+      meta: keyring.webauthnCredentialId
+        ? "A hardware or biometric passkey can unlock this vault."
+        : "Not set up — your passphrase is the only way in.",
+      action: keyring.webauthnCredentialId ? null : { label: "Set up", fn: openPasskeyModal },
+    },
+    {
+      title: "Decoy vault",
+      done: !!keyring.saltDecoy,
+      meta: keyring.saltDecoy
+        ? "A second passphrase opens a separate, plausible vault."
+        : "Not configured.",
+      action: keyring.saltDecoy ? null : { label: "Set up", fn: openDecoyVaultModal },
+    },
+    {
+      title: "Synced to another device",
+      done: !!syncConfig,
+      meta: syncConfig
+        ? `Syncing via ${syncConfig.server}.`
+        : "This vault only exists on this device — losing it loses everything.",
+      action: syncConfig ? null : { label: "Set up", fn: openSyncModal },
+    },
+    {
+      title: "Recent backup exported",
+      done: backupRecent,
+      meta: lastBackupAt > 0 ? `Last exported ${new Date(lastBackupAt).toLocaleDateString()}.` : "Never exported.",
+      action: { label: "Export now", fn: exportTasks },
+    },
+  ];
+}
+
+function renderSecurityChecklistRow(item) {
+  const row = el("div", "dms-switch-row");
+  const info = el("div", "dms-switch-row-info");
+  const titleRow = el("div", "security-check-title-row");
+  titleRow.appendChild(el("span", "security-check-icon" + (item.done ? " is-done" : ""), item.done ? "✓" : "○"));
+  titleRow.appendChild(el("span", "dms-switch-row-title", item.title));
+  info.appendChild(titleRow);
+  info.appendChild(el("span", "dms-switch-row-meta", item.meta));
+  row.appendChild(info);
+  if (item.action) {
+    const btn = el("button", "btn btn-ghost btn-sm", item.action.label);
+    btn.type = "button";
+    btn.addEventListener("click", () => {
+      closeSecurityChecklistModal();
+      item.action.fn();
+    });
+    row.appendChild(btn);
+  }
+  return row;
+}
+
+async function renderSecurityChecklist() {
+  const items = await getSecurityChecklistItems();
+  const container = document.getElementById("securityChecklistList");
+  container.innerHTML = "";
+  const doneCount = items.filter((i) => i.done).length;
+  container.appendChild(el("p", "modal-help", `${doneCount} of ${items.length} configured.`));
+  for (const item of items) container.appendChild(renderSecurityChecklistRow(item));
+}
+
+function openSecurityChecklistModal() {
+  renderSecurityChecklist();
+  document.getElementById("securityChecklistModal").hidden = false;
+}
+
+function closeSecurityChecklistModal() {
+  document.getElementById("securityChecklistModal").hidden = true;
+}
+
+function wireSecurityChecklistModal() {
+  const overlay = document.getElementById("securityChecklistModal");
+  document.getElementById("securityChecklistDoneBtn").addEventListener("click", () => closeSecurityChecklistModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeSecurityChecklistModal();
+  });
+}
+
 function wireDragAndDrop() {
   for (const status of STATUSES) {
     const col = document.getElementById(`col-${status}`);
@@ -3881,6 +3986,7 @@ function getCmdkItems() {
     { label: "Set up a decoy vault", action: openDecoyVaultModal },
     { label: "Automation rules", action: openAutomationModal },
     { label: "Dead-man's switch", action: openDeadManSwitchModal },
+    { label: "Security checklist", action: openSecurityChecklistModal },
   ];
 }
 
@@ -4163,7 +4269,7 @@ function wireLockScreen() {
   });
 
   recoveryContinueBtn.addEventListener("click", async () => {
-    await putKeyring(pendingKeyring);
+    await putKeyring({ ...pendingKeyring, recoveryCodeConfirmedAt: now() });
     dek = pendingDek;
     historySigningKey = pendingSigningKey;
     historySigningPublicKeyB64 = pendingSigningPublicKeyB64;
@@ -4423,6 +4529,7 @@ async function boot() {
   wireAddModal();
   wireShareModal();
   wireDeadManSwitchModal();
+  wireSecurityChecklistModal();
   wireDragAndDrop();
   wireCommandPalette();
   wireRevealView();

@@ -166,6 +166,15 @@ data."*
       passphrase). Compartments are openly listed, named by the user, and only available from the
       real main vault — the switcher is hidden entirely inside the decoy vault. See
       docs/ARCHITECTURE.md "Compartmentalised vaults".
+- [x] Vault security-posture checklist — Low · Signal: medium. Shipped: a command-palette modal
+      reading real, persisted state (recovery-code confirmation timestamp, passkey credential
+      presence, decoy vault presence, sync configuration, last-export timestamp) with a "Set up" /
+      "Export now" action wired straight into the existing modal for each unmet item. **Honest
+      scope limit, deliberate:** passphrase strength and social recovery share distribution are
+      *not* checklist items — the app never stores a passphrase after setup and has no way to know
+      whether social recovery shares were actually handed to anyone, so faking a checkmark for
+      either would be exactly the kind of fabricated trust signal this feature exists to avoid.
+      See docs/ARCHITECTURE.md "Vault security-posture checklist".
 
 ## Layer 3 — Private intelligence & crypto-novel (the "wait, a todo app does that?" tier)
 

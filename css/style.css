@@ -1942,6 +1942,9 @@ body { display: flex; }
 .dms-switch-row-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dms-switch-row-meta { font-size: 11px; color: var(--text-faint); }
 .dms-switch-empty { font-size: 13px; color: var(--text-faint); }
+.security-check-title-row { display: flex; align-items: center; gap: 8px; }
+.security-check-icon { font-size: 13px; color: var(--text-faint); width: 14px; text-align: center; }
+.security-check-icon.is-done { color: var(--success); font-weight: 700; }
 #shareError {
   color: var(--danger);
   min-height: 0;
