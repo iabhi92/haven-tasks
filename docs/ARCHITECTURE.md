@@ -1077,6 +1077,41 @@ that can sit on a USB drive or in an email attachment for years.
   What this does guarantee: a backup re-imported on the *same* device/vault that produced it, or
   compared byte-for-byte against a copy known to be untouched, is provably unaltered.
 
+## 5f. Public dead-man's switch (Layer 2)
+
+Combines §4k's time-lock puzzle with §5b's share-link relay into a disclosure link that needs no
+secret key at all — access is gated purely by computational hardness, so anyone holding the link
+can watch it unlock live, and no one (including whoever created it) can unlock it early.
+
+- **No fragment key, unlike every other share link.** `createDeadMansSwitch()` (`js/app.js`)
+  generates a fresh RSW time-lock puzzle (`createTimeLockPuzzle()`, §4k), derives an AES key from
+  its solution (`deriveTimeLockKey()`), and wraps a fresh content DEK with *that* — so the only
+  thing gating decryption is the puzzle itself. The pushed bundle
+  (`{n, squarings, wrappedContentKey, contentKeyWrapIv, iv, ciphertext}`) is opaque JSON in the
+  relay's existing iv/ciphertext fields, the same repurposing §5b's selective-disclosure feature
+  already relies on — no server-side change needed. The resulting URL carries only `?server=&id=`,
+  deliberately no `#fragment` — there is nothing secret left to put in one.
+- **Standalone viewer, no vault needed.** `deadmanswitch.html` / `js/deadmanswitch.js` is a
+  self-contained page (same pattern as `shared.html`) that pulls the bundle, solves the puzzle
+  client-side in yielding chunks (`stepTimeLockPuzzle()`, identical chunking to the private
+  time-locked task solver), then unwraps and decrypts — entirely in the recipient's own browser,
+  on their own CPU. Nothing is persisted: closing the tab loses solving progress, unlike a private
+  time-locked task's resumable IndexedDB progress, because there is no vault here to store it in.
+- **Cancellation reuses revocation, not a new mechanism.** `cancelDeadMansSwitch()` just calls the
+  same `deleteShare()` §5b's normal share links use — deleting the relay record before the puzzle
+  finishes is the entire "call it off" story. A small `localStorage` list
+  (`haven_dead_mans_switches`) tracks the creator's own outstanding switches for the modal's
+  bookkeeping UI; it holds only `{id, server, title, createdAt, expiresAt}`, never content or keys.
+- **Honest scope limit**, stated directly in the creation modal's copy: the wait requires a
+  browser tab actually running the whole time — the creator's, to prove no early solve is
+  possible; a visitor's, once it's time to unlock. There is no way to schedule a genuine
+  multi-day public disclosure without some tab staying open that long; the three preset durations
+  (`~10s demo`, `~2m`, `~10m`) reflect that constraint rather than a real dead-man's-switch use
+  case's actual timescale (days to weeks). A production version of this idea at real timescales
+  would need a server that resumes solving on the creator's behalf, which reintroduces exactly the
+  "does the server know the secret early" trust question this design otherwise avoids — deliberately
+  not attempted here.
+
 ## 6. The "You vs The Server" reveal
 
 Purely a rendering of data the app already has — no new crypto.

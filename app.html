@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260810a" integrity="sha384-T/Euzd9jziOhxapqFWMyD6x1JpQT8ZsRtnaaS6KplVlStcT8TPZjZpminNWxNk7A" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260810c" integrity="sha384-zCFib+Cht5i5qQK5HkVk9uBvjNkJxAtBwS6DrzhrbhHFzyNsAOCUwdpsvMNXHSOK" crossorigin="anonymous">
 </head>
 <body>
 
@@ -763,6 +763,74 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="deadManSwitchModal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="deadManSwitchModalTitle">
+    <h2 id="deadManSwitchModalTitle">Dead-man's switch</h2>
+    <p class="modal-help">
+      Publish something that stays genuinely unreadable, to anyone including you, until a real
+      time-lock puzzle finishes solving — not a countdown a server enforces, actual sequential
+      computation with no shortcut. Cancel it anytime before then; if you don't, anyone holding
+      the link can watch it unlock live.
+    </p>
+    <div id="dmsCreateSection">
+      <div class="field">
+        <label for="dmsTitle">Title</label>
+        <input type="text" id="dmsTitle" maxlength="200" placeholder="What this is about">
+      </div>
+      <div class="field">
+        <label for="dmsNotes">Content to disclose</label>
+        <textarea id="dmsNotes" rows="4" placeholder="What should become public if you don't cancel this"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="dmsDuration">Unlocks after</label>
+          <select id="dmsDuration">
+            <option value="demo">~10 seconds (demo)</option>
+            <option value="2m">~2 minutes</option>
+            <option value="10m" selected>~10 minutes</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="dmsExpiry">Link expires after</label>
+          <select id="dmsExpiry">
+            <option value="86400">1 day</option>
+            <option value="604800" selected>7 days</option>
+            <option value="2592000">30 days</option>
+          </select>
+        </div>
+      </div>
+      <p class="modal-help">
+        Honest limit: the wait above requires someone's browser tab actually running that whole
+        time (yours, to solve it early is impossible by design; a visitor's, once it's time).
+        There's no way to schedule a genuine multi-day disclosure without a tab open that long —
+        see the security page for why.
+      </p>
+      <p class="modal-help" id="dmsError" role="alert"></p>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-ghost" id="dmsCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="dmsCreateBtn">Create switch</button>
+      </div>
+    </div>
+    <div id="dmsAfterSection" hidden>
+      <div class="field">
+        <label for="dmsLinkOutput">Dead-man's switch link</label>
+        <input type="text" id="dmsLinkOutput" readonly>
+      </div>
+      <p class="modal-help">
+        Share this now. As long as you cancel it before it unlocks, nobody sees the content.
+      </p>
+      <div class="modal-actions-right">
+        <button type="button" class="btn btn-ghost" id="dmsCopyBtn">Copy link</button>
+        <button type="button" class="btn btn-primary" id="dmsDoneBtn">Done</button>
+      </div>
+    </div>
+    <div id="dmsListSection">
+      <h3 class="modal-subheading">Your active switches</h3>
+      <div id="dmsList"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="addModal" hidden>
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
     <h2 id="addModalTitle">Add task</h2>
@@ -1192,6 +1260,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260810c" integrity="sha384-KbadA3or3Z5OBt15ul3NK9bsXIZOIUQHFEzEd9vX86gxBlouHI454Kp/o7gT0mTF" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260810d" integrity="sha384-VZLPOt8iyq2rsWlimPHx9im9yMQJtowVc9r3sKl0T5PVOojITP6/1KHaNsY7RUK6" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

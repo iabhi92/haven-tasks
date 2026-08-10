@@ -114,6 +114,34 @@
     (though never by whom without IP logs it may or may not keep), even though it can't read the
     content.
 
+### A4b-2. Anyone who obtains a public dead-man's-switch link
+- **Capability:** unlike A4b, there is no secret in this link at all (docs/ARCHITECTURE.md §5f) —
+  whoever holds `{server, id}` can, given enough CPU time, always eventually decrypt the content
+  themselves. This is by design, not a gap: the whole point is that no one, including the creator,
+  can shortcut the wait.
+- **Defenses:**
+  - The only gate is the time-lock puzzle's sequential-computation requirement (§4k's mechanism,
+    reused as-is) — there is no key to leak faster than that, so "obtaining the link early" grants
+    no advantage over obtaining it right when it's created.
+  - Same revocation as a normal share link: the creator can `DELETE` the relay record any time
+    before the puzzle finishes, which is the *only* way to stop disclosure once a link exists.
+  - Same field/content minimization as any share: only what the creator explicitly typed into the
+    switch is ever encrypted and pushed — nothing else from the vault.
+- **Residual risk, stated plainly:**
+  - **Revocation has a hard deadline, not a soft one.** Because there's no secret to rotate or
+    narrow, "cancel before it unlocks" is binary — there is no equivalent of A4b's "burn after N
+    views" to reduce blast radius once the puzzle is close to solved; the only lever is deleting it
+    outright, at any point, all or nothing.
+  - **The relay learns the same access-pattern metadata A4b's does** (when/how often the id is
+    fetched), plus, unlike A4b, it also stores `squarings` in plaintext-adjacent form inside the
+    opaque bundle it relays (still can't read content, but the puzzle's *difficulty*, hence
+    roughly its unlock time, isn't hidden from a relay operator who chooses to parse the bundle
+    JSON it's blindly relaying — a deliberate non-goal, since the creator already discloses that
+    same duration to the recipient in the page's own copy).
+  - **Shares A7's RSA-modulus quantum exposure** — see A7 below; this feature reuses
+    `createTimeLockPuzzle()` unmodified, so the same "a future quantum adversary could skip the
+    wait via Shor's algorithm" caveat applies here too, and for the same reason is not fixed.
+
 ### A4c. A social recovery share holder (one of k-of-n trusted people)
 - **Capability:** holds one piece of a split recovery code (docs/ARCHITECTURE.md §4b).
 - **Defense:** Shamir's information-theoretic guarantee — any `k-1` shares (however many people
@@ -264,12 +292,16 @@
   with. This claim was previously (incorrectly) hedged as "asymmetric surface is minimal" — as of
   Layer 2/3 features below, the asymmetric surface is not minimal, it's just irrelevant to
   confidentiality specifically.
-- **Real, concrete exposure: the time-locked task's RSA modulus (§4k).** `createTimeLockPuzzle()`
-  generates and stores a 2048-bit RSA modulus `n` as part of the puzzle record. The puzzle's "you
-  must wait" guarantee rests on nobody being able to factor `n` — true against every classical
-  adversary, false against a sufficiently large fault-tolerant quantum computer running Shor's
-  algorithm, which would recover `φ(n)` and let an attacker jump straight to the puzzle's solution,
-  skipping the wait entirely. **Not fixed as of this writing.** The correct fix is a verifiable
+- **Real, concrete exposure: the time-locked task's RSA modulus (§4k), also inherited by the public
+  dead-man's switch (§5f).** `createTimeLockPuzzle()` generates and stores a 2048-bit RSA modulus
+  `n` as part of the puzzle record. The puzzle's "you must wait" guarantee rests on nobody being
+  able to factor `n` — true against every classical adversary, false against a sufficiently large
+  fault-tolerant quantum computer running Shor's algorithm, which would recover `φ(n)` and let an
+  attacker jump straight to the puzzle's solution, skipping the wait entirely. The dead-man's
+  switch calls the exact same function, so a quantum-capable adversary who intercepts a switch's
+  link could solve it instantly regardless of the creator-chosen delay — worth noting since that
+  feature's entire premise is "no one can shortcut this," which this one exposure quietly
+  undercuts against that specific adversary class. **Not fixed as of this writing.** The correct fix is a verifiable
   delay function over a class group of unknown order (Wesolowski/Pietrzak construction — the family
   Chia's `chiavdf` uses), which has no factorization trapdoor for anyone, quantum or not.
   Deliberately not implemented: there is no mature, audited JS/WASM library for class-group VDF

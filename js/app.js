@@ -2608,6 +2608,7 @@ function wireSearch() {
       closeEditModal();
       closeAddModal();
       closeCmdk();
+      closeDeadManSwitchModal();
     }
   });
 }
@@ -3612,6 +3613,183 @@ function wireShareModal() {
   });
 }
 
+// ---------- Public dead-man's switch (extends time-locked tasks + fragment-key share links
+// into a publicly verifiable disclosure — see docs/ARCHITECTURE.md's dead-man's-switch
+// section). Unlike a normal share link, no fragment key is needed: access is gated by the
+// puzzle's computational hardness, not by secrecy of a key, so the link is just {server, id}
+// and anyone holding it can watch the puzzle solve live in their own browser. ----------
+
+// Same tiny helper js/ui.js and js/shared.js each already have their own copy of — not worth
+// exporting/importing across modules for five lines.
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+const DEAD_MANS_SWITCHES_KEY = "haven_dead_mans_switches"; // localStorage: bookkeeping only,
+                                                             // no content, nothing sensitive
+
+function getDeadMansSwitches() {
+  try {
+    return JSON.parse(localStorage.getItem(DEAD_MANS_SWITCHES_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveDeadMansSwitchRecord(record) {
+  const list = getDeadMansSwitches();
+  list.push(record);
+  localStorage.setItem(DEAD_MANS_SWITCHES_KEY, JSON.stringify(list));
+}
+
+function removeDeadMansSwitchRecord(id) {
+  const list = getDeadMansSwitches().filter((s) => s.id !== id);
+  localStorage.setItem(DEAD_MANS_SWITCHES_KEY, JSON.stringify(list));
+}
+
+const DMS_SQUARINGS_PER_SEC = 150000; // same calibration as js/ui.js's private time-lock presets
+const DMS_DURATIONS_SEC = { demo: 10, "2m": 120, "10m": 600 };
+
+async function createDeadMansSwitch({ title, notes }, squarings, { ttlSeconds, maxViews } = {}) {
+  const { n, target } = await createTimeLockPuzzle(squarings);
+  const timeLockKey = await deriveTimeLockKey(target);
+
+  const rawContentKey = await generateDek();
+  const rawContentKeyBytes = await crypto.subtle.exportKey("raw", rawContentKey);
+  const { wrappedDek: wrappedContentKey, wrapIv: contentKeyWrapIv } = await wrapDek(rawContentKey, timeLockKey);
+  const contentKey = await importDek(rawContentKeyBytes, false);
+
+  const { iv, ciphertext } = await encryptTask({ title, notes }, contentKey);
+
+  // Same repurposing createShareLink() already relies on: the relay's outer iv/ciphertext pair
+  // carries an opaque JSON bundle instead of a normal ciphertext (the server never parses
+  // either field). The outer iv is unused by this feature — a real random value only so a
+  // stored dead-man's-switch share never looks structurally different from a normal one.
+  const outerIv = bufToBase64(crypto.getRandomValues(new Uint8Array(12)));
+  const bundle = { n, squarings, wrappedContentKey, contentKeyWrapIv, iv, ciphertext };
+  const server = shareServerUrl();
+  const { id, expiresAt } = await pushShare(server, outerIv, JSON.stringify(bundle), { ttlSeconds, maxViews });
+
+  const url = new URL("deadmanswitch.html", location.href);
+  url.searchParams.set("server", server);
+  url.searchParams.set("id", id);
+  // Deliberately no url.hash — unlike a normal share link there is no secret key to carry:
+  // the puzzle's sequential-computation requirement is the only gate.
+
+  saveDeadMansSwitchRecord({ id, server, title: title || "(untitled)", createdAt: now(), expiresAt });
+  return { url: url.toString(), id, server };
+}
+
+async function cancelDeadMansSwitch(id, server) {
+  await deleteShare(server, id);
+  removeDeadMansSwitchRecord(id);
+}
+
+function renderDeadMansSwitchList() {
+  const list = getDeadMansSwitches();
+  const container = document.getElementById("dmsList");
+  container.innerHTML = "";
+  if (list.length === 0) {
+    container.appendChild(el("p", "dms-switch-empty", "None yet."));
+    return;
+  }
+  for (const item of list) {
+    const row = el("div", "dms-switch-row");
+    const info = el("div", "dms-switch-row-info");
+    info.appendChild(el("span", "dms-switch-row-title", item.title));
+    info.appendChild(el("span", "dms-switch-row-meta", `Expires ${new Date(item.expiresAt).toLocaleDateString()}`));
+    row.appendChild(info);
+    const cancelBtn = el("button", "btn btn-danger btn-sm", "Cancel");
+    cancelBtn.type = "button";
+    cancelBtn.addEventListener("click", async () => {
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = "Cancelling…";
+      try {
+        await cancelDeadMansSwitch(item.id, item.server);
+        renderDeadMansSwitchList();
+        showInfoToast("Cancelled — that link no longer works for anyone holding it.");
+      } catch {
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = "Cancel";
+        showInfoToast("Couldn't cancel it — check your connection and try again.");
+      }
+    });
+    row.appendChild(cancelBtn);
+    container.appendChild(row);
+  }
+}
+
+function openDeadManSwitchModal() {
+  document.getElementById("dmsTitle").value = "";
+  document.getElementById("dmsNotes").value = "";
+  document.getElementById("dmsError").textContent = "";
+  document.getElementById("dmsCreateSection").hidden = false;
+  document.getElementById("dmsAfterSection").hidden = true;
+  renderDeadMansSwitchList();
+  document.getElementById("deadManSwitchModal").hidden = false;
+}
+
+function closeDeadManSwitchModal() {
+  document.getElementById("deadManSwitchModal").hidden = true;
+}
+
+function wireDeadManSwitchModal() {
+  const overlay = document.getElementById("deadManSwitchModal");
+  const createBtn = document.getElementById("dmsCreateBtn");
+  const errorEl = document.getElementById("dmsError");
+  const output = document.getElementById("dmsLinkOutput");
+  const copyBtn = document.getElementById("dmsCopyBtn");
+
+  document.getElementById("dmsCancelBtn").addEventListener("click", () => closeDeadManSwitchModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeDeadManSwitchModal();
+  });
+
+  createBtn.addEventListener("click", async () => {
+    errorEl.textContent = "";
+    const title = document.getElementById("dmsTitle").value.trim();
+    const notes = document.getElementById("dmsNotes").value.trim();
+    if (!title && !notes) {
+      errorEl.textContent = "Add a title or some content to disclose.";
+      return;
+    }
+    createBtn.disabled = true;
+    createBtn.textContent = "Creating…";
+    try {
+      const duration = document.getElementById("dmsDuration").value;
+      const squarings = DMS_DURATIONS_SEC[duration] * DMS_SQUARINGS_PER_SEC;
+      const ttlSeconds = Number(document.getElementById("dmsExpiry").value);
+      const created = await createDeadMansSwitch({ title, notes }, squarings, { ttlSeconds });
+      output.value = created.url;
+      document.getElementById("dmsCreateSection").hidden = true;
+      document.getElementById("dmsAfterSection").hidden = false;
+      renderDeadMansSwitchList();
+    } catch (err) {
+      errorEl.textContent = "Couldn't create it — check your connection and try again.";
+    } finally {
+      createBtn.disabled = false;
+      createBtn.textContent = "Create switch";
+    }
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    output.select();
+    try {
+      await navigator.clipboard.writeText(output.value);
+      const original = copyBtn.textContent;
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => { copyBtn.textContent = original; }, 1500);
+    } catch {
+      // Clipboard API can be unavailable; the input is already selected above as a fallback.
+    }
+  });
+
+  document.getElementById("dmsDoneBtn").addEventListener("click", () => closeDeadManSwitchModal());
+}
+
 function wireDragAndDrop() {
   for (const status of STATUSES) {
     const col = document.getElementById(`col-${status}`);
@@ -3702,6 +3880,7 @@ function getCmdkItems() {
     { label: "Add a passkey", action: openPasskeyModal },
     { label: "Set up a decoy vault", action: openDecoyVaultModal },
     { label: "Automation rules", action: openAutomationModal },
+    { label: "Dead-man's switch", action: openDeadManSwitchModal },
   ];
 }
 
@@ -4243,6 +4422,7 @@ async function boot() {
   wireEditModal();
   wireAddModal();
   wireShareModal();
+  wireDeadManSwitchModal();
   wireDragAndDrop();
   wireCommandPalette();
   wireRevealView();

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Same connect-src widening as shared.html, for the same reason: the server to fetch this
+     from is named in the URL's query string, not knowable in advance. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src *;">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Dead-man's switch — Haven</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+<link rel="icon" type="image/png" sizes="48x48" href="img/favicon-48.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="css/style.css?v=20260810c" integrity="sha384-zCFib+Cht5i5qQK5HkVk9uBvjNkJxAtBwS6DrzhrbhHFzyNsAOCUwdpsvMNXHSOK" crossorigin="anonymous">
+</head>
+<body>
+
+<div class="lock-screen">
+  <div class="lock-card lock-card-wide">
+    <div class="lock-logo" aria-hidden="true">H</div>
+    <h1 class="lock-title">Dead-man's switch</h1>
+    <p class="lock-sub">
+      This link's content is locked behind a real time-lock puzzle, not a countdown. Nobody,
+      including whoever created this, can unlock it early — the only way in is to actually do
+      the sequential computation, which you can watch happen below.
+    </p>
+
+    <p class="share-view-loading" id="dmsLoading">Checking this link&hellip;</p>
+    <p class="share-view-error" id="dmsError" role="alert" hidden></p>
+
+    <p class="lock-sub" id="dmsPuzzleInfo"></p>
+
+    <div id="dmsStart" hidden>
+      <button type="button" class="btn btn-primary" id="dmsStartBtn">Start solving</button>
+    </div>
+
+    <div class="timelock-progress" id="dmsProgress" hidden>
+      <div class="timelock-progress-track">
+        <div class="timelock-progress-fill" id="dmsProgressFill"></div>
+      </div>
+      <p class="timelock-progress-label" id="dmsProgressLabel">Solving… 0%</p>
+      <p class="lock-sub share-view-footer-note">
+        Keep this tab open and active — closing it stops the computation (nothing is saved for
+        this page, unlike a private time-locked task in the app itself).
+      </p>
+    </div>
+
+    <div id="dmsRevealed" hidden>
+      <h2 class="share-view-title" id="dmsRevealedTitle"></h2>
+      <p class="share-view-notes" id="dmsRevealedNotes"></p>
+      <p class="lock-sub share-view-footer-note" id="dmsRevealedWhen"></p>
+    </div>
+
+    <div class="share-view-footer">
+      <p class="lock-sub share-view-footer-note">
+        The puzzle was solved entirely in your browser, live. No server, including Haven's own,
+        was ever able to solve this early or see the content before you did.
+      </p>
+      <a href="/" class="btn btn-primary btn-sm">Get your own Haven, it's free</a>
+    </div>
+  </div>
+</div>
+
+<script src="js/deadmanswitch.js?v=20260810a" integrity="sha384-1EdXIgYzL5jr2tHFRk0V4kYJzrzShjN1r/LjhAcoEbG3cywCbKNejhU3foku8HEL" crossorigin="anonymous" type="module"></script>
+</body>
+</html>

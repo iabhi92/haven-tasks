@@ -250,7 +250,17 @@ data."*
       (presets: ~10 seconds / ~2 minutes / ~10 minutes), honestly labeled as such rather than
       implying calendar-scale enforcement it can't deliver. See docs/ARCHITECTURE.md
       "Time-locked tasks" for the full mechanism and its limits.
-- [ ] Dead-man's-switch — reveal a task to a designated person after inactivity — High
+- [x] Dead-man's-switch — reveal a task to whoever holds the link, gated by real computation — High.
+      Shipped, but not the "after inactivity" form this line originally described: combines the
+      time-lock puzzle above with fragment-key share links into a link needing **no secret key at
+      all** — access is gated purely by the puzzle's hardness, so anyone holding the link can watch
+      it solve live, and cancelling before it unlocks (the same revocation a normal share link
+      already has) is the only way to stop a disclosure. **Honest scope correction:** "after
+      inactivity" implies a server-side timer watching for the creator going quiet — not built,
+      for the same reason a multi-day time-locked task isn't: no trusted server exists in this
+      architecture to run that check. What shipped is a bounded, real delay (~10s / ~2m / ~10m
+      presets) the creator sets explicitly at creation time, not an inactivity trigger. See
+      docs/ARCHITECTURE.md "Public dead-man's switch" for the full mechanism and its limits.
 - [x] Ephemeral / self-destructing tasks via key erasure — Med. Shipped: each
       self-destructing task is encrypted under its own per-task key (not the
       shared vault DEK), itself wrapped under the DEK; "burning" deletes just
