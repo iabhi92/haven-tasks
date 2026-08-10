@@ -740,13 +740,69 @@ plaintext.
     key via the recovery code. Never the passphrase-wrapped copy.
   - `GET /sync/keyring` — returns `{ wrappedDekRecovery, wrapIvRecovery, saltRecovery }` for the
     token, or 404 if no device has published bootstrap material for it yet.
-- **Conflict resolution:** last-write-wins by `updatedAt` for v1. CRDT-based merge is later.
+- **Conflict resolution:** field-group CRDT merge (§5a-2) for genuine two-sided conflicts;
+  whole-record last-write-wins by `updatedAt` everywhere else (new record, no local counterpart,
+  or deletion vs. edit).
 - **What the server learns:** record counts, ciphertext sizes, update timestamps, sync frequency,
   the bucket token. Nothing about task contents. The keyring-bootstrap row is exactly as useless
   without the recovery code as a device's own local keyring already is.
 - **Deletion:** `deleted: true` tombstones sync; a real delete path also removes the ciphertext
   row server-side (`iv`/`ciphertext` set to `NULL` on the same row, not just a flag toggled) — see
   `server/storage.py`'s `upsert_records`.
+
+## 5a-2. Field-group CRDT merge (Layer 2)
+
+Closes a previously-documented honest gap (this doc used to say "CRDT-based merge is later" —
+it's landed, at a specific, stated granularity). The server never decrypts, so it can never merge
+fields itself; every merge decision below happens client-side, in `syncNow()`.
+
+- **The bug this fixes, concretely:** whole-record last-write-wins means two devices editing
+  *different* parts of the same task while offline — one marks it done, the other changes its due
+  date — silently loses whichever edit's sync landed second. The loser isn't merged, isn't
+  queued, isn't recoverable; it's just gone.
+- **A standard LWW-Map CRDT (Shapiro et al.), at field-*group* granularity, not per scalar field.**
+  Every task carries `fieldUpdatedAt: {content, status, metadata, subtasks}` alongside its
+  existing whole-record `updatedAt`. `content` covers title+notes, `metadata` covers
+  priority/dueDate/tags/project/recurrence, `status` covers status+order (board position only
+  means anything within a status column). Every mutation site that changes a task — manual edits,
+  automation rules, drag-and-drop — bumps only the timestamp for the group(s) it actually
+  touched, via `bumpFieldTimestamps()`.
+- **A merge keeps each group's most-recently-touched side independently** (`mergeTaskFields()`):
+  for each of the four groups, whichever side's `fieldUpdatedAt` for that group is newer wins,
+  and the merged record's own `fieldUpdatedAt` records the max of both sides per group so future
+  merges stay correct. The merged record's whole-record `updatedAt` is stamped fresh (`now()`),
+  deliberately *not* `max(local.updatedAt, remote.updatedAt)` — a real bug caught by testing, not
+  a hypothetical: a device that already pushed the newer of the two pre-merge versions has by
+  definition already advanced its own sync checkpoint past that value, so a repush stamped with
+  that same old max would look like "nothing new" to that device's next pull and never get
+  re-fetched, silently failing to converge.
+- **Conflict detection needs no stored history or version vector.** A record only gets
+  field-merged when the pulling device has a genuinely unpushed local change for it
+  (`local.updatedAt > since`, the last successful sync checkpoint) *and* the pulled remote version
+  isn't just an echo of what this device pushed a moment ago (`local.updatedAt !== remote.updatedAt`).
+  Otherwise it's a clean accept-remote or keep-local, no decrypt needed.
+- **The merged result is re-pushed**, not just applied locally — otherwise only the device that
+  happened to compute the merge would ever see both changes; every other device needs the same
+  merged version pushed back so the whole bucket converges on it.
+- **Honest scope limits, stated here and in docs/THREAT_MODEL.md, not glossed over:**
+  - **Group granularity, not field granularity.** Title and notes editing on two devices at once
+    still resolves as one `content` unit — whichever device's edit is newer wins both, same as
+    the old whole-record behavior would have for that pair specifically. A full per-scalar-field
+    CRDT (or per-item CRDTs for `tags`/`subtasks` specifically — an OR-Set for tags, a map-by-id
+    for subtasks) would be a real refinement, not done here.
+  - **Deletion-vs-edit conflicts aren't field-merged.** Tombstone/resurrection semantics for a
+    delete racing an edit is a genuinely harder CRDT problem than LWW-Map; `syncNow()` falls back
+    to whole-record LWW for any record where `remote.deleted` is true.
+  - **Legacy records** (created before this feature shipped, lacking `fieldUpdatedAt` entirely)
+    fall back to the exact previous whole-record LWW comparison — `mergeTaskFields()` detects the
+    missing field on either side and never guesses at data that isn't there.
+- **Verified for real, not assumed:** scripted two independent browser contexts against a real
+  local sync server (not mocked) — Device A creates a vault and a sync bucket, Device B joins via
+  the recovery code, both devices independently edit *different* groups of the same task before
+  either syncs again (B marks it done, A sets a due date), then both sync. Confirmed both ended up
+  with *both* changes, not one clobbering the other — and confirmed it converges in both
+  directions (A's later sync also picks up B's merged, re-pushed result), which is exactly where
+  the stale-timestamp bug above was originally caught.
 
 ## 5b. Fragment-key share links (Layer 2)
 

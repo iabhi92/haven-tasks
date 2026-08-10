@@ -305,7 +305,14 @@
    fetches it independently, not enforced against a compromised host serving both consistently.
 3. **Lose both credentials = data gone.** There is deliberately no server-side reset.
 4. **Weak passphrases remain the user's risk.**
-5. **Last-write-wins can lose edits** on concurrent multi-device changes until CRDT merge lands.
+5. **Field-group CRDT merge, not full CRDT.** Concurrent edits from two devices to *different*
+   field groups (content, status, metadata, subtasks — see docs/ARCHITECTURE.md's CRDT merge
+   section) now both survive a sync, closing the previous whole-record last-write-wins gap. Two
+   real sub-limits, stated plainly rather than glossed over: (a) granularity is per-group, not
+   per-scalar-field — editing a title on one device and notes on another while both are offline
+   still resolves as one unit (whichever device's edit is newer wins both); (b) deletion-vs-edit
+   conflicts still fall back to whole-record last-write-wins — a genuinely harder CRDT problem
+   (tombstones + resurrection semantics) not tackled in this pass.
 6. **v1 is single-user for the vault itself.** Persistent, revocable multi-user access
    (Compartmentalised vaults) is out of scope — see A4. One-shot fragment-key share links (A4b)
    exist but are not a substitute: they're single-task, one-way, and have no revocation beyond a

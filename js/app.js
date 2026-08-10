@@ -137,6 +137,93 @@ let draggedId = null;
 let dek = null; // the in-memory DEK CryptoKey — null whenever locked
 let semanticMatchIds = null; // Set<string> | null — non-null narrows visibleTasks() to a smart-search result set
 
+// ---------- Field-group CRDT merge for sync conflicts ----------
+// Closes a real, previously-documented gap: whole-record last-write-wins (the old behavior)
+// means two devices editing DIFFERENT parts of the same task while offline -- one marks it done,
+// the other changes its due date -- silently loses whichever edit's sync landed second. This is
+// a standard LWW-Map CRDT (Shapiro et al.) at field-GROUP granularity: four groups (content,
+// status, metadata, subtasks) each carry their own last-write timestamp, and a merge keeps each
+// group's most-recently-touched side independently, so unrelated edits from two devices both
+// survive. See docs/ARCHITECTURE.md's CRDT merge section for the honest scope limit: group-level
+// granularity, not per-scalar-field (title+notes edited on two devices at once still LWWs as one
+// unit); deletion-vs-edit conflicts still fall back to whole-record LWW, a genuinely harder CRDT
+// problem (tombstones + resurrection) not tackled here.
+const FIELD_GROUPS = {
+  title: "content", notes: "content",
+  status: "status", order: "status", // board position only matters within a status column
+  priority: "metadata", dueDate: "metadata", tags: "metadata", project: "metadata", recurrence: "metadata",
+  subtasks: "subtasks",
+};
+const ALL_FIELD_GROUPS = ["content", "status", "metadata", "subtasks"];
+
+function initFieldUpdatedAt(ts) {
+  return { content: ts, status: ts, metadata: ts, subtasks: ts };
+}
+
+// Bumps only the groups actually touched by `changed`'s own keys -- called everywhere a task
+// gets partially updated (manual edits, automation rules, drag-and-drop) so mergeTaskFields()
+// below has accurate per-group timestamps to work with. Returns the new updatedAt so callers
+// can assign it the same way they already assign `now()` today.
+function bumpFieldTimestamps(task, changed) {
+  if (!task.fieldUpdatedAt) task.fieldUpdatedAt = initFieldUpdatedAt(task.createdAt || now());
+  const ts = now();
+  for (const key of Object.keys(changed)) {
+    const group = FIELD_GROUPS[key];
+    if (group) task.fieldUpdatedAt[group] = ts;
+  }
+  return ts;
+}
+
+// evaluateTask() (js/automation.js) returns a full task object, not a partial -- automation
+// rules need this diff to know which fields it actually touched, so a rule that only changes
+// e.g. `tags` doesn't get treated as though it rewrote the whole record.
+function changedFields(before, after) {
+  const changed = {};
+  // Only keys actually present on `after` -- readEditForm() resubmits the *entire* edit-modal
+  // form every save, not a true diff of what the user touched, so checking every FIELD_GROUPS
+  // key unconditionally would flag fields `after` never even mentions (e.g. `order`, which the
+  // edit modal doesn't submit at all) as "changed to undefined". A real bug caught by testing,
+  // not a hypothetical: an unrelated field's incidental resubmission was winning a merge over
+  // another device's real edit to that group.
+  for (const key of Object.keys(after)) {
+    if (!(key in FIELD_GROUPS)) continue;
+    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changed[key] = after[key];
+  }
+  return changed;
+}
+
+// local/remote: fully-decrypted task objects. Returns a new merged task object; never mutates
+// either input.
+function mergeTaskFields(local, remote) {
+  if (!local.fieldUpdatedAt || !remote.fieldUpdatedAt) {
+    // Legacy fallback for records created before this feature shipped -- exactly the old
+    // whole-record behavior, not a crash and not a guess about data that isn't there.
+    return remote.updatedAt >= local.updatedAt ? remote : local;
+  }
+  const merged = { ...local };
+  const mergedFieldUpdatedAt = {};
+  for (const group of ALL_FIELD_GROUPS) {
+    const localTs = local.fieldUpdatedAt[group] ?? 0;
+    const remoteTs = remote.fieldUpdatedAt[group] ?? 0;
+    const winner = remoteTs > localTs ? remote : local;
+    mergedFieldUpdatedAt[group] = Math.max(localTs, remoteTs);
+    for (const [field, fieldGroup] of Object.entries(FIELD_GROUPS)) {
+      if (fieldGroup === group) merged[field] = winner[field];
+    }
+  }
+  merged.fieldUpdatedAt = mergedFieldUpdatedAt;
+  // A real bug caught by testing, not a guess: this must be a *fresh* timestamp, not
+  // max(local, remote). A device's own sync checkpoint (SYNC_LAST_KEY) can already be past
+  // max(local.updatedAt, remote.updatedAt) -- e.g. the device that just pushed the newer of
+  // the two inputs has necessarily already advanced its checkpoint past that value -- so a
+  // repushed merge stamped with that same old max would look like "nothing new" to that
+  // device's next pull and never get re-fetched. The per-group fieldUpdatedAt above still
+  // preserves genuine field-level history for future merges; only the record-level
+  // propagation timestamp needs to move forward.
+  merged.updatedAt = now();
+  return merged;
+}
+
 // ---------- AI assistant (Layer 3, js/ai.js) ----------
 // js/ai.js is dynamically imported (not a static top-of-file import like
 // every other module here) specifically so nobody who never opens the AI
@@ -1057,7 +1144,9 @@ async function sweepOverdueAutomationRules() {
   for (let i = 0; i < tasks.length; i++) {
     const ruled = evaluateTask(automationRules, "onOverdue", tasks[i]);
     if (!ruled) continue;
-    tasks[i] = { ...ruled, updatedAt: now() };
+    const ruleChanges = changedFields(tasks[i], ruled); // evaluateTask returns a full task, not a diff
+    tasks[i] = { ...ruled };
+    tasks[i].updatedAt = bumpFieldTimestamps(tasks[i], ruleChanges);
     await persistTask(tasks[i], "update");
     anyChanged = true;
   }
@@ -1279,6 +1368,7 @@ async function addTask({ title, project, notes, status, priority, dueDate, tags,
   // immediately after.
   const ruled = evaluateTask(automationRules, "onCreateWithTag", task);
   if (ruled) task = { ...ruled, updatedAt: now() };
+  task.fieldUpdatedAt = initFieldUpdatedAt(task.updatedAt);
 
   // Mutually exclusive with self-destruct (see the addTimeLockMode field's
   // help text) — timeLockSquarings wins if somehow both were set, since a
@@ -1340,6 +1430,7 @@ async function maybeSpawnNextOccurrence(task) {
     createdAt: now(),
     updatedAt: now(),
   };
+  next.fieldUpdatedAt = initFieldUpdatedAt(next.updatedAt);
   tasks.push(next);
   await persistTask(next, "create");
 }
@@ -1348,10 +1439,19 @@ async function updateTask(partial) {
   const task = tasks.find((t) => t.id === partial.id);
   if (!task) return;
   const becameDone = partial.status === "done" && task.status !== "done";
-  Object.assign(task, partial, { updatedAt: now() });
+  // Diffed against the pre-edit task, not partial's raw keys — callers like the edit-modal
+  // form resubmit every field every save, not just the ones actually changed (see
+  // changedFields()'s comment).
+  const actuallyChanged = changedFields(task, partial);
+  Object.assign(task, partial);
+  task.updatedAt = bumpFieldTimestamps(task, actuallyChanged);
   if (becameDone) {
     const ruled = evaluateTask(automationRules, "onDone", task);
-    if (ruled) Object.assign(task, ruled, { updatedAt: now() });
+    if (ruled) {
+      const ruleChanges = changedFields(task, ruled); // evaluateTask returns a full task, not a diff
+      Object.assign(task, ruled);
+      task.updatedAt = bumpFieldTimestamps(task, ruleChanges);
+    }
   }
   render();
   await persistTask(task, "update");
@@ -1652,22 +1752,56 @@ async function syncNow() {
   const since = Number(localStorage.getItem(SYNC_LAST_KEY) || "0");
   const remoteRecords = await pullRecords(config.server, config.token, since);
 
+  // Records that get a field-level merge below need the merged result pushed back too, so
+  // every device converges on the same merge — not just whichever one happened to compute it.
+  const toRepush = [];
+
   for (const remote of remoteRecords) {
     const local = localRecords.find((r) => r.id === remote.id);
-    if (local && local.updatedAt >= remote.updatedAt) continue; // local already newer or equal
+
     if (remote.deleted) {
+      // Deletion-vs-edit conflicts aren't field-merged (see mergeTaskFields()'s docstring for
+      // why) — whole-record LWW still decides here, an honest, documented scope limit rather
+      // than a silently-missed case.
+      if (local && local.updatedAt >= remote.updatedAt) continue;
       await deleteTask(remote.id);
-    } else {
-      await putTask({ id: remote.id, iv: remote.iv, ciphertext: remote.ciphertext, updatedAt: remote.updatedAt });
+      continue;
     }
+
+    if (!local) {
+      await putTask({ id: remote.id, iv: remote.iv, ciphertext: remote.ciphertext, updatedAt: remote.updatedAt });
+      continue;
+    }
+
+    if (local.updatedAt === remote.updatedAt) continue; // our own push a moment ago, echoed back
+
+    const localChangedSinceLastSync = local.updatedAt > since;
+    if (!localChangedSinceLastSync) {
+      // Nothing local to protect for this record — accept remote wholesale, no need to
+      // decrypt/merge anything.
+      await putTask({ id: remote.id, iv: remote.iv, ciphertext: remote.ciphertext, updatedAt: remote.updatedAt });
+      continue;
+    }
+
+    // Genuine conflict: both sides changed this record since the last sync. Decrypt both,
+    // merge field-group by field-group (mergeTaskFields()), persist the result locally, and
+    // queue it to be pushed back so other devices converge on the merge too, not just this one.
+    const localTask = tasks.find((t) => t.id === remote.id) || (await decryptTask(local, dek));
+    const remoteTask = await decryptTask(remote, dek);
+    const merged = mergeTaskFields(localTask, remoteTask);
+    await persistTask(merged, "update");
+    const mergedRecord = await getTask(merged.id);
+    if (mergedRecord) toRepush.push(mergedRecord);
   }
+
+  if (toRepush.length) await pushRecords(config.server, config.token, toRepush);
 
   localStorage.setItem(SYNC_LAST_KEY, String(now()));
 
   tasks = await loadAndDecryptTasks();
   render();
 
-  return { pushed: syncableRecords.length, pulled: remoteRecords.length };
+  return { pushed: syncableRecords.length, pulled: remoteRecords.length, merged: toRepush.length };
 }
 
 function refreshSyncModalState() {
@@ -2305,11 +2439,13 @@ async function persistReorder(status) {
 function applyDropOrder(status, orderedIds) {
   orderedIds.forEach((id, index) => {
     const task = tasks.find((t) => t.id === id);
-    if (task) {
-      task.status = status;
-      task.order = index;
-      task.updatedAt = now();
-    }
+    if (!task) return;
+    const changed = {};
+    if (task.status !== status) changed.status = status;
+    if (task.order !== index) changed.order = index;
+    task.status = status;
+    task.order = index;
+    if (Object.keys(changed).length) task.updatedAt = bumpFieldTimestamps(task, changed);
   });
 }
 
@@ -3513,7 +3649,11 @@ function wireDragAndDrop() {
       applyDropOrder(status, orderedIds);
       if (becameDone && sourceTask) {
         const ruled = evaluateTask(automationRules, "onDone", sourceTask);
-        if (ruled) Object.assign(sourceTask, ruled, { updatedAt: now() });
+        if (ruled) {
+          const ruleChanges = changedFields(sourceTask, ruled); // evaluateTask returns a full task, not a diff
+          Object.assign(sourceTask, ruled);
+          sourceTask.updatedAt = bumpFieldTimestamps(sourceTask, ruleChanges);
+        }
       }
       render();
 

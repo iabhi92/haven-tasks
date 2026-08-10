@@ -279,8 +279,17 @@ data."*
 - [ ] Real-time multi-user editing with the server blind — Research · Signal: very high
 - [ ] ⭐ Revocation that works — remove a collaborator, rotate keys, lock them out of future
       content (the problem everyone dodges) — Research · Signal: very high
-- [ ] CRDT-based conflict-free multi-device + multi-user merge (replaces last-write-wins) —
-      Research
+- [x] Field-group CRDT merge for multi-*device*, single-user sync (Layer 2, shipped — see
+      docs/ARCHITECTURE.md §5a-2). Two devices editing different parts of the same task offline
+      (one marks it done, the other changes its due date) now both survive a sync instead of one
+      clobbering the other. **Honest scope, not what the line below still asks for:** this is
+      one person's own devices converging, at field-*group* granularity (four groups: content,
+      status, metadata, subtasks — not per-scalar-field), with deletion-vs-edit conflicts still
+      falling back to whole-record last-write-wins.
+- [ ] Full CRDT-based conflict-free *multi-user* merge (real-time collaboration, the server still
+      blind) — a genuinely harder problem than the multi-device case above: per-scalar-field or
+      per-item (OR-Set tags, map-by-id subtasks) merge granularity, plus reconciling concurrent
+      edits from different *people*, not just different devices of the same person — Research
 - [ ] Cryptographic delegation — hand off a task with a scoped, time-limited capability — High
 - [ ] Encrypted presence — see who's on a shared board without the server learning identities —
       High
