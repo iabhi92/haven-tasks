@@ -1273,6 +1273,17 @@ task *data* has been fully offline-capable since Phase 1 (IndexedDB). The precac
 hand-maintained the same way the `?v=` cache-bust query strings already are (no build step); bump
 `CACHE_NAME` when the list changes so old caches get cleaned up on the next `activate`.
 
+**Offline banner** (`wireOfflineBanner()`, `js/app.js`) — makes an already-true fact visible rather
+than adding new capability: `navigator.onLine`/the `online`/`offline` window events drive a small
+banner, nothing about how offline behavior actually works changes. Verified for real, not assumed:
+a genuinely offline Playwright run (`context.setOffline(true)`) confirmed a task can be created
+while offline, that the app-shell itself reloads successfully from the service worker cache while
+still offline (a real `200` response served from cache, not network — §5d's PWA install doing its
+job), and that the task survives the reload and is still there once reconnected and unlocked again
+(a reload always re-locks the vault regardless of network state — the DEK is never persisted, by
+design, online or off). Coming back online also fires one immediate `autoSyncTick()` (§5-2) rather
+than waiting out the rest of the poll interval.
+
 **Calendar view + iCal export** (`js/ical.js`, month-grid UI in `js/ui.js`'s `renderCalendar()`) —
 shows every task with a due date across all projects; exporting produces a standard RFC 5545 `.ics`
 file. One-way only: this is an export, not a live CalDAV sync, and says so in the UI copy rather

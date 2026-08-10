@@ -4,10 +4,10 @@
   "files": {
     "css/article.css": "sha384-p11yvDOg5HhvMByrXd0QayQO2eWwyAUg8Zdnxm1ZAwGPgj17EgfPogJ0DtyP7Edp",
     "css/landing.css": "sha384-lcYyZ4vWQFRESzbgL2o9lSml9hKWRuAPpmPGKDfcwr6qOGNvYuQdMc9kToLDWuiy",
-    "css/style.css": "sha384-oR0xOf9UnowcToyjtb9Wq3RFhTVGlesEb+8OkrS/81oGME5T9w+/vb8Mif0lzsHN",
+    "css/style.css": "sha384-KUZ2O9KwV4sPL6Yj0+Qe0savf7I1dmeFGkH3BtVyi/XhIDjwbwekWIMmHGbE9myO",
     "js/ai-worker.js": "sha384-/YIxQ0bbhn/L9T+3a1zjDHNKYoUF//6/sqeOPtfHZbS4KumG/+oNZJbgUBKzM0D3",
     "js/ai.js": "sha384-/FFMPDoVZR95yXqz6RN/kwCTLUbGmJRkjzVV0CsMjKCs/FB7StVeDh2cPHAevuHR",
-    "js/app.js": "sha384-Qf3vuI7Is4KuC1hdrS2KTxZoqxRzksusQan1seGaSxmvMFzviU3LQHjeJWPjzpo7",
+    "js/app.js": "sha384-jUm+tH4K97UvkTOLaVLmna4VZt6BFGzeLPuE+nYEioILVRw4oySxbLD31p4EU7BW",
     "js/automation.js": "sha384-0TFNgP5DNFkvqwOOqzmTxHc7RFPUXWNhSDPGKvyc1abTfmx72NOJNPiWXqR6418K",
     "js/automation.test.mjs": "sha384-Hhw+AFYMjQ0leAdmxKXWqA214QIvXSL6PbIozkYG9lbClx1TukEl+7lhgSmS9zv5",
     "js/crypto.js": "sha384-1qKne4YuVvnKbtks6YzZh/J3JaeD9ePRIO+YcsOo3DYGXMUY5d5tvNyAx+CCUTO3",

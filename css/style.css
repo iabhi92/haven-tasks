@@ -456,6 +456,15 @@ body { display: flex; }
   font-size: 13px;
   color: var(--text);
 }
+.offline-banner {
+  padding: 10px 16px;
+  margin: 0 0 16px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text);
+}
 .smart-search-bar {
   display: flex;
   align-items: center;

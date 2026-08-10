@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260810g" integrity="sha384-oR0xOf9UnowcToyjtb9Wq3RFhTVGlesEb+8OkrS/81oGME5T9w+/vb8Mif0lzsHN" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260810h" integrity="sha384-KUZ2O9KwV4sPL6Yj0+Qe0savf7I1dmeFGkH3BtVyi/XhIDjwbwekWIMmHGbE9myO" crossorigin="anonymous">
 </head>
 <body>
 
@@ -317,6 +317,10 @@
       </button>
     </div>
   </header>
+
+  <div class="offline-banner" id="offlineBanner" hidden>
+    You're offline — everything here still works. Changes save locally and sync once you're back.
+  </div>
 
   <div class="smart-search-bar" id="smartSearchBar" hidden>
     <span id="smartSearchText"></span>
@@ -1282,6 +1286,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260810k" integrity="sha384-Qf3vuI7Is4KuC1hdrS2KTxZoqxRzksusQan1seGaSxmvMFzviU3LQHjeJWPjzpo7" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260810l" integrity="sha384-jUm+tH4K97UvkTOLaVLmna4VZt6BFGzeLPuE+nYEioILVRw4oySxbLD31p4EU7BW" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

@@ -1860,6 +1860,25 @@ function stopAutoSync() {
   document.removeEventListener("visibilitychange", onAutoSyncVisibilityChange);
 }
 
+// Makes an already-true fact visible rather than adding new capability: task data has always
+// worked fully offline (IndexedDB, no server round-trip on the read/write path — see this file's
+// header comment and docs/ARCHITECTURE.md "PWA install"). Nothing here changes what happens while
+// offline, only whether anyone watching can tell. `navigator.onLine`/the online/offline events are
+// a browser-reported network-interface signal, not a real reachability check — good enough to
+// narrate what's happening, not something any other part of this app depends on for correctness.
+function updateOfflineBanner() {
+  document.getElementById("offlineBanner").hidden = navigator.onLine;
+}
+
+function wireOfflineBanner() {
+  updateOfflineBanner();
+  window.addEventListener("offline", updateOfflineBanner);
+  window.addEventListener("online", () => {
+    updateOfflineBanner();
+    autoSyncTick(); // catch up immediately rather than waiting out the rest of the poll interval
+  });
+}
+
 function refreshSyncModalState() {
   const config = getSyncConfig();
   const setupError = document.getElementById("syncSetupError");
@@ -4632,6 +4651,7 @@ async function boot() {
   wirePomodoro();
   wireTemplateModal();
   wireAssistantView();
+  wireOfflineBanner();
 }
 
 wireThemeToggle();
