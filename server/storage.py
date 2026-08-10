@@ -69,6 +69,20 @@ CREATE TABLE IF NOT EXISTS deletion_log (
     ciphertext_hash TEXT NOT NULL,
     prev_entry_hash TEXT NOT NULL,
     entry_hash TEXT NOT NULL
+);
+
+-- Ephemeral WebRTC signaling relay (docs/ARCHITECTURE.md "Server-less WebRTC device pairing" —
+-- the "quick code" path). Holds only SDP offer/answer text: network candidates and a DTLS
+-- fingerprint, never task data, which still flows only peer-to-peer once the connection is up.
+-- Short TTL and a short random code are the only access control (no bearer token, matching
+-- `shares`) — answer_sdp is set at most once per room (see set_webrtc_answer) so a second, later
+-- answerer can't silently hijack a room after the real second device already claimed it.
+CREATE TABLE IF NOT EXISTS webrtc_rooms (
+    code TEXT PRIMARY KEY,
+    offer_sdp TEXT NOT NULL,
+    answer_sdp TEXT,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
 )
 """
 
@@ -267,6 +281,42 @@ def get_deletion_log(db_path, since=0):
             }
             for row in rows
         ]
+
+
+def create_webrtc_room(db_path, code, offer_sdp, created_at, expires_at):
+    """code must already be caller-generated with enough entropy — it's the only credential.
+    Opportunistically reaps expired rooms on every create so an unauthenticated, high-frequency
+    endpoint can't grow this table forever without needing a separate cron (Render's free tier has
+    none — see the visitor-cache comment above for the same constraint elsewhere in this file)."""
+    with get_connection(db_path) as conn:
+        conn.execute("DELETE FROM webrtc_rooms WHERE expires_at <= ?", (created_at,))
+        conn.execute(
+            "INSERT INTO webrtc_rooms (code, offer_sdp, created_at, expires_at) VALUES (?, ?, ?, ?)",
+            (code, offer_sdp, created_at, expires_at),
+        )
+
+
+def get_webrtc_room(db_path, code, now):
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT offer_sdp, answer_sdp FROM webrtc_rooms WHERE code = ? AND expires_at > ?",
+            (code, now),
+        ).fetchone()
+        if row is None:
+            return None
+        return {"offerSdp": row["offer_sdp"], "answerSdp": row["answer_sdp"]}
+
+
+def set_webrtc_answer(db_path, code, answer_sdp, now):
+    """Returns True only if this call was the one that actually set the answer — the WHERE clause
+    (answer_sdp IS NULL) makes a second device's later answer a no-op instead of overwriting the
+    first, real answer, same single-writer-wins spirit as upsert_records' updated_at guard."""
+    with get_connection(db_path) as conn:
+        cur = conn.execute(
+            "UPDATE webrtc_rooms SET answer_sdp = ? WHERE code = ? AND expires_at > ? AND answer_sdp IS NULL",
+            (answer_sdp, code, now),
+        )
+        return cur.rowcount > 0
 
 
 def get_records_since(db_path, token, since):

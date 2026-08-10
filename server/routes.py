@@ -14,12 +14,15 @@ from flask import Blueprint, current_app, jsonify, request
 
 from storage import (
     create_share,
+    create_webrtc_room,
     delete_share,
     get_deletion_log,
     get_keyring_bootstrap,
     get_records_since,
     get_share,
+    get_webrtc_room,
     put_keyring_bootstrap,
+    set_webrtc_answer,
     upsert_records,
 )
 
@@ -42,6 +45,17 @@ MIN_SHARE_TTL_SECONDS = 60
 MAX_SHARE_TTL_SECONDS = 30 * 24 * 60 * 60
 MIN_SHARE_MAX_VIEWS = 1
 MAX_SHARE_MAX_VIEWS = 1000
+
+# WebRTC signaling relay ("quick code" pairing, docs/ARCHITECTURE.md): only ever carries SDP
+# offer/answer text between two devices setting up a direct connection — never task data, which
+# still flows peer-to-peer once the connection is up. TTL is short (this is a live, right-now
+# handoff between two people in the same room, not a durable link) and the code itself is the only
+# access control, so its alphabet drops visually-ambiguous characters (0/O, 1/I) since a human may
+# be typing it, not just scanning it.
+WEBRTC_ROOM_TTL_SECONDS = 600
+WEBRTC_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+WEBRTC_CODE_LENGTH = 8
+MAX_SDP_LEN = 20_000
 
 # Visitor-count badge for the portfolio (iabhi92.online) to fetch cross-origin. This backend
 # already has no persistent worker/cron on Render's free tier (see docs/ARCHITECTURE.md), so
@@ -277,6 +291,59 @@ def deletion_log_route():
     except ValueError:
         return jsonify({"error": "since must be an integer sequence number"}), 400
     return jsonify({"entries": get_deletion_log(current_app.config["SYNC_DB_PATH"], since)})
+
+
+@bp.route("/webrtc-relay", methods=["POST"])
+def create_webrtc_relay_room():
+    """Device A: publish an offer, get back a short code to hand to Device B by any means (read
+    aloud, typed, or a small QR of just the code — no longer the whole SDP blob, see
+    docs/ARCHITECTURE.md). Deliberately unauthenticated, same reasoning as /share."""
+    body = request.get_json(silent=True) or {}
+    offer_sdp = body.get("offerSdp")
+    if not isinstance(offer_sdp, str) or not offer_sdp:
+        return jsonify({"error": "body must include a non-empty offerSdp string"}), 400
+    if len(offer_sdp) > MAX_SDP_LEN:
+        return jsonify({"error": "offerSdp too large"}), 400
+
+    now = int(time.time() * 1000)
+    code = "".join(secrets.choice(WEBRTC_CODE_ALPHABET) for _ in range(WEBRTC_CODE_LENGTH))
+    create_webrtc_room(current_app.config["SYNC_DB_PATH"], code, offer_sdp, now, now + WEBRTC_ROOM_TTL_SECONDS * 1000)
+    return jsonify({"code": code, "expiresAt": now + WEBRTC_ROOM_TTL_SECONDS * 1000})
+
+
+@bp.route("/webrtc-relay/<code>", methods=["GET"])
+def get_webrtc_relay_room(code):
+    """Device B fetches the offer by code; Device A polls the same endpoint afterward to pick up
+    the answer once Device B has posted it — answerSdp is null until then."""
+    now = int(time.time() * 1000)
+    room = get_webrtc_room(current_app.config["SYNC_DB_PATH"], code.upper(), now)
+    if room is None:
+        return jsonify({"error": "code not found or expired"}), 404
+    return jsonify(room)
+
+
+@bp.route("/webrtc-relay/<code>/answer", methods=["POST"])
+def post_webrtc_relay_answer(code):
+    """Device B: publish the answer back to the same room. Only the first answer for a given code
+    is accepted (see set_webrtc_answer) — a later one is rejected rather than silently overwriting
+    the real answerer, since a guessed/observed code could otherwise let a third party race to
+    hijack the room after the intended second device already claimed it."""
+    body = request.get_json(silent=True) or {}
+    answer_sdp = body.get("answerSdp")
+    if not isinstance(answer_sdp, str) or not answer_sdp:
+        return jsonify({"error": "body must include a non-empty answerSdp string"}), 400
+    if len(answer_sdp) > MAX_SDP_LEN:
+        return jsonify({"error": "answerSdp too large"}), 400
+
+    now = int(time.time() * 1000)
+    normalized_code = code.upper()
+    if set_webrtc_answer(current_app.config["SYNC_DB_PATH"], normalized_code, answer_sdp, now):
+        return jsonify({"ok": True})
+
+    room = get_webrtc_room(current_app.config["SYNC_DB_PATH"], normalized_code, now)
+    if room is None:
+        return jsonify({"error": "code not found or expired"}), 404
+    return jsonify({"error": "this code already has an answer"}), 409
 
 
 @bp.route("/api/visitors", methods=["GET"])

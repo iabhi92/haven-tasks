@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260810j" integrity="sha384-U2QD39ltjrx/+7PmIgiv028WUc1RJiRPx8TXkT5NWaB9YQauteC+l6t6UpG8PTMe" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260811a" integrity="sha384-zMoIX8U+MbHiCr3qsl8WDdKzgzGbFs3qbX4Q6FNo2L3gGK9+yLGajW/Oa5BPhKpC" crossorigin="anonymous">
 </head>
 <body>
 
@@ -1287,17 +1287,40 @@
 
 <div class="modal-overlay" id="webrtcPairModal" hidden>
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="webrtcPairModalTitle">
-    <h2 id="webrtcPairModalTitle">Pair a device (no server)</h2>
-    <p class="modal-help">
-      Connects directly to another device over WebRTC and exchanges tasks peer-to-peer — no relay
-      server touches this data at all, not even as ciphertext. Needs both devices able to reach
-      each other directly, which reliably means the same Wi-Fi network.
+    <h2 id="webrtcPairModalTitle">Pair a device</h2>
+    <p class="modal-help" id="webrtcModeHelp">
+      Connects directly to another device over WebRTC and exchanges tasks peer-to-peer — your
+      tasks never touch a server either way. A quick code uses Haven's relay only to set up the
+      connection (it sees network details, never tasks); pairing fully offline skips that too.
     </p>
 
     <div id="webrtcChooseSection">
       <div class="modal-actions-right sync-close-row">
         <button type="button" class="btn btn-ghost" id="webrtcJoinChoiceBtn">I have a code</button>
         <button type="button" class="btn btn-primary" id="webrtcStartChoiceBtn">Start pairing</button>
+      </div>
+      <button type="button" class="lock-link" id="webrtcModeToggleBtn">Pair fully offline instead (no server involved at all)</button>
+    </div>
+
+    <div id="webrtcQuickShowSection" hidden>
+      <p class="lock-sub">Enter this code on the other device, or scan it:</p>
+      <p class="webrtc-quick-code" id="webrtcQuickCodeDisplay"></p>
+      <div class="qr-code-wrap">
+        <div class="qr-code-box" id="webrtcQuickQrCode"></div>
+      </div>
+      <div class="modal-actions-right">
+        <button type="button" class="btn btn-ghost" id="webrtcQuickCopyBtn">Copy code</button>
+      </div>
+    </div>
+
+    <div id="webrtcQuickEnterSection" hidden>
+      <div class="field">
+        <label for="webrtcQuickCodeInput">Enter the code from the other device</label>
+        <input type="text" id="webrtcQuickCodeInput" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </div>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-ghost" id="webrtcQuickScanBtn">Scan a QR code instead</button>
+        <button type="button" class="btn btn-primary" id="webrtcQuickJoinBtn">Continue</button>
       </div>
     </div>
 
@@ -1343,6 +1366,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260810r" integrity="sha384-mv6TYgjoW/RLinxUaRK+0THA5ywbslednlNmLP1iu8nv51wTsF5gwFAlSOgCdjvO" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260810s" integrity="sha384-HAgIte75Pflhf11QPWDolaHO8pUcuuN2oZjbFPz0YqdnOSQhJycKY45wPw6rnOX2" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

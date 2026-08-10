@@ -153,22 +153,29 @@
     `createTimeLockPuzzle()` unmodified, so the same "a future quantum adversary could skip the
     wait via Shor's algorithm" caveat applies here too, and for the same reason is not fixed.
 
-### A4b-3. Anyone who intercepts the WebRTC pairing exchange, or Google's STUN server
+### A4b-3. Anyone who intercepts the WebRTC pairing exchange, Google's STUN server, or the quick-code relay
 
 - **Capability:** whoever sees the manually-exchanged offer/answer text (shoulder-surfing a QR
   code, a compromised clipboard manager) could attempt to connect as the intended other device;
-  Google's public STUN server (the only third party in this feature's data path at all) learns
-  both devices' public IP addresses during connection setup.
+  Google's public STUN server learns both devices' public IP addresses during connection setup; in
+  quick-code mode, Haven's own sync/relay server additionally sees the SDP offer/answer text for
+  the ~10-minute window a room exists.
 - **Defenses:**
   - The offer/answer exchange carries no task content and no key material — it's WebRTC
     connection metadata (ICE candidates, a DTLS fingerprint), not anything that decrypts a task on
     its own. See docs/ARCHITECTURE.md "Server-less WebRTC device pairing" for why plaintext task
     content only ever travels over the *already-connected*, DTLS-encrypted data channel, never in
-    the offer/answer itself.
+    the offer/answer itself, or through the relay, in either mode.
   - STUN is used strictly for NAT traversal (learning a device's own public-facing address) —
     Google's STUN server never sees, forwards, or has any path to the actual connection's data.
     This is a fundamentally different trust class from a relay/TURN server, which is deliberately
-    not used here for exactly this reason.
+    not used for the *data channel* itself in either mode — quick mode's relay only ever carries
+    the same connection-setup metadata STUN already incidentally learns, never the tasks.
+  - The quick-code relay's room code (§5-3) is ~40 bits of entropy, single-use for its answer (a
+    second answer to an already-claimed room is rejected, not silently overwritten), and expires
+    in 10 minutes — bounding both the guessing window and how long the SDP sits on the server.
+    Fully-offline mode (a toggle in the pairing modal) avoids this exposure entirely, at the cost
+    of a manual second step; this is a real, disclosed trade-off, not something the UI hides.
 - **Residual risk, stated plainly:**
   - **An intercepted offer could be used to attempt a connection**, same as anyone who received a
     fragment-key share link's URL could attempt to open it (A4b) — the difference here is there's
@@ -181,6 +188,12 @@
     was attempted between them**, once per pairing. No alternative exists that doesn't either
     accept this (a well-known, narrow metadata exposure any STUN-based WebRTC application makes)
     or reintroduce a relay server this feature exists specifically to avoid.
+  - **In quick-code mode, Haven's sync server operator could observe that two pairings happened
+    and their connection metadata**, for rooms that existed within the last 10 minutes — a strictly
+    smaller exposure than the sync feature already accepts for anyone who opts into it (§5's
+    bearer-token bucket sees ciphertext continuously, not connection metadata for 10 minutes), but
+    a real one, and the reason fully-offline mode exists as a first-class alternative rather than
+    quick-code being the only option.
 
 ### A4c. A social recovery share holder (one of k-of-n trusted people)
 - **Capability:** holds one piece of a split recovery code (docs/ARCHITECTURE.md §4b).

@@ -88,6 +88,7 @@ import {
   bufToBase64,
   base64ToBuf,
   bufToBase64Url,
+  base64UrlToBuf,
   generateSigningKeypair,
   exportSigningPublicKey,
   importSigningPublicKey,
@@ -2645,8 +2646,175 @@ let webrtcScanStream = null;
 // showing your own code, never more than one at a time) — but the status line is independent of
 // all three, since the "join" flow genuinely needs to show the answer code *and* "waiting for the
 // connection to open" at the same time, not one or the other.
+// gzip via the native Compression Streams API (Chrome 80+, Safari 16.4+, Firefox 113+ — no
+// vendored library needed) — a real, measured fix, not a guess: an SDP offer's base64url text
+// alone was ~1330 chars, enough modules (~120+) that a real OpenCV decode test started failing
+// intermittently even at generous physical sizes (tested up to 1290px, still flaky — this wasn't
+// a "make the cellSize bigger" problem, the module count itself was the issue). SDP text compresses
+// well (repetitive "a=candidate:"/"typ host" boilerplate across many candidates), and gzip brings
+// the same real offer down to ~780 chars / 97 modules — the exact module count already proven
+// reliable for the share-link QR earlier in this project's testing, confirmed again here with 5
+// consecutive real offers all decoding correctly at that size.
+async function gzipCompress(text) {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gzipDecompress(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new TextDecoder().decode(await new Response(stream).arrayBuffer());
+}
+
+// Wraps SDP text in a plain https:// URL rather than QR-encoding it raw. A native camera app
+// (iOS Camera, Android Camera/Lens) that scans raw SDP text tries to make sense of it as text and
+// can misfire on a numeric substring inside it (an ICE candidate priority, say) as a phone number,
+// offering a "Call"/"Message" sheet instead of anything useful — a real bug hit during testing on
+// a real iPhone, not a hypothetical. A URL scans as a URL everywhere: every native camera app
+// offers the unambiguous, familiar "Open in Safari/Chrome" action instead.
+async function buildWebrtcSignalUrl(kind, payload) {
+  const compressed = await gzipCompress(payload);
+  const url = new URL(location.origin + location.pathname);
+  url.hash = `webrtc-${kind}=${bufToBase64Url(compressed)}`;
+  return url.toString();
+}
+
+// Accepts either a bare "#webrtc-offer=..." hash or a full URL containing one (scanned QR text,
+// or location.hash on load) — not anchored, so it matches either shape. "code" is the quick-code
+// relay flow's short room code; "offer"/"answer" are the fully-offline flow's raw SDP text.
+async function decodeWebrtcSignalPayload(text) {
+  const m = /webrtc-(offer|answer|code)=([A-Za-z0-9_-]+)/.exec(text || "");
+  if (!m) return null;
+  try {
+    return { kind: m[1], payload: await gzipDecompress(base64UrlToBuf(m[2])) };
+  } catch {
+    return null;
+  }
+}
+
+// Drives the pairing modal exactly as a user manually pasting/clicking/typing would — reuses the
+// same button handlers wireWebrtcPairModal() already sets up, rather than duplicating the connect
+// logic here. An "answer" can only complete the connection in the same tab that generated the
+// offer (the RTCPeerConnection lives in that tab's memory, not anywhere serializable) — scanning
+// an answer QR with a native camera app always opens a fresh tab, so that case can't proceed and
+// says so honestly instead of failing silently. "code" (the quick-code relay flow) has no such
+// restriction — the relay itself is what carries state between tabs/devices.
+function webrtcAutoHandleSignal(kind, payload) {
+  if (kind === "offer") {
+    openWebrtcPairModal();
+    webrtcSetMode("offline");
+    document.getElementById("webrtcJoinChoiceBtn").click();
+    document.getElementById("webrtcPasteInput").value = payload;
+    document.getElementById("webrtcPasteActionBtn").click();
+  } else if (kind === "answer") {
+    if (webrtcPc) {
+      document.getElementById("webrtcPasteInput").value = payload;
+      document.getElementById("webrtcPasteActionBtn").click();
+    } else {
+      openWebrtcPairModal();
+      webrtcSetMode("offline");
+      webrtcSetStatus("This code finishes a pairing started in another tab on this device — go back to that tab and paste or scan it there instead.", true);
+    }
+  } else if (kind === "code") {
+    openWebrtcPairModal();
+    webrtcSetMode("quick");
+    document.getElementById("webrtcJoinChoiceBtn").click();
+    document.getElementById("webrtcQuickCodeInput").value = payload;
+    document.getElementById("webrtcQuickJoinBtn").click();
+  }
+}
+
+async function consumePendingWebrtcSignal() {
+  const result = await decodeWebrtcSignalPayload(location.hash);
+  if (!result) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  webrtcAutoHandleSignal(result.kind, result.payload);
+}
+
+let webrtcMode = "quick";
+
+function webrtcSetMode(mode) {
+  webrtcMode = mode;
+  document.getElementById("webrtcModeToggleBtn").textContent =
+    mode === "quick" ? "Pair fully offline instead (no server involved at all)" : "Use a quick code instead";
+  document.getElementById("webrtcModeHelp").textContent =
+    mode === "quick"
+      ? "Connects directly to another device over WebRTC and exchanges tasks peer-to-peer — your tasks never touch a server either way. A quick code uses Haven's relay only to set up the connection (it sees network details, never tasks); pairing fully offline skips that too."
+      : "Connects directly to another device over WebRTC and exchanges tasks peer-to-peer — no relay server touches this data at all, not even connection metadata. Needs both devices able to reach each other directly, which reliably means the same Wi-Fi network.";
+}
+
+// ---------- quick-code relay (docs/ARCHITECTURE.md "Server-less WebRTC device pairing" — the
+// relay only ever stores/forwards SDP offer/answer text between the two devices setting up a
+// connection, never task data, which still only ever flows peer-to-peer once connected) ----------
+
+async function webrtcRelayCreateRoom(offerSdp) {
+  const resp = await fetch(`${shareServerUrl()}/webrtc-relay`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ offerSdp }),
+  });
+  if (!resp.ok) throw new Error("Couldn't reach the pairing relay.");
+  return resp.json();
+}
+
+async function webrtcRelayGetRoom(code) {
+  const resp = await fetch(`${shareServerUrl()}/webrtc-relay/${encodeURIComponent(code)}`);
+  if (!resp.ok) return null;
+  return resp.json();
+}
+
+async function webrtcRelayPostAnswer(code, answerSdp) {
+  const resp = await fetch(`${shareServerUrl()}/webrtc-relay/${encodeURIComponent(code)}/answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answerSdp }),
+  });
+  if (resp.ok) return;
+  const body = await resp.json().catch(() => ({}));
+  throw new Error(body.error || "Couldn't send the reply.");
+}
+
+let webrtcRelayPollTimer = null;
+let webrtcRelayPollCancelled = false;
+const WEBRTC_RELAY_POLL_TIMEOUT_MS = 9 * 60 * 1000; // just under the server's 10-minute room TTL
+
+function webrtcRelayCancelPoll() {
+  webrtcRelayPollCancelled = true;
+  if (webrtcRelayPollTimer) {
+    clearTimeout(webrtcRelayPollTimer);
+    webrtcRelayPollTimer = null;
+  }
+}
+
+// Simple 2s poll rather than any push mechanism — this relay has no persistent connections to
+// push over (Render's free tier has no long-running worker, see the visitor-cache comment in
+// server/routes.py), and a pairing that's happening live between two people in the same room
+// tolerates a couple seconds of latency without anyone noticing.
+function webrtcRelayPollForAnswer(code, onAnswer, onTimeout) {
+  webrtcRelayPollCancelled = false;
+  const start = Date.now();
+  const tick = async () => {
+    if (webrtcRelayPollCancelled) return;
+    if (Date.now() - start > WEBRTC_RELAY_POLL_TIMEOUT_MS) {
+      onTimeout();
+      return;
+    }
+    try {
+      const room = await webrtcRelayGetRoom(code);
+      if (webrtcRelayPollCancelled) return;
+      if (room && room.answerSdp) {
+        onAnswer(room.answerSdp);
+        return;
+      }
+    } catch {
+      // Transient network hiccup — just try again next tick.
+    }
+    webrtcRelayPollTimer = setTimeout(tick, 2000);
+  };
+  tick();
+}
+
 function webrtcShowStep(sectionId) {
-  for (const id of ["webrtcChooseSection", "webrtcPasteInSection", "webrtcShowCodeSection"]) {
+  for (const id of ["webrtcChooseSection", "webrtcQuickShowSection", "webrtcQuickEnterSection", "webrtcPasteInSection", "webrtcShowCodeSection"]) {
     document.getElementById(id).hidden = id !== sectionId;
   }
 }
@@ -2763,8 +2931,13 @@ async function webrtcScanInto(targetInput) {
     try {
       const codes = await detector.detect(video);
       if (codes.length > 0) {
-        targetInput.value = codes[0].rawValue;
         webrtcStopScan();
+        const payload = await decodeWebrtcSignalPayload(codes[0].rawValue);
+        if (payload) {
+          webrtcAutoHandleSignal(payload.kind, payload.payload);
+        } else {
+          targetInput.value = codes[0].rawValue;
+        }
         return;
       }
     } catch {
@@ -2777,6 +2950,7 @@ async function webrtcScanInto(targetInput) {
 
 function webrtcCleanup() {
   webrtcStopScan();
+  webrtcRelayCancelPoll();
   if (webrtcPc) {
     webrtcPc.close();
     webrtcPc = null;
@@ -2787,6 +2961,9 @@ function webrtcCleanup() {
 function openWebrtcPairModal() {
   document.getElementById("webrtcPasteInput").value = "";
   document.getElementById("webrtcCodeOutput").value = "";
+  document.getElementById("webrtcQuickCodeInput").value = "";
+  document.getElementById("webrtcQuickCodeDisplay").textContent = "";
+  webrtcSetMode("quick");
   webrtcShowStep("webrtcChooseSection");
   webrtcHideStatus();
   document.getElementById("webrtcPairModal").hidden = false;
@@ -2804,12 +2981,15 @@ function wireWebrtcPairModal() {
   const pasteActionBtn = document.getElementById("webrtcPasteActionBtn");
   const codeOutput = document.getElementById("webrtcCodeOutput");
   const showCodeLabel = document.getElementById("webrtcShowCodeLabel");
+  const quickCodeInput = document.getElementById("webrtcQuickCodeInput");
+  const quickCodeDisplay = document.getElementById("webrtcQuickCodeDisplay");
+  const quickJoinBtn = document.getElementById("webrtcQuickJoinBtn");
 
   async function finishOnceOpen(channel) {
     webrtcSetStatus("Connected — exchanging tasks…");
     try {
       const result = await runPeerSync(channel);
-      webrtcSetStatus(`Done — ${result.added} added, ${result.merged} merged, straight from the other device, no server involved.`);
+      webrtcSetStatus(`Done — ${result.added} added, ${result.merged} merged, straight from the other device.`);
     } catch (err) {
       webrtcSetStatus(`Connected, but the exchange failed: ${err.message}`, true);
     } finally {
@@ -2817,7 +2997,44 @@ function wireWebrtcPairModal() {
     }
   }
 
+  document.getElementById("webrtcModeToggleBtn").addEventListener("click", () => {
+    webrtcSetMode(webrtcMode === "quick" ? "offline" : "quick");
+  });
+
   document.getElementById("webrtcStartChoiceBtn").addEventListener("click", async () => {
+    if (webrtcMode === "quick") {
+      webrtcSetStatus("Getting a pairing code…");
+      try {
+        const { pc, channel, sdp } = await createOffer();
+        webrtcPc = pc;
+        webrtcChannel = channel;
+        const { code } = await webrtcRelayCreateRoom(sdp);
+        quickCodeDisplay.textContent = code;
+        renderQrCode("webrtcQuickQrCode", await buildWebrtcSignalUrl("code", code));
+        webrtcShowStep("webrtcQuickShowSection");
+        webrtcSetStatus("Waiting for the other device to enter this code…");
+        webrtcRelayPollForAnswer(
+          code,
+          async (answerSdp) => {
+            webrtcSetStatus("Connecting…");
+            try {
+              await completeOffer(webrtcPc, answerSdp);
+              await waitForChannelOpen(webrtcChannel);
+              await finishOnceOpen(webrtcChannel);
+            } catch (err) {
+              webrtcSetStatus(`Couldn't connect: ${err.message}`, true);
+              webrtcCleanup();
+            }
+          },
+          () => webrtcSetStatus("Nobody entered the code in time — try again.", true)
+        );
+      } catch (err) {
+        webrtcSetStatus(`Couldn't start pairing: ${err.message}`, true);
+        webrtcCleanup();
+      }
+      return;
+    }
+
     webrtcSetStatus("Generating a pairing code…");
     try {
       const { pc, channel, sdp } = await createOffer();
@@ -2826,7 +3043,7 @@ function wireWebrtcPairModal() {
 
       showCodeLabel.textContent = "Show this to the other device:";
       codeOutput.value = sdp;
-      renderQrCode("webrtcQrCode", sdp);
+      renderQrCode("webrtcQrCode", await buildWebrtcSignalUrl("offer", sdp));
       pasteLabel.textContent = "Then paste the other device's reply here:";
       pasteInput.value = "";
       pasteActionBtn.textContent = "Connect";
@@ -2849,6 +3066,14 @@ function wireWebrtcPairModal() {
   });
 
   document.getElementById("webrtcJoinChoiceBtn").addEventListener("click", () => {
+    if (webrtcMode === "quick") {
+      quickCodeInput.value = "";
+      webrtcShowStep("webrtcQuickEnterSection");
+      webrtcHideStatus();
+      quickCodeInput.focus();
+      return;
+    }
+
     pasteLabel.textContent = "Paste the code from the other device:";
     pasteInput.value = "";
     pasteActionBtn.textContent = "Continue";
@@ -2864,7 +3089,7 @@ function wireWebrtcPairModal() {
         webrtcPc = pc;
         showCodeLabel.textContent = "Show this back to the first device:";
         codeOutput.value = sdp;
-        renderQrCode("webrtcQrCode", sdp);
+        renderQrCode("webrtcQrCode", await buildWebrtcSignalUrl("answer", sdp));
         webrtcShowStep("webrtcShowCodeSection");
         webrtcSetStatus("Waiting for the connection to open…");
       } catch (err) {
@@ -2872,6 +3097,39 @@ function wireWebrtcPairModal() {
       }
     };
     webrtcShowStep("webrtcPasteInSection");
+  });
+
+  quickCodeInput.addEventListener("input", () => {
+    quickCodeInput.value = quickCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  });
+
+  quickJoinBtn.addEventListener("click", async () => {
+    const code = quickCodeInput.value.trim();
+    if (!code) return;
+    webrtcSetStatus("Looking up that code…");
+    try {
+      const room = await webrtcRelayGetRoom(code);
+      if (!room) throw new Error("That code wasn't found — it may have expired or been mistyped.");
+      const { pc, sdp } = await createAnswer(room.offerSdp, (channel) => {
+        webrtcChannel = channel;
+        finishOnceOpen(channel);
+      });
+      webrtcPc = pc;
+      await webrtcRelayPostAnswer(code, sdp);
+      webrtcSetStatus("Waiting for the connection to open…");
+    } catch (err) {
+      webrtcSetStatus(`Couldn't process that code: ${err.message}`, true);
+      webrtcCleanup();
+    }
+  });
+
+  document.getElementById("webrtcQuickScanBtn").addEventListener("click", () => webrtcScanInto(quickCodeInput));
+  document.getElementById("webrtcQuickCopyBtn").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(quickCodeDisplay.textContent);
+    } catch {
+      // Non-fatal — the code is visible on screen for manual copy.
+    }
   });
 
   document.getElementById("webrtcScanBtn").addEventListener("click", () => webrtcScanInto(pasteInput));
@@ -4167,10 +4425,10 @@ function el(tag, className, text) {
 // modules a short dead-man's-switch link does (verified: 45 vs 97 modules for real examples of
 // each). A fixed cell size that looked fine for the short link squeezed the long one into modules
 // too small for a phone camera to resolve — this targets a roughly constant final size instead.
-const QR_TARGET_PX = 300;
+const QR_TARGET_PX = 420;
 
 function renderQrCode(containerId, text) {
-  const qr = qrcode(0, "M");
+  const qr = qrcode(0, "L");
   qr.addData(text);
   qr.make();
   const cellSize = Math.max(2, Math.round(QR_TARGET_PX / qr.getModuleCount()));
@@ -4639,6 +4897,7 @@ async function afterUnlock() {
 
   if (getSyncConfig()) startAutoSync();
   startHistoryIntegrityWatch();
+  await consumePendingWebrtcSignal();
 }
 
 // Shared by both the direct "enter your recovery code" form and the

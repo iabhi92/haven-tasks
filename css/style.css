@@ -1956,6 +1956,14 @@ body { display: flex; }
 .security-check-title-row { display: flex; align-items: center; gap: 8px; }
 .security-check-icon { font-size: 13px; color: var(--text-faint); width: 14px; text-align: center; }
 .security-check-icon.is-done { color: var(--success); font-weight: 700; }
+.webrtc-quick-code {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-align: center;
+  margin: 4px 0 16px;
+}
 .qr-code-wrap { text-align: center; margin-bottom: 12px; }
 /* Fixed white, not a theme token — a QR scanner needs light-on-dark contrast regardless of theme. */
 .qr-code-box { display: inline-block; padding: 10px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); }

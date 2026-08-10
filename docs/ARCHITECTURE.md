@@ -821,25 +821,98 @@ the exact same `syncNow()`, no separate code path.
 ## 5-3. Server-less WebRTC device pairing (Layer 3)
 
 Extends §5's optional relay-based sync into a direct, one-time, peer-to-peer exchange over a
-WebRTC data channel — no relay server touches this data at any point, not even as an opaque
+WebRTC data channel — task data never touches a server at any point, not even as an opaque
 ciphertext passthrough the way the optional sync server does. `js/webrtc-pair.js` (connection
 setup) + `js/app.js`'s pairing modal wiring and `runPeerSync()` (the actual exchange).
 
-- **Manual signaling, on purpose.** WebRTC still needs some out-of-band exchange of an SDP
-  offer/answer to establish a connection at all — that's not a server call here, it's the two
-  devices' own owners relaying two short text blobs between the devices themselves, via a QR code
-  (native `BarcodeDetector`, no vendored scanning library) or plain copy/paste, always available as
-  a fallback. **Non-trickle ICE**: both `createOffer()` and `createAnswer()` wait for
+The pairing modal offers two mechanisms for the one thing WebRTC can't avoid — some out-of-band
+exchange of an SDP offer/answer to set the connection up in the first place. **Quick code**
+(default) hands that exchange to a small relay so pairing is one code, entered once. **Fully
+offline** (a toggle in the modal) skips the relay entirely, at the cost of a manual second step.
+Task content is peer-to-peer either way — the two modes differ only in how the two devices find
+each other, never in how the tasks themselves move.
+
+### Quick code (relay-assisted signaling)
+
+- **What the relay does and doesn't see.** `POST /webrtc-relay` stores an SDP offer under a
+  short, random, single-use code (`server/storage.py`'s `webrtc_rooms` table); `GET
+  /webrtc-relay/<code>` and `POST /webrtc-relay/<code>/answer` let the second device fetch the
+  offer and post its answer back. That's SDP text only — network candidates and a DTLS
+  fingerprint, the same connection metadata a STUN server already incidentally sees, never task
+  content, which still only ever flows over the resulting peer-to-peer data channel once
+  connected. Deliberately unauthenticated, same reasoning as `/share` (§5b) — the code itself,
+  not a bearer token, is the access control.
+- **The code:** 8 characters from a 32-character alphabet with visually-ambiguous characters
+  removed (`0`/`O`, `1`/`I`) since a human may be typing it, not just scanning it — about 40 bits
+  of entropy. Rooms expire 10 minutes after creation (`WEBRTC_ROOM_TTL_SECONDS`) — long enough for
+  two people in the same room to complete a live handoff, short enough to bound a guessed code's
+  window of usefulness. Only the *first* answer posted to a room is ever accepted
+  (`set_webrtc_answer`'s `answer_sdp IS NULL` guard) — a second, later answer is rejected (409)
+  rather than silently overwriting the real one, so a guessed/observed code can't let a third
+  party race to hijack a room the intended second device already claimed.
+- **No push mechanism — a 2-second poll instead.** Render's free tier has no persistent
+  worker/cron (same constraint already noted on the visitor-count cache in `server/routes.py`), so
+  the device waiting for an answer just polls `GET /webrtc-relay/<code>` every 2 seconds until
+  `answerSdp` appears or ~9 minutes pass. A pairing happening live between two people in the same
+  room tolerates a couple seconds of latency without anyone noticing; `webrtcRelayCancelPoll()`
+  stops the loop the moment the modal closes so a stray tick can't act after cleanup.
+- **The QR is a URL, not raw text — a real bug on a real iPhone, not a hypothetical.** Scanning
+  the code's QR with iOS's *native* Camera app (not Haven's own in-page scanner) triggered iOS's
+  system-level content-type detector, which found a phone-number-shaped numeric substring inside
+  what used to be raw signaling text and offered a "Call"/"Message" action sheet instead of
+  anything useful — confirmed against a real iPhone, not guessed at. **Fix:** every QR this feature
+  shows (`buildWebrtcSignalUrl()`) now encodes a full `https://…/app.html#webrtc-code=…` URL, never
+  bare text. Every native camera app on every platform already knows exactly what to do with a
+  URL — "Open in Safari/Chrome" — which is both unambiguous and the same familiar action people
+  already associate with QR codes generally. Landing on that URL after unlock
+  (`consumePendingWebrtcSignal()`, hooked into `afterUnlock()`) auto-opens the pairing modal in the
+  join flow, fills the code, and submits it — scanning with a normal camera is now the *primary*
+  intended path, not a fallback, and Haven's own in-page `BarcodeDetector` scanner (still
+  Chrome/Edge-only, see the scope note below) becomes a convenience for browsers that support it
+  rather than the only reliable option.
+- **gzip before encoding — a second real bug, caught by testing the first fix, not assumed away.**
+  The same URL-wrapping fix applied naively to the *offline* mode's full-SDP QR (below) pushed an
+  ~975-byte SDP's base64url encoding to ~1330 characters — enough QR modules (~120+) that a real
+  OpenCV decode test (the same verification method already established earlier in this project's
+  QR work) started failing intermittently, even at generous physical render sizes tested up to
+  1290px. It wasn't a "make the code bigger" problem — module *count* was the issue, and SDP text
+  compresses well (highly repetitive `a=candidate:`/`typ host` boilerplate across many ICE
+  candidates). `gzipCompress()`/`gzipDecompress()` (native `CompressionStream`/`DecompressionStream`
+  — Chrome 80+, Safari 16.4+, Firefox 113+, no vendored library) bring a real offer down to ~780
+  characters / 97 modules before it's base64url-encoded into the URL — the exact module count
+  already proven reliable for the share-link QR — confirmed again with 5 consecutive real offers
+  all decoding correctly at that size, and the originally-failing case now passing too.
+
+### Fully offline (manual QR/paste, no server at all)
+
+Reachable via "Pair fully offline instead" in the modal. This is the *original* implementation of
+this feature, unchanged in mechanism, benefiting from the same URL-wrapping + compression fixes
+above (its QR also encodes a compressed, URL-wrapped offer/answer now, for the same native-camera
+reason) — everything below this point describes this mode specifically.
+
+- **Manual signaling.** The two devices' own owners relay two short text blobs between the devices
+  themselves, via QR (native `BarcodeDetector`) or plain copy/paste, always available as a
+  fallback. **Non-trickle ICE**: both `createOffer()` and `createAnswer()` wait for
   `icegatheringstatechange` to report `"complete"` before returning the SDP, so the whole offer or
   answer is one self-contained blob exchangeable in a single QR/paste — there's no ongoing
   signaling channel here to trickle candidates over one at a time.
+- **An answer can only complete a connection in the tab that generated the offer** — the
+  `RTCPeerConnection` lives in that tab's JS memory, not anywhere serializable. Scanning an answer
+  QR with a native camera app always opens a fresh tab, so `webrtcAutoHandleSignal()` detects that
+  case (no live `webrtcPc` in the fresh tab) and says so honestly — "go back to that tab and paste
+  or scan it there instead" — rather than failing silently or crashing. This asymmetry is why only
+  the *offer* side of the fully-offline flow benefits from the "scan with your regular camera"
+  convenience the quick-code mode gets on both sides — the answer step still needs same-tab
+  scanning or paste.
 - **STUN only, never TURN.** A public STUN server (`stun.l.google.com`) helps a device learn its
   own public-facing address; it never sees or relays a single byte of the actual connection. TURN
-  would relay data through a third party — exactly the "a server touches it" case this feature
-  exists to avoid — so it's deliberately not used. If a direct path can't be found (symmetric NAT
+  would relay data through a third party — exactly the "a server touches it" case this mode exists
+  to avoid entirely — so it's deliberately not used. If a direct path can't be found (symmetric NAT
   on both sides, restrictive corporate networks), pairing simply fails rather than silently
   falling back to relaying through someone else's server. Reliably works on the same Wi-Fi
-  network; not guaranteed across arbitrary networks.
+  network; not guaranteed across arbitrary networks. (The quick-code mode above uses the same STUN
+  configuration — this bullet applies to both modes' actual data-channel setup, only the
+  offer/answer *delivery* differs between them.)
 - **Two real bugs a real two-device test caught before this shipped, not hypothetical ones:**
   1. Round-tripping an SDP string through an HTML `<textarea>` (copy out of one device's, paste
      into the other's — exactly what this feature's whole UI does) silently normalizes the
@@ -871,21 +944,32 @@ setup) + `js/app.js`'s pairing modal wiring and `runPeerSync()` (the actual exch
   also removes any need for a shared "since" cursor (§5-2's watermark fix doesn't apply here):
   `mergeTaskFields()` already operates on plaintext task objects, so there's no ciphertext-specific
   bookkeeping to get right.
-- **Honest scope limits:**
+- **Honest scope limits (applies to both modes above):**
   - **One-time content push each direction, not a full bidirectional sync.** A deletion on one
     side has no record to send at all — it just doesn't propagate. Self-destructing and
     still-locked time-locked tasks are excluded from what's sent, same reasoning as the relay
     path: their keys are meant to stay local to the device that created them.
-  - **Camera scanning depends on browser support for the Shape Detection API's
-    `BarcodeDetector`** — present in Chrome/Edge (desktop and Android) but not Safari or Firefox
-    as of this writing. The paste fallback is always available regardless and is what every
-    automated test here actually exercised end-to-end (a real two-device Playwright run: SDP
-    exchange, connection, and decrypted content landing correctly on both sides). The camera
-    capture pipeline itself (permission prompt, video stream, cleanup on cancel) was also verified
-    for real, with a fake camera device — what's *not* verified by anything in this project's own
-    testing is a real camera successfully decoding a real QR code off a real screen, which needs
-    an actual device before relying on it live, the same caveat already on record for the
-    offline-reload edge case in §"Offline banner".
+  - **In-page camera scanning (the "Scan a QR code instead" button) still depends on browser
+    support for the Shape Detection API's `BarcodeDetector`** — present in Chrome/Edge (desktop
+    and Android) but not Safari or Firefox as of this writing. This matters less than it used to:
+    since every QR this feature shows is now a real URL (see above), a phone's *native* camera
+    app — universally available regardless of browser — is the primary scanning path for the
+    quick-code mode and the offline mode's offer step; `BarcodeDetector` is a same-page
+    convenience for browsers that support it, not the only way to scan.
+  - **What's verified vs. not, precisely.** Verified for real: the manual paste flow end-to-end (a
+    real two-device Playwright run — SDP exchange, connection, decrypted content landing correctly
+    on both sides); the in-page `BarcodeDetector` capture pipeline (permission prompt, video
+    stream, cleanup on cancel) with a fake camera device; and the native-camera-scan path
+    simulated as realistically as this project's tooling allows — decoding the actual rendered QR
+    image with a real, independent QR library (OpenCV, not this app's own encoder) to get the
+    exact string a phone's camera would read, then navigating a genuinely fresh browser
+    tab/vault (not a same-page hash-only navigation, which Chromium treats as a no-reload
+    same-document change and would have silently passed a weaker test without exercising the real
+    path — an actual test-methodology bug this caught) to that URL, confirming it auto-opens the
+    modal, fills the code, and completes a real connection. What none of that can substitute for:
+    an actual physical camera focusing on an actual physical screen, which needs a real device
+    before fully relying on it live — the same caveat already on record for the offline-reload
+    edge case in §"Offline banner".
 
 ## 5a-2. Field-group CRDT merge (Layer 2)
 

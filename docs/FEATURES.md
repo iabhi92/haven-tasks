@@ -171,20 +171,31 @@ data."*
 
 - [ ] Metadata resistance — constant-size padded records, batching — High
 - [x] Peer-to-peer serverless sync (WebRTC), no server to trust — High · Signal: high. Shipped: a
-      direct WebRTC data channel between two devices, paired via a manually-exchanged QR code or
-      copy/paste (no signaling server — see docs/ARCHITECTURE.md "Server-less WebRTC device
-      pairing"), exchanging decrypted task content peer-to-peer over a DTLS-encrypted channel.
-      **Two real bugs and one real design mistake caught by testing before this shipped**, not
-      hypothetical ones: an SDP line-ending bug from the textarea-based exchange UI, a stripped
-      trailing SDP terminator from trimming pasted text, and — more seriously — a first version
-      that tried to move raw ciphertext between devices copying the relay-sync merge logic, which
-      only works when both devices already share one DEK. Two independently-created vaults don't;
-      the receiving device logged real decryption failures until the fix (plaintext content
-      exchange instead, decrypt-locally/re-encrypt-on-receipt) landed. **Honest scope limit:** a
-      one-time content push each direction, not a full bidirectional sync — deletions don't
-      propagate, and camera-based QR scanning depends on browser support for `BarcodeDetector`
-      (paste always works as a fallback, and is what every automated test here actually exercised
-      end-to-end).
+      direct WebRTC data channel between two devices, exchanging decrypted task content
+      peer-to-peer over a DTLS-encrypted channel (see docs/ARCHITECTURE.md "Server-less WebRTC
+      device pairing"). Two pairing mechanisms: a **quick code** (default — a small relay hands the
+      SDP offer/answer between devices, one code entered once, no manual second step) or **fully
+      offline** (a toggle in the modal — manual QR/paste, no server involved at any point, at the
+      cost of a manual second step). Task content is peer-to-peer either way; the modes differ only
+      in how the two devices find each other.
+      **Bugs and design mistakes caught by testing before this shipped, not hypothetical ones:** an
+      SDP line-ending bug from the textarea-based exchange UI, a stripped trailing SDP terminator
+      from trimming pasted text, a first version that tried to move raw ciphertext between devices
+      copying the relay-sync merge logic (only works when both devices already share one DEK, which
+      two independently-created vaults don't — fixed via plaintext content exchange,
+      decrypt-locally/re-encrypt-on-receipt), and — caught later, from a real iPhone — the QR
+      encoding raw SDP text let iOS's native Camera app misinterpret a numeric substring inside it
+      as a phone number and offer a "Call" action sheet instead of anything useful. Fixed by making
+      every QR this feature shows a real URL (so "Open in Safari" is what any native camera app
+      offers instead) plus gzip-compressing the payload first (an SDP's URL-wrapped encoding was
+      dense enough that a real OpenCV decode test started failing — compression brought it back to
+      the same module count already proven reliable elsewhere in this project).
+      **Honest scope limit:** a one-time content push each direction, not a full bidirectional sync
+      — deletions don't propagate. In-page camera scanning (as opposed to a phone's regular camera,
+      which now works via the URL fix above) still depends on browser support for
+      `BarcodeDetector`; paste always works as a fallback. Quick-code mode's relay sees SDP
+      connection metadata for the ~10-minute life of a room, never task content — the fully-offline
+      toggle exists specifically for anyone who'd rather avoid that too.
 - [x] Compartmentalised vaults (work / personal) with separate keys — Med. Shipped: real
       per-vault DEKs and per-vault signing identities (own IndexedDB database each, same
       mechanism the duress/decoy vault already used), switchable from the header without
