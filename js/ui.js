@@ -787,7 +787,7 @@ const HISTORY_BREAK_REASON_TEXT = {
   "bad-signature": "This entry's signature doesn't match its content — something in it was changed after it was signed.",
 };
 
-const HISTORY_BREAK_REASON_SHORT = {
+export const HISTORY_BREAK_REASON_SHORT = {
   "chain-broken": "Broken link",
   "untrusted-signer": "Untrusted signer",
   "bad-signature": "Bad signature",

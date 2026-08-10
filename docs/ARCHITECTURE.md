@@ -1051,6 +1051,22 @@ detectable gap or mismatch instead of quietly succeeding.
   unverifiable by construction regardless of its own internal consistency.
 - **UI:** a dedicated "History" panel (rail button + command-palette entry) with a "Verify now"
   button — plain pass/fail language, no simulated hacker aesthetic, consistent with §6 below.
+- **Background integrity watch** (`startHistoryIntegrityWatch()`/`checkHistoryIntegrity()`,
+  `js/app.js`) — `verifyHistoryChain()` itself is unchanged; what's new is that it now also runs
+  on its own every 5 seconds while unlocked (paused while the tab is hidden, same lifecycle as
+  auto-sync, §5-2), driving a small always-visible header badge instead of only ever running when
+  someone opens the History panel and clicks "Verify now". Hidden entirely on a fresh vault with
+  no history yet; shows "History verified" once there's something to check, and flips to a loud
+  "⚠ Tampering detected — \<reason\>" the next time it runs after anything breaks the chain.
+  Verified for real: a Playwright run that hand-edited a stored history entry's `signature` field
+  directly in IndexedDB — the same action DevTools' own IndexedDB panel would perform — and
+  confirmed the badge flipped from verified to tampering-detected within one check interval, with
+  no click, no reload, and no code path different from what "Verify now" already ran.
+  **Honest cost note:** each check re-verifies every entry in the log from scratch (real Ed25519
+  signature checks, not just re-checking the newest one), so this trades a small, currently
+  unmeasured amount of continuous CPU for a vault with a very large history against catching
+  tampering without anyone needing to go looking for it. Negligible for a normal task list; not
+  benchmarked against a multi-year, many-thousand-entry history.
 - **Honest v1 scope limit — this is local-only.** The log lives in IndexedDB and is not currently
   synced anywhere. That means it protects against corruption or tampering *of the local store
   itself* (a buggy migration, a rogue browser extension poking at IndexedDB, disk-level bit rot)

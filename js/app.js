@@ -70,7 +70,8 @@ import {
   setUnlockError,
   setRecoveryError,
   setResetError,
-} from "./ui.js?v=20260808e";
+  HISTORY_BREAK_REASON_SHORT,
+} from "./ui.js?v=20260808f";
 import {
   PBKDF2_ITERATIONS,
   KDF_NAME,
@@ -264,6 +265,7 @@ const ephemeralTaskKeys = new Map(); // taskId -> CryptoKey
 let ephemeralSweepInterval = null;
 let autoSyncTimer = null;
 let autoSyncInFlight = false;
+let historyIntegrityTimer = null;
 
 // ---------- local automation rules (Layer 3) ----------
 // Runs entirely client-side against the already-decrypted in-memory task
@@ -3271,6 +3273,54 @@ function wireHistoryView() {
   });
 }
 
+// Background integrity watch — verifyHistoryChain() itself (the signed hash-chained task
+// history, docs/ARCHITECTURE.md §5c) always existed, but only ever ran when someone opened the
+// history view and clicked "Verify". This periodically re-runs the exact same check so tampering
+// (e.g. hand-editing a record in DevTools) shows up within a few seconds on its own, on a small
+// always-visible badge, rather than needing someone to know to go check. Same
+// start-on-unlock/stop-on-lock, pause-while-hidden lifecycle as auto-sync.
+const HISTORY_INTEGRITY_INTERVAL_MS = 5000;
+
+async function checkHistoryIntegrity() {
+  if (document.visibilityState !== "visible") return;
+  const badge = document.getElementById("historyIntegrityBadge");
+  const report = await verifyHistoryChain();
+  if (report.entryCount === 0) {
+    badge.hidden = true;
+    return;
+  }
+  badge.hidden = false;
+  if (report.ok) {
+    badge.textContent = "History verified";
+    badge.className = "badge badge-history-integrity is-ok";
+    badge.title = `All ${report.entryCount} signed history entries check out.`;
+  } else {
+    const brokenEntry = report.entries[report.brokenAt];
+    const reasonText = (HISTORY_BREAK_REASON_SHORT[brokenEntry.reason] || brokenEntry.reason);
+    badge.textContent = `⚠ Tampering detected — ${reasonText}`;
+    badge.className = "badge badge-history-integrity is-bad";
+    badge.title = `Entry ${report.brokenAt + 1} of ${report.entryCount} failed verification. Open "Verify task history" for the full report.`;
+  }
+}
+
+function onHistoryIntegrityVisibilityChange() {
+  if (document.visibilityState === "visible") checkHistoryIntegrity();
+}
+
+function startHistoryIntegrityWatch() {
+  if (historyIntegrityTimer) return;
+  checkHistoryIntegrity();
+  historyIntegrityTimer = setInterval(checkHistoryIntegrity, HISTORY_INTEGRITY_INTERVAL_MS);
+  document.addEventListener("visibilitychange", onHistoryIntegrityVisibilityChange);
+}
+
+function stopHistoryIntegrityWatch() {
+  if (!historyIntegrityTimer) return;
+  clearInterval(historyIntegrityTimer);
+  historyIntegrityTimer = null;
+  document.removeEventListener("visibilitychange", onHistoryIntegrityVisibilityChange);
+}
+
 let addRevealToken = 0;
 
 // Subtasks are edited as a live draft (add/toggle/remove all update the modal
@@ -4182,6 +4232,7 @@ async function afterUnlock() {
   ephemeralSweepInterval = setInterval(() => scheduleEphemeralSweep(), 20000);
 
   if (getSyncConfig()) startAutoSync();
+  startHistoryIntegrityWatch();
 }
 
 // Shared by both the direct "enter your recovery code" form and the
@@ -4593,6 +4644,8 @@ function wireLockButton() {
       ephemeralSweepInterval = null;
     }
     stopAutoSync();
+    stopHistoryIntegrityWatch();
+    document.getElementById("historyIntegrityBadge").hidden = true;
     // Reset to the main vault so the *next* unlock attempt always tries the
     // real passphrase first again — nothing should remember which vault was
     // open last across a lock.

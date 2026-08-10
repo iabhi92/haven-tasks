@@ -994,6 +994,8 @@ body { display: flex; }
 }
 .history-report-ok { color: var(--success); }
 .history-report-bad { color: var(--danger); }
+.badge-history-integrity.is-ok { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+.badge-history-integrity.is-bad { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
 .history-report-detail {
   margin: 0 0 16px;
   font-size: 13px;
