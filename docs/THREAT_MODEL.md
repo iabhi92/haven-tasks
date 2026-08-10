@@ -148,6 +148,35 @@
     `createTimeLockPuzzle()` unmodified, so the same "a future quantum adversary could skip the
     wait via Shor's algorithm" caveat applies here too, and for the same reason is not fixed.
 
+### A4b-3. Anyone who intercepts the WebRTC pairing exchange, or Google's STUN server
+
+- **Capability:** whoever sees the manually-exchanged offer/answer text (shoulder-surfing a QR
+  code, a compromised clipboard manager) could attempt to connect as the intended other device;
+  Google's public STUN server (the only third party in this feature's data path at all) learns
+  both devices' public IP addresses during connection setup.
+- **Defenses:**
+  - The offer/answer exchange carries no task content and no key material — it's WebRTC
+    connection metadata (ICE candidates, a DTLS fingerprint), not anything that decrypts a task on
+    its own. See docs/ARCHITECTURE.md "Server-less WebRTC device pairing" for why plaintext task
+    content only ever travels over the *already-connected*, DTLS-encrypted data channel, never in
+    the offer/answer itself.
+  - STUN is used strictly for NAT traversal (learning a device's own public-facing address) —
+    Google's STUN server never sees, forwards, or has any path to the actual connection's data.
+    This is a fundamentally different trust class from a relay/TURN server, which is deliberately
+    not used here for exactly this reason.
+- **Residual risk, stated plainly:**
+  - **An intercepted offer could be used to attempt a connection**, same as anyone who received a
+    fragment-key share link's URL could attempt to open it (A4b) — the difference here is there's
+    no secret being protected in the offer/answer text itself, only a connection *opportunity*.
+    Completing that connection still requires the second device's own answer to be relayed back
+    correctly, and the DTLS handshake itself authenticates the two SDP fingerprints against each
+    other — a third party holding only the offer, without also intercepting the matching answer,
+    cannot complete a connection or read anything.
+  - **Google's STUN server learns both devices' public IP addresses and that a WebRTC connection
+    was attempted between them**, once per pairing. No alternative exists that doesn't either
+    accept this (a well-known, narrow metadata exposure any STUN-based WebRTC application makes)
+    or reintroduce a relay server this feature exists specifically to avoid.
+
 ### A4c. A social recovery share holder (one of k-of-n trusted people)
 - **Capability:** holds one piece of a split recovery code (docs/ARCHITECTURE.md §4b).
 - **Defense:** Shamir's information-theoretic guarantee — any `k-1` shares (however many people

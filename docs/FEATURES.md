@@ -155,7 +155,21 @@ data."*
 ### Trust-minimization
 
 - [ ] Metadata resistance — constant-size padded records, batching — High
-- [ ] Peer-to-peer serverless sync (WebRTC), no server to trust — High · Signal: high
+- [x] Peer-to-peer serverless sync (WebRTC), no server to trust — High · Signal: high. Shipped: a
+      direct WebRTC data channel between two devices, paired via a manually-exchanged QR code or
+      copy/paste (no signaling server — see docs/ARCHITECTURE.md "Server-less WebRTC device
+      pairing"), exchanging decrypted task content peer-to-peer over a DTLS-encrypted channel.
+      **Two real bugs and one real design mistake caught by testing before this shipped**, not
+      hypothetical ones: an SDP line-ending bug from the textarea-based exchange UI, a stripped
+      trailing SDP terminator from trimming pasted text, and — more seriously — a first version
+      that tried to move raw ciphertext between devices copying the relay-sync merge logic, which
+      only works when both devices already share one DEK. Two independently-created vaults don't;
+      the receiving device logged real decryption failures until the fix (plaintext content
+      exchange instead, decrypt-locally/re-encrypt-on-receipt) landed. **Honest scope limit:** a
+      one-time content push each direction, not a full bidirectional sync — deletions don't
+      propagate, and camera-based QR scanning depends on browser support for `BarcodeDetector`
+      (paste always works as a fallback, and is what every automated test here actually exercised
+      end-to-end).
 - [x] Compartmentalised vaults (work / personal) with separate keys — Med. Shipped: real
       per-vault DEKs and per-vault signing identities (own IndexedDB database each, same
       mechanism the duress/decoy vault already used), switchable from the header without

@@ -1960,6 +1960,18 @@ body { display: flex; }
 /* Fixed white, not a theme token — a QR scanner needs light-on-dark contrast regardless of theme. */
 .qr-code-box { display: inline-block; padding: 10px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .qr-code-box svg { display: block; max-width: 100%; height: auto; }
+.qr-scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.qr-scan-overlay video { width: min(90vw, 420px); border-radius: var(--radius-md); }
 #shareError {
   color: var(--danger);
   min-height: 0;

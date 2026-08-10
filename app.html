@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260810i" integrity="sha384-NLp+Ir6N5dmrR1GhpHR6YVxDCSWGvUqOs7VVWvg5lcqwK/zzfa4SnYvlVFo8g7Du" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260810j" integrity="sha384-U2QD39ltjrx/+7PmIgiv028WUc1RJiRPx8TXkT5NWaB9YQauteC+l6t6UpG8PTMe" crossorigin="anonymous">
 </head>
 <body>
 
@@ -1285,9 +1285,64 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="webrtcPairModal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="webrtcPairModalTitle">
+    <h2 id="webrtcPairModalTitle">Pair a device (no server)</h2>
+    <p class="modal-help">
+      Connects directly to another device over WebRTC and exchanges tasks peer-to-peer — no relay
+      server touches this data at all, not even as ciphertext. Needs both devices able to reach
+      each other directly, which reliably means the same Wi-Fi network.
+    </p>
+
+    <div id="webrtcChooseSection">
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-ghost" id="webrtcJoinChoiceBtn">I have a code</button>
+        <button type="button" class="btn btn-primary" id="webrtcStartChoiceBtn">Start pairing</button>
+      </div>
+    </div>
+
+    <div id="webrtcPasteInSection" hidden>
+      <div class="field">
+        <label for="webrtcPasteInput" id="webrtcPasteLabel">Paste the code from the other device</label>
+        <textarea id="webrtcPasteInput" rows="4"></textarea>
+      </div>
+      <div class="modal-actions-right sync-close-row">
+        <button type="button" class="btn btn-ghost" id="webrtcScanBtn">Scan a QR code instead</button>
+        <button type="button" class="btn btn-primary" id="webrtcPasteActionBtn">Continue</button>
+      </div>
+    </div>
+
+    <div id="webrtcShowCodeSection" hidden>
+      <p class="lock-sub" id="webrtcShowCodeLabel"></p>
+      <div class="qr-code-wrap" id="webrtcQrWrap">
+        <div class="qr-code-box" id="webrtcQrCode"></div>
+      </div>
+      <div class="field">
+        <textarea id="webrtcCodeOutput" rows="3" readonly></textarea>
+      </div>
+      <div class="modal-actions-right">
+        <button type="button" class="btn btn-ghost" id="webrtcCopyCodeBtn">Copy code</button>
+      </div>
+    </div>
+
+    <div id="webrtcStatusSection" hidden>
+      <p class="lock-sub" id="webrtcStatusText"></p>
+    </div>
+
+    <div class="qr-scan-overlay" id="webrtcScanOverlay" hidden>
+      <video id="webrtcScanVideo" autoplay playsinline muted></video>
+      <button type="button" class="btn btn-ghost" id="webrtcScanCancelBtn">Cancel scan</button>
+    </div>
+
+    <div class="modal-actions-right sync-close-row">
+      <button type="button" class="btn btn-ghost" id="webrtcPairCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260810n" integrity="sha384-0w5D3UuKdsfBRZSKUfu7fEU0ck/LUZhSAOe4dQKGJ+0S3jvGzHZezBbiv1JqrxSl" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260810o" integrity="sha384-WQOKrlUsjO0xYsg1SZOCjSZanz1cfsJQcQvmPGlXS6g6Q3kXmhE2xM8E3Y1spNSb" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

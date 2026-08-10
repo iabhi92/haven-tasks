@@ -124,6 +124,7 @@ import {
   pushShare,
   deleteShare,
 } from "./sync.js?v=20260807a";
+import { createOffer, createAnswer, completeOffer, waitForChannelOpen } from "./webrtc-pair.js?v=20260810a";
 
 const STATUSES = ["todo", "in-progress", "done"];
 
@@ -2519,6 +2520,267 @@ function wireSyncModal() {
   });
 }
 
+// ---------- Server-less WebRTC device pairing (Layer 2/3) ----------
+// Extends the optional relay-based sync above into a direct, one-time, peer-to-peer exchange —
+// see js/webrtc-pair.js's module comment and docs/ARCHITECTURE.md "Server-less WebRTC device
+// pairing" for the full mechanism (manual SDP exchange via QR/paste, STUN-only NAT traversal,
+// symmetric merge with no shared "since" cursor needed).
+
+let webrtcPc = null;
+let webrtcChannel = null;
+let webrtcScanStream = null;
+
+// The three "step" sections are mutually exclusive (you're choosing, pasting a code in, or
+// showing your own code, never more than one at a time) — but the status line is independent of
+// all three, since the "join" flow genuinely needs to show the answer code *and* "waiting for the
+// connection to open" at the same time, not one or the other.
+function webrtcShowStep(sectionId) {
+  for (const id of ["webrtcChooseSection", "webrtcPasteInSection", "webrtcShowCodeSection"]) {
+    document.getElementById(id).hidden = id !== sectionId;
+  }
+}
+
+function webrtcSetStatus(text, isError) {
+  const el = document.getElementById("webrtcStatusText");
+  document.getElementById("webrtcStatusSection").hidden = false;
+  el.textContent = text;
+  el.classList.toggle("history-report-bad", !!isError);
+  el.classList.toggle("history-report-ok", !isError);
+}
+
+function webrtcHideStatus() {
+  document.getElementById("webrtcStatusSection").hidden = true;
+}
+
+// The actual data exchange, once the channel is open. A real design mistake was caught here by
+// testing before this shipped, not a hypothetical one: the first version of this function moved
+// raw *ciphertext* records between the two devices, copying the relay-sync merge logic verbatim
+// — but that logic only ever makes sense between devices that already share one DEK (the relay
+// path's "join" flow explicitly transfers it first, via the recovery code). Two devices meeting
+// for the first time through this feature almost certainly have two completely independent
+// vaults with two completely independent DEKs; a real two-device test proved it decisively — the
+// receiving side logged real AES-GCM "OperationError"s trying to decrypt ciphertext that was
+// never encrypted under its own key, exactly as it should have.
+//
+// The fix is to exchange *plaintext* task content instead of ciphertext, the same trust move the
+// existing fragment-key share-link feature already makes (§5b) — safe here for the same reason
+// it's safe there: nothing about "no server sees this" changes just because the payload is
+// plaintext instead of ciphertext, since the whole point of this feature is that no server is in
+// the data path at all. The channel itself is DTLS-encrypted end-to-end between exactly these two
+// devices, same guarantee TLS gives a normal HTTPS request. Each side decrypts its own tasks with
+// its own DEK, sends the plaintext, and the receiver re-encrypts whatever it gets under *its own*
+// existing DEK via the normal persistTask() path — no key exchange, no keyring changes, no
+// re-wrapping anything. This also fixes the earlier design's need for a shared "since" cursor:
+// mergeTaskFields() already operates on plaintext task objects, so no ciphertext-specific
+// bookkeeping is needed here at all.
+//
+// Honest scope limit: this is a one-time content push in each direction, not a full bidirectional
+// sync — a deletion on one side has no record to send at all, so it doesn't propagate to the
+// other. Self-destructing and still-locked time-locked tasks are excluded from what's sent, same
+// reasoning as the relay path: their keys are meant to stay local to the device that created them.
+async function runPeerSync(channel) {
+  const localTasks = tasks
+    .filter((t) => !t.selfDestruct && !t.timeLocked && !t.destructed)
+    .map((t) => ({ ...t }));
+  channel.send(JSON.stringify({ type: "tasks", tasks: localTasks }));
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("The other device didn't send anything back in time.")), 15000);
+    channel.addEventListener(
+      "message",
+      async (event) => {
+        clearTimeout(timer);
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type !== "tasks") return;
+          let added = 0, merged = 0;
+          for (const remote of msg.tasks) {
+            const local = tasks.find((t) => t.id === remote.id);
+            if (!local) {
+              await persistTask(remote, "create");
+              added++;
+            } else if (local.updatedAt !== remote.updatedAt) {
+              const mergedTask = mergeTaskFields(local, remote);
+              await persistTask(mergedTask, "update");
+              merged++;
+            }
+          }
+          tasks = await loadAndDecryptTasks();
+          render();
+          resolve({ added, merged, total: msg.tasks.length });
+        } catch (err) {
+          reject(err);
+        }
+      },
+      { once: true }
+    );
+  });
+}
+
+function webrtcStopScan() {
+  document.getElementById("webrtcScanOverlay").hidden = true;
+  if (webrtcScanStream) {
+    for (const track of webrtcScanStream.getTracks()) track.stop();
+    webrtcScanStream = null;
+  }
+}
+
+// Native BarcodeDetector, not another vendored library — covers Chrome/Edge/Android; browsers
+// without it (Safari, Firefox as of this writing) fall back to the always-available paste field,
+// never a hard blocker. See docs/ARCHITECTURE.md's honest scope note on this.
+async function webrtcScanInto(targetInput) {
+  if (!("BarcodeDetector" in window)) {
+    showInfoToast("This browser can't scan QR codes directly — paste the code instead.");
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  } catch {
+    showInfoToast("Couldn't access the camera — check your browser's permission for this site.");
+    return;
+  }
+  webrtcScanStream = stream;
+  const overlay = document.getElementById("webrtcScanOverlay");
+  const video = document.getElementById("webrtcScanVideo");
+  video.srcObject = stream;
+  overlay.hidden = false;
+
+  const detector = new BarcodeDetector({ formats: ["qr_code"] });
+  const poll = async () => {
+    if (!webrtcScanStream) return; // cancelled
+    try {
+      const codes = await detector.detect(video);
+      if (codes.length > 0) {
+        targetInput.value = codes[0].rawValue;
+        webrtcStopScan();
+        return;
+      }
+    } catch {
+      // A detect() call can transiently fail (video not ready yet) — just try again.
+    }
+    requestAnimationFrame(poll);
+  };
+  requestAnimationFrame(poll);
+}
+
+function webrtcCleanup() {
+  webrtcStopScan();
+  if (webrtcPc) {
+    webrtcPc.close();
+    webrtcPc = null;
+  }
+  webrtcChannel = null;
+}
+
+function openWebrtcPairModal() {
+  document.getElementById("webrtcPasteInput").value = "";
+  document.getElementById("webrtcCodeOutput").value = "";
+  webrtcShowStep("webrtcChooseSection");
+  webrtcHideStatus();
+  document.getElementById("webrtcPairModal").hidden = false;
+}
+
+function closeWebrtcPairModal() {
+  webrtcCleanup();
+  document.getElementById("webrtcPairModal").hidden = true;
+}
+
+function wireWebrtcPairModal() {
+  const overlay = document.getElementById("webrtcPairModal");
+  const pasteInput = document.getElementById("webrtcPasteInput");
+  const pasteLabel = document.getElementById("webrtcPasteLabel");
+  const pasteActionBtn = document.getElementById("webrtcPasteActionBtn");
+  const codeOutput = document.getElementById("webrtcCodeOutput");
+  const showCodeLabel = document.getElementById("webrtcShowCodeLabel");
+
+  async function finishOnceOpen(channel) {
+    webrtcSetStatus("Connected — exchanging tasks…");
+    try {
+      const result = await runPeerSync(channel);
+      webrtcSetStatus(`Done — ${result.added} added, ${result.merged} merged, straight from the other device, no server involved.`);
+    } catch (err) {
+      webrtcSetStatus(`Connected, but the exchange failed: ${err.message}`, true);
+    } finally {
+      webrtcCleanup();
+    }
+  }
+
+  document.getElementById("webrtcStartChoiceBtn").addEventListener("click", async () => {
+    webrtcSetStatus("Generating a pairing code…");
+    try {
+      const { pc, channel, sdp } = await createOffer();
+      webrtcPc = pc;
+      webrtcChannel = channel;
+
+      showCodeLabel.textContent = "Show this to the other device:";
+      codeOutput.value = sdp;
+      renderQrCode("webrtcQrCode", sdp);
+      pasteLabel.textContent = "Then paste the other device's reply here:";
+      pasteInput.value = "";
+      pasteActionBtn.textContent = "Connect";
+      pasteActionBtn.onclick = async () => {
+        webrtcSetStatus("Connecting…");
+        try {
+          await completeOffer(webrtcPc, pasteInput.value.trim());
+          await waitForChannelOpen(webrtcChannel);
+          await finishOnceOpen(webrtcChannel);
+        } catch (err) {
+          webrtcSetStatus(`Couldn't connect: ${err.message}`, true);
+          webrtcCleanup();
+        }
+      };
+      webrtcShowStep("webrtcShowCodeSection");
+      document.getElementById("webrtcPasteInSection").hidden = false;
+    } catch (err) {
+      webrtcSetStatus(`Couldn't start pairing: ${err.message}`, true);
+    }
+  });
+
+  document.getElementById("webrtcJoinChoiceBtn").addEventListener("click", () => {
+    pasteLabel.textContent = "Paste the code from the other device:";
+    pasteInput.value = "";
+    pasteActionBtn.textContent = "Continue";
+    pasteActionBtn.onclick = async () => {
+      const offerSdp = pasteInput.value.trim();
+      if (!offerSdp) return;
+      webrtcSetStatus("Generating a reply…");
+      try {
+        const { pc, sdp } = await createAnswer(offerSdp, (channel) => {
+          webrtcChannel = channel;
+          finishOnceOpen(channel);
+        });
+        webrtcPc = pc;
+        showCodeLabel.textContent = "Show this back to the first device:";
+        codeOutput.value = sdp;
+        renderQrCode("webrtcQrCode", sdp);
+        webrtcShowStep("webrtcShowCodeSection");
+        webrtcSetStatus("Waiting for the connection to open…");
+      } catch (err) {
+        webrtcSetStatus(`Couldn't process that code: ${err.message}`, true);
+      }
+    };
+    webrtcShowStep("webrtcPasteInSection");
+  });
+
+  document.getElementById("webrtcScanBtn").addEventListener("click", () => webrtcScanInto(pasteInput));
+  document.getElementById("webrtcScanCancelBtn").addEventListener("click", () => webrtcStopScan());
+
+  document.getElementById("webrtcCopyCodeBtn").addEventListener("click", async () => {
+    codeOutput.select();
+    try {
+      await navigator.clipboard.writeText(codeOutput.value);
+    } catch {
+      // Non-fatal — the text is already selected, manual copy still works.
+    }
+  });
+
+  document.getElementById("webrtcPairCloseBtn").addEventListener("click", () => closeWebrtcPairModal());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeWebrtcPairModal();
+  });
+}
+
 // logHistory:false — a drag-drop reorder changes only display order, not
 // task content, so it isn't a meaningful audit event (and logging one entry
 // per task on every reorder would drown out real edits in the history view).
@@ -2701,6 +2963,7 @@ function wireSearch() {
       closeCmdk();
       closeDeadManSwitchModal();
       closeSecurityChecklistModal();
+      closeWebrtcPairModal();
     }
   });
 }
@@ -4146,6 +4409,7 @@ function getCmdkItems() {
     { label: "Import tasks from JSON or CSV", action: () => document.getElementById("importFileInput").click() },
     { label: "New from template", action: openTemplateModal },
     { label: "Sync settings", action: openSyncModal },
+    { label: "Pair a device (no server)", action: openWebrtcPairModal },
     { label: "Set up social recovery", action: openSocialRecoveryModal },
     { label: "Add a passkey", action: openPasskeyModal },
     { label: "Set up a decoy vault", action: openDecoyVaultModal },
@@ -4706,6 +4970,7 @@ async function boot() {
   wireRevealView();
   wireHistoryView();
   wireSyncModal();
+  wireWebrtcPairModal();
   wireSocialRecoveryModal();
   wirePasskeyModal();
   wireDecoyVaultModal();

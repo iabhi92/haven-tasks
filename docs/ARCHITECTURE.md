@@ -818,6 +818,75 @@ the exact same `syncNow()`, no separate code path.
   so leaving it open during a live demo shows real, changing ciphertext as a second device's
   edits arrive, not a single static snapshot.
 
+## 5-3. Server-less WebRTC device pairing (Layer 3)
+
+Extends §5's optional relay-based sync into a direct, one-time, peer-to-peer exchange over a
+WebRTC data channel — no relay server touches this data at any point, not even as an opaque
+ciphertext passthrough the way the optional sync server does. `js/webrtc-pair.js` (connection
+setup) + `js/app.js`'s pairing modal wiring and `runPeerSync()` (the actual exchange).
+
+- **Manual signaling, on purpose.** WebRTC still needs some out-of-band exchange of an SDP
+  offer/answer to establish a connection at all — that's not a server call here, it's the two
+  devices' own owners relaying two short text blobs between the devices themselves, via a QR code
+  (native `BarcodeDetector`, no vendored scanning library) or plain copy/paste, always available as
+  a fallback. **Non-trickle ICE**: both `createOffer()` and `createAnswer()` wait for
+  `icegatheringstatechange` to report `"complete"` before returning the SDP, so the whole offer or
+  answer is one self-contained blob exchangeable in a single QR/paste — there's no ongoing
+  signaling channel here to trickle candidates over one at a time.
+- **STUN only, never TURN.** A public STUN server (`stun.l.google.com`) helps a device learn its
+  own public-facing address; it never sees or relays a single byte of the actual connection. TURN
+  would relay data through a third party — exactly the "a server touches it" case this feature
+  exists to avoid — so it's deliberately not used. If a direct path can't be found (symmetric NAT
+  on both sides, restrictive corporate networks), pairing simply fails rather than silently
+  falling back to relaying through someone else's server. Reliably works on the same Wi-Fi
+  network; not guaranteed across arbitrary networks.
+- **Two real bugs a real two-device test caught before this shipped, not hypothetical ones:**
+  1. Round-tripping an SDP string through an HTML `<textarea>` (copy out of one device's, paste
+     into the other's — exactly what this feature's whole UI does) silently normalizes the
+     required `\r\n` line endings down to bare `\n`, which Chromium's SDP parser then rejects
+     outright. Confirmed directly: an offer that parsed fine before the round-trip failed after
+     it, byte-identical except for line endings.
+  2. Trimming that pasted value (a reasonable-looking way to strip accidental whitespace from a
+     copy-paste) also strips the *required* trailing line terminator on the SDP's own last line,
+     which fails the exact same way. Confirmed the same way: the trimmed string failed, the
+     identical string with one `\r\n` appended back succeeded.
+     `normalizeSdpLineEndings()` in `js/webrtc-pair.js` fixes both: normalize internal line
+     endings, then guarantee exactly one trailing terminator, regardless of what upstream trimming
+     already did.
+- **A real design mistake caught by the same test, more serious than the SDP bugs.** The first
+  version of `runPeerSync()` moved raw *ciphertext* task records between devices, copying the
+  relay-sync merge logic verbatim. That logic only works between devices that already share one
+  DEK — the relay path's "join" flow explicitly transfers it first, via the recovery code. Two
+  devices meeting for the first time through this feature have two completely independent vaults
+  with two completely independent DEKs by default; the real test proved it decisively, with the
+  receiving device logging genuine AES-GCM `OperationError`s trying to decrypt ciphertext that was
+  never encrypted under its own key. **Fix:** exchange *plaintext* task content instead, the same
+  trust move the fragment-key share-link feature already makes (§5b) — safe for the same reason:
+  nothing about "no server sees this" changes just because the payload is plaintext instead of
+  ciphertext, since the whole point is that no server is in the data path at all, and the channel
+  itself is DTLS-encrypted end-to-end between exactly these two devices, the same guarantee TLS
+  gives a normal HTTPS request. Each side decrypts its own tasks with its own DEK, sends the
+  plaintext, and the receiver re-encrypts whatever it gets under *its own* existing DEK via the
+  normal `persistTask()` path — no key exchange, no keyring changes, no re-wrapping anything. This
+  also removes any need for a shared "since" cursor (§5-2's watermark fix doesn't apply here):
+  `mergeTaskFields()` already operates on plaintext task objects, so there's no ciphertext-specific
+  bookkeeping to get right.
+- **Honest scope limits:**
+  - **One-time content push each direction, not a full bidirectional sync.** A deletion on one
+    side has no record to send at all — it just doesn't propagate. Self-destructing and
+    still-locked time-locked tasks are excluded from what's sent, same reasoning as the relay
+    path: their keys are meant to stay local to the device that created them.
+  - **Camera scanning depends on browser support for the Shape Detection API's
+    `BarcodeDetector`** — present in Chrome/Edge (desktop and Android) but not Safari or Firefox
+    as of this writing. The paste fallback is always available regardless and is what every
+    automated test here actually exercised end-to-end (a real two-device Playwright run: SDP
+    exchange, connection, and decrypted content landing correctly on both sides). The camera
+    capture pipeline itself (permission prompt, video stream, cleanup on cancel) was also verified
+    for real, with a fake camera device — what's *not* verified by anything in this project's own
+    testing is a real camera successfully decoding a real QR code off a real screen, which needs
+    an actual device before relying on it live, the same caveat already on record for the
+    offline-reload edge case in §"Offline banner".
+
 ## 5a-2. Field-group CRDT merge (Layer 2)
 
 Closes a previously-documented honest gap (this doc used to say "CRDT-based merge is later" —
