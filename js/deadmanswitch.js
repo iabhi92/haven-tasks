@@ -46,7 +46,7 @@ async function solve(n, squarings, onProgress) {
     const stepSize = Math.min(CHUNK_SIZE, squarings - solved);
     current = stepTimeLockPuzzle(n, current, stepSize);
     solved += stepSize;
-    onProgress(solved, squarings);
+    onProgress(solved, squarings, current);
     await new Promise((resolve) => setTimeout(resolve, 0)); // yield — same reason as js/app.js's solver
   }
   return current;
@@ -96,11 +96,17 @@ async function main() {
     const progressWrap = document.getElementById("dmsProgress");
     const progressFill = document.getElementById("dmsProgressFill");
     const progressLabel = document.getElementById("dmsProgressLabel");
+    const liveValue = document.getElementById("dmsLiveValue");
     progressWrap.hidden = false;
 
-    const target = await solve(bundle.n, bundle.squarings, (solved, total) => {
+    // Not decorative — this is the actual intermediate squaring result each chunk produces,
+    // truncated to a readable tail. Real, changing state proving the sequential math is
+    // genuinely happening, the same "show real bytes, not a simulated hacker aesthetic"
+    // rule the app's own "You vs The Server" reveal follows (docs/ARCHITECTURE.md §6).
+    const target = await solve(bundle.n, bundle.squarings, (solved, total, current) => {
       const pct = Math.round((solved / total) * 100);
       progressFill.style.width = `${pct}%`;
+      liveValue.textContent = `…${BigInt(current).toString(16).slice(-16)}`;
       progressLabel.textContent = `Solving… ${pct}%`;
     });
 

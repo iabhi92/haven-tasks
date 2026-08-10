@@ -852,6 +852,7 @@ body { display: flex; }
   transition: width 0.15s ease;
 }
 .timelock-progress-label { font-size: 11px; color: var(--text-faint); }
+.timelock-live-value { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
 .list-row.is-timelocked { color: var(--accent); }
 .list-row.is-timelocked .list-row-title-cell { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .list-row.is-timelocked .timelock-progress { width: 200px; }
