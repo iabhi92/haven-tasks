@@ -182,6 +182,32 @@ export async function generateFocusSummary(tasks) {
   ]);
 }
 
+// Reuses the general-purpose free-text path's grounding approach but scoped to what actually
+// finished this week — a different filter/window than summarizeTasksForPrompt's "open tasks",
+// so its own small helper rather than reusing that one with extra parameters.
+function summarizeCompletedForPrompt(tasks, sinceMs, limit = 25) {
+  return tasks
+    .filter((t) => t.status === "done" && t.updatedAt >= sinceMs)
+    .slice(0, limit)
+    .map((t) => `- ${t.title}`)
+    .join("\n");
+}
+
+export async function generateWeeklyRecap(tasks) {
+  const sinceMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const list = summarizeCompletedForPrompt(tasks, sinceMs);
+  return generateChat([
+    {
+      role: "system",
+      content: "You are a concise, encouraging task-planning assistant. Keep answers under 80 words.",
+    },
+    {
+      role: "user",
+      content: `Here's what I completed in the last 7 days:\n${list || "(nothing completed this week)"}\n\nWrite a short, honest recap of my week. Be specific but brief.`,
+    },
+  ]);
+}
+
 export async function generateSubtaskSuggestions(task) {
   const messages = [
     {

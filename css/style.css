@@ -1956,6 +1956,11 @@ body { display: flex; }
 .security-check-title-row { display: flex; align-items: center; gap: 8px; }
 .security-check-icon { font-size: 13px; color: var(--text-faint); width: 14px; text-align: center; }
 .security-check-icon.is-done { color: var(--success); font-weight: 700; }
+.attachment-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.attachment-list:empty { display: none; }
+.attachment-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; }
+.attachment-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-item-size { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
 .webrtc-quick-code {
   font-family: var(--font-mono);
   font-size: 32px;

@@ -4,7 +4,7 @@
 
 const DB_NAME = "haven";
 const DECOY_DB_NAME = "haven-decoy"; // see docs/ARCHITECTURE.md "Duress / decoy vault"
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 const STORE_NAME = "tasks";
 const KEYRING_STORE = "keyring";
 const KEYRING_KEY = "main";
@@ -29,6 +29,11 @@ const NOTES_STORE = "notes";
 // name is as much user content as a task title. See docs/ARCHITECTURE.md
 // "Projects".
 const PROJECTS_STORE = "projects";
+// A task's iv/ciphertext are the encrypted attachment bytes themselves (raw ArrayBuffer, not
+// base64 — see crypto.js's encryptBlob()), indexed by taskId for lookup when a task's edit modal
+// opens. Local-only for now (docs/ARCHITECTURE.md "Encrypted attachments") — not touched by
+// sync/share/export/WebRTC pairing, same honest scope cut Notes' first pass made.
+const ATTACHMENTS_STORE = "attachments";
 
 // Same object-store layout for both databases — the decoy DB just never
 // happens to have anything in `keyring` (that always lives in the main "haven"
@@ -55,6 +60,10 @@ function upgrade(db) {
   }
   if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
     db.createObjectStore(PROJECTS_STORE, { keyPath: "id" });
+  }
+  if (!db.objectStoreNames.contains(ATTACHMENTS_STORE)) {
+    const store = db.createObjectStore(ATTACHMENTS_STORE, { keyPath: "id" });
+    store.createIndex("taskId", "taskId", { unique: false });
   }
 }
 
@@ -280,6 +289,36 @@ export async function putProject(project) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(PROJECTS_STORE, "readwrite");
     tx.objectStore(PROJECTS_STORE).put(project);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getAttachmentsForTask(taskId) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ATTACHMENTS_STORE, "readonly");
+    const req = tx.objectStore(ATTACHMENTS_STORE).index("taskId").getAll(taskId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function putAttachment(record) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ATTACHMENTS_STORE, "readwrite");
+    tx.objectStore(ATTACHMENTS_STORE).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteAttachment(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ATTACHMENTS_STORE, "readwrite");
+    tx.objectStore(ATTACHMENTS_STORE).delete(id);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

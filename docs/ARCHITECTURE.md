@@ -605,6 +605,17 @@ open-ended.
   stays responsive, not just that the promise eventually resolves. That's real evidence the feature
   works, just not re-run automatically on every future change the way a committed test suite would.
 
+## 4h-2. Weekly recap (Layer 3)
+
+A third assistant action ("What did I get done this week?") alongside the existing "focus on
+today" and "break into subtasks" — `generateWeeklyRecap()` in `js/ai.js`, wired the same way as
+the other two in `wireAssistantView()`. Zero new infrastructure: same on-device model, same
+Web Worker, same request/response plumbing — the only new code is the prompt itself and a small
+`summarizeCompletedForPrompt()` filter (tasks with `status === "done"` and `updatedAt` in the last
+7 days, title only). Verified for real, not assumed: a real model download + real generation
+produced genuine (if repetitive — 135M parameters, see §4h's honest note on answer quality) recap
+text with zero errors.
+
 ## 4i. Notes (Layer 3)
 
 Free-form title+body writing for anything that doesn't fit a task — an appointment's details, a
@@ -749,6 +760,67 @@ holds the vault's DEK is to make "not yet" computationally expensive rather than
   enforces one or the other, not both.
 - **Local-only**, same as notes (§4i) and compartments (§4j): not included in `syncNow()`'s push
   and not wired into the fragment-key share-link flow (§5b).
+
+## 4l. Encrypted attachments (Layer 3)
+
+A task can carry file attachments, encrypted the same way task content is — AES-GCM under the
+active vault DEK — but stored as raw binary in their own IndexedDB object store
+(`attachments`, `js/store.js`) rather than folded into the task record itself.
+
+- **`encryptBlob()`/`decryptBlob()` (`js/crypto.js`) operate on raw bytes, not base64.**
+  `encryptTask()`/`decryptTask()` JSON-serialize first because task records cross a JSON boundary
+  (sync, share, export) that needs a string. Attachments never do (see below) — they're local-only,
+  and IndexedDB stores `ArrayBuffer`/`Uint8Array` natively via structured clone, so base64's ~33%
+  size overhead would be pure waste with nothing to justify it. `iv`/`ciphertext` are stored as raw
+  bytes, keyed by `taskId` (an index, not the primary key, since one task can have many
+  attachments) so the edit modal can fetch a task's attachments in one query.
+- **8MB per-file cap**, enforced client-side before encryption even starts (`MAX_ATTACHMENT_BYTES`
+  in `js/app.js`) — large enough for real photos/PDFs, small enough that a mis-click doesn't quietly
+  fill up a device's IndexedDB quota.
+- **Honest scope limits:**
+  - **Local-only, same as notes (§4i), compartments (§4j), and time-locked tasks (§4k).** Not
+    included in `syncNow()`'s push, the fragment-key share-link flow (§5b), the WebRTC pairing
+    exchange (§5-3), or `exportTasks()`'s backup — a real, disclosed gap, not a silent one. Each of
+    those paths would need its own size/format handling for binary content; none of them have it
+    yet.
+  - **No automatic cleanup when a task is deleted.** `deleteTasksWithUndo()` supports restoring a
+    deleted task from an in-memory snapshot, which doesn't include its attachments — cascading a
+    real delete into the `attachments` store would either break undo (attachments gone even though
+    the task came back) or need its own delay-until-undo-expires logic, neither of which this pass
+    takes on. A deleted task's attachments are orphaned (still encrypted, still inaccessible without
+    the DEK, just untidy) rather than silently lost or silently kept working — this is a real,
+    known gap, not something to rediscover as a surprise later.
+- **Verified for real:** upload → appears in the list with correct filename/size → download →
+  decrypts back to the exact original bytes (checked byte-for-byte, not just "a file downloaded") →
+  remove → gone from the list. Also verified the record survives a real modal close/reopen (a fresh
+  IndexedDB read, not just left-over DOM/JS state from the same session).
+
+## 4m. PWA conveniences: app-icon badge + share-target capture (Layer 3)
+
+Two small features that lean on standard PWA platform APIs rather than anything custom.
+
+- **App-icon badge (`updateAppBadge()` in `js/app.js`, called from every `render()`)** shows a
+  count of tasks due today or overdue on Haven's home-screen icon, via the Badging API
+  (`navigator.setAppBadge`/`clearAppBadge` — Chrome/Edge desktop+Android, Safari on an installed
+  macOS/iOS PWA; feature-detected, silently a no-op elsewhere). A count only, never a title or any
+  other content — the same "reveal nothing but a number" property the offline banner and lock
+  screen already have, which is what makes it safe to leave visible while the vault is locked.
+  **Deliberately not cleared on lock**: the count staying visible without unlocking is the feature,
+  not an oversight — see docs/THREAT_MODEL.md for the (small, disclosed) privacy trade-off that
+  implies.
+- **Share-target capture (`manifest.json`'s `share_target`, consumed by
+  `consumePendingShareTarget()` in `js/app.js`)** lets Android's system share sheet offer Haven as a
+  destination from any other app. A GET-based share_target (no file handling, no service-worker
+  interception needed) lands as `?share-title=&share-text=&share-url=` on `app.html`; after unlock,
+  those fields get joined and dropped into quick-add for the user to review and edit before
+  submitting — not auto-created as a task outright, since shared text is often messy (a whole
+  article's OG description, a raw URL) and deserves the same edit step manually-typed quick-add
+  text already gets. **Honest scope limit: Android only.** iOS Safari doesn't support
+  `share_target` in a web app manifest as of this writing — a real platform gap, not a bug here.
+- **Verified for real:** a spied `navigator.setAppBadge` confirmed the exact count set after adding
+  a due-today task; a real navigation to `app.html?share-title=…&share-text=…` (the same shape
+  Android's share sheet produces) confirmed quick-add gets pre-filled correctly and the query
+  string is cleared from the URL afterward.
 
 ## 5. Optional sync protocol
 
@@ -1470,6 +1542,29 @@ that can sit on a USB drive or in an email attachment for years.
   expected key from a previous, trusted export) — a real, harder feature, not implemented here.
   What this does guarantee: a backup re-imported on the *same* device/vault that produced it, or
   compared byte-for-byte against a copy known to be untouched, is provably unaltered.
+
+## 5e-2. Redacted task certificates (Layer 2)
+
+A narrower sibling of §5e's full signed backup: `exportTaskCertificate()` in `js/app.js` signs one
+task, not the whole list — "prove this specific task existed with this content" without handing
+over everything else in the vault. Same hybrid Ed25519 + post-quantum signing machinery as
+`exportTasks()`, same envelope shape (`version`, `signature`, `publicKey`, and the PQ fields when a
+PQ identity is active), just a smaller `task` object in place of a `tasks` array — and one addition
+neither the full export nor a history entry alone provides: `historyChainTip`, the signed history
+log's current tip hash (§5c) at export time, giving a verifier who also holds (or later obtains)
+the full log a way to confirm the certificate wasn't backdated against it. This is a real but
+lighter-weight property than a full Merkle-inclusion proof would give — it doesn't prove *this
+task's own history entry* is in the chain, only that the chain had reached this tip by export time.
+A genuine inclusion proof is real, separate follow-up work, not represented as already done here.
+
+- **Same selective-disclosure axis as the fragment-key share links (§5b): title, not notes.** The
+  certificate includes `id`, `title`, `status`, `priority`, `dueDate`, `project`, `updatedAt` —
+  never `notes`, the field most likely to contain the sensitive part of a task. Reuses the exact
+  disclosure boundary already established for share links rather than inventing a new one.
+- **Verified for real:** a task with a deliberately sensitive note ("this is a secret note...")
+  exported a certificate confirmed, by direct inspection of the downloaded file, to include the
+  title and exclude the `notes` field entirely — and to carry a valid `signature`/`publicKey` and a
+  non-empty `historyChainTip`.
 
 ## 5f. Public dead-man's switch (Layer 2)
 

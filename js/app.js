@@ -17,7 +17,10 @@ import {
   deleteNote,
   getAllProjects,
   putProject,
-} from "./store.js?v=20260808d";
+  getAttachmentsForTask,
+  putAttachment,
+  deleteAttachment,
+} from "./store.js?v=20260811a";
 import { evaluateTask } from "./automation.js?v=20260808b";
 import { computeInsights } from "./insights.js?v=20260808b";
 import { generateICS } from "./ical.js?v=20260807a";
@@ -114,7 +117,9 @@ import {
   decodeShare,
   generateHardwareSecret,
   wrapRawBytes,
-} from "./crypto.js?v=20260810b";
+  encryptBlob,
+  decryptBlob,
+} from "./crypto.js?v=20260811a";
 import {
   isWebAuthnAvailable,
   registerPasskey,
@@ -244,7 +249,7 @@ let assistantEnabled = false;
 let embedderEnabled = false;
 let taskEmbeddingCache = new Map(); // taskId -> { text, vector: number[] } — in-memory only, never persisted
 async function getAssistantModule() {
-  if (!assistantModule) assistantModule = await import("./ai.js?v=20260810a");
+  if (!assistantModule) assistantModule = await import("./ai.js?v=20260811a");
   return assistantModule;
 }
 
@@ -669,6 +674,21 @@ async function syncVaultUI() {
   switcher.value = activeVaultId;
 }
 
+// PWA icon badge (Badging API — Chrome/Edge desktop+Android, Safari on installed macOS/iOS PWAs)
+// showing how many tasks are due today or overdue, visible on the home-screen icon without
+// unlocking. A count only, never a title or any other content — the whole point is a useful
+// signal an installed icon can safely carry while locked, the same "reveal nothing but a number"
+// property the offline banner and lock screen already have. Deliberately NOT cleared on lock: the
+// count staying visible while locked is the feature, not a bug — see docs/THREAT_MODEL.md.
+function updateAppBadge(taskList) {
+  if (!("setAppBadge" in navigator)) return;
+  const dueCount = taskList.filter(
+    (t) => t.status !== "done" && !t.destructed && !t.timeLocked && t.dueDate && dueDiffDays(t.dueDate) <= 0
+  ).length;
+  const result = dueCount > 0 ? navigator.setAppBadge(dueCount) : navigator.clearAppBadge();
+  result.catch(() => {}); // unsupported/denied — no badge is a safe fallback, never worth surfacing an error for
+}
+
 function render() {
   const visible = visibleTasks();
   const hasAnyTasks = tasks.length > 0;
@@ -676,6 +696,7 @@ function render() {
 
   renderStats(tasks);
   renderBoardFooter(tasks);
+  updateAppBadge(tasks);
   const dateStr = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -708,6 +729,7 @@ function render() {
       editSubtasksDraft = (task.subtasks || []).map((s) => ({ ...s }));
       renderEditSubtasks();
       openEditModal(task);
+      await renderAttachmentsList(task.id);
       resetPomodoroStateForTask(task);
     },
     onDelete: (task) => deleteTasksWithUndo([task.id]),
@@ -738,10 +760,11 @@ function render() {
   if (view === "insights") renderInsights(computeInsights(tasks));
   if (view === "calendar") {
     renderCalendar(calendarMonth, tasks, {
-      onOpenTask: (task) => {
+      onOpenTask: async (task) => {
         editSubtasksDraft = (task.subtasks || []).map((s) => ({ ...s }));
         renderEditSubtasks();
         openEditModal(task);
+        await renderAttachmentsList(task.id);
         resetPomodoroStateForTask(task);
       },
     });
@@ -1639,6 +1662,52 @@ async function exportTasks() {
   link.click();
   URL.revokeObjectURL(url);
   localStorage.setItem(LAST_BACKUP_AT_KEY, String(now()));
+}
+
+// A signed proof about *one* task, not the whole vault — same hybrid-signing machinery as
+// exportTasks(), same "share title, not notes" default as the selective-disclosure share links
+// (docs/ARCHITECTURE.md "Selective disclosure"), just producing a downloadable, independently
+// verifiable file instead of a live link. historyChainTip ties the certificate to a specific
+// point in the tamper-evident signed history, so a verifier who also has (or later obtains) the
+// full history log can confirm this certificate wasn't backdated against it — a lighter-weight
+// property than a full Merkle-inclusion proof (that's real, separate future work), but a genuine
+// one: the chain tip itself only ever moves forward, appended-to, never rewritten.
+async function exportTaskCertificate(task) {
+  if (!historySigningKey) {
+    showInfoToast("No signing identity is active yet — try again after unlocking normally.");
+    return;
+  }
+  const envelope = {
+    version: 1,
+    kind: "task-certificate",
+    exportedAt: now(),
+    historyChainTip,
+    task: {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      project: task.project,
+      updatedAt: task.updatedAt,
+    },
+  };
+  const withKey = { ...envelope, publicKey: historySigningPublicKeyB64 };
+  const signature = bufToBase64(await signBytes(historySigningKey, await canonicalBytes(withKey)));
+  let signedEnvelope = { ...withKey, signature };
+  if (historyPqSigningKey) {
+    const pqSignature = bufToBase64(signBytesPq(historyPqSigningKey, await canonicalBytes(withKey)));
+    signedEnvelope = { ...signedEnvelope, pqPublicKey: historyPqSigningPublicKeyB64, pqSignature };
+  }
+
+  const blob = new Blob([JSON.stringify(signedEnvelope, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.getElementById("exportLink");
+  const stamp = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `haven-certificate-${task.id.slice(0, 8)}-${stamp}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 // exportTasks() writes plain JSON (the already-decrypted in-memory task
@@ -3577,6 +3646,21 @@ function wireAssistantView() {
     }
   });
 
+  document.getElementById("assistantRecapBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("assistantRecapBtn");
+    btn.disabled = true;
+    setAssistantOutputText("Thinking… this can take about a minute on your device.");
+    try {
+      const { generateWeeklyRecap } = await getAssistantModule();
+      const reply = await generateWeeklyRecap(tasks);
+      setAssistantOutputText(reply || "(no response)");
+    } catch (err) {
+      setAssistantOutputText("Something went wrong generating a response. Try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById("assistantBreakdownBtn").addEventListener("click", async () => {
     const select = document.getElementById("assistantTaskSelect");
     const task = tasks.find((t) => t.id === select.value);
@@ -4191,6 +4275,101 @@ function wirePomodoro() {
   document.getElementById("pomodoroResetBtn").addEventListener("click", () => stopAndSavePomodoro({ resetCountdown: true }));
 }
 
+// ---------- encrypted attachments (local-only, see docs/ARCHITECTURE.md "Encrypted attachments") ----------
+
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function renderAttachmentsList(taskId) {
+  const list = document.getElementById("editAttachmentList");
+  list.innerHTML = "";
+  const records = await getAttachmentsForTask(taskId);
+  for (const record of records) {
+    const li = document.createElement("li");
+    li.className = "attachment-item";
+
+    const name = document.createElement("span");
+    name.className = "attachment-item-name";
+    name.textContent = record.filename;
+    li.appendChild(name);
+
+    const size = document.createElement("span");
+    size.className = "attachment-item-size";
+    size.textContent = formatFileSize(record.size);
+    li.appendChild(size);
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.type = "button";
+    downloadBtn.className = "btn btn-ghost btn-sm";
+    downloadBtn.textContent = "Download";
+    downloadBtn.addEventListener("click", () => downloadAttachment(record));
+    li.appendChild(downloadBtn);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn btn-ghost btn-sm";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", async () => {
+      await deleteAttachment(record.id);
+      await renderAttachmentsList(taskId);
+    });
+    li.appendChild(removeBtn);
+
+    list.appendChild(li);
+  }
+}
+
+async function downloadAttachment(record) {
+  try {
+    const plaintext = await decryptBlob(record, dek);
+    const blob = new Blob([plaintext], { type: record.mimeType || "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = record.filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    showInfoToast("Couldn't decrypt that attachment.");
+  }
+}
+
+async function addAttachment(taskId, file) {
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    showInfoToast(`"${file.name}" is too large — attachments are capped at 8MB.`);
+    return;
+  }
+  const bytes = await file.arrayBuffer();
+  const { iv, ciphertext } = await encryptBlob(bytes, dek);
+  await putAttachment({
+    id: uuid(),
+    taskId,
+    filename: file.name,
+    mimeType: file.type,
+    size: file.size,
+    iv,
+    ciphertext,
+    createdAt: now(),
+  });
+  await renderAttachmentsList(taskId);
+}
+
+function wireAttachmentsSection() {
+  const input = document.getElementById("editAttachmentInput");
+  document.getElementById("editAttachmentAddBtn").addEventListener("click", () => input.click());
+  input.addEventListener("change", async () => {
+    const file = input.files[0];
+    input.value = "";
+    if (!file) return;
+    await addAttachment(document.getElementById("editId").value, file);
+  });
+}
+
 function wireEditModal() {
   const overlay = document.getElementById("editModal");
   const form = document.getElementById("editForm");
@@ -4233,6 +4412,12 @@ function wireEditModal() {
     const id = document.getElementById("editId").value;
     const task = tasks.find((t) => t.id === id);
     if (task) openShareModal(task);
+  });
+
+  document.getElementById("editCertificateBtn").addEventListener("click", async () => {
+    const id = document.getElementById("editId").value;
+    const task = tasks.find((t) => t.id === id);
+    if (task) await exportTaskCertificate(task);
   });
 
   overlay.addEventListener("click", (e) => {
@@ -4898,6 +5083,26 @@ async function afterUnlock() {
   if (getSyncConfig()) startAutoSync();
   startHistoryIntegrityWatch();
   await consumePendingWebrtcSignal();
+  consumePendingShareTarget();
+}
+
+// manifest.json's share_target ("Share" from any other app → Haven, Android's share sheet — not
+// supported by iOS Safari as of this writing, a real platform gap, not a bug here) lands here as
+// ?share-title=&share-text=&share-url= on app.html. Pre-fills quick-add rather than auto-creating
+// the task outright — shared text is often messy (a whole article's OG description, a raw URL)
+// and deserves a review/edit step before it becomes a task title, the same reasoning quick-add's
+// own parseQuickAdd() step already gets for manually-typed input.
+function consumePendingShareTarget() {
+  const params = new URLSearchParams(location.search);
+  const title = params.get("share-title");
+  const text = params.get("share-text");
+  const url = params.get("share-url");
+  if (!title && !text && !url) return;
+  history.replaceState(null, "", location.pathname + location.hash);
+
+  const quickAddInput = document.getElementById("quickAddInput");
+  quickAddInput.value = [title, text, url].filter(Boolean).join(" · ").slice(0, 500);
+  quickAddInput.focus();
 }
 
 // Shared by both the direct "enter your recovery code" form and the
@@ -5393,6 +5598,7 @@ async function boot() {
   wireVaultSwitcher();
   wireViewToggle();
   wireEditModal();
+  wireAttachmentsSection();
   wireAddModal();
   wireShareModal();
   wireDeadManSwitchModal();

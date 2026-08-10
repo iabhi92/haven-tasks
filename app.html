@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260811a" integrity="sha384-zMoIX8U+MbHiCr3qsl8WDdKzgzGbFs3qbX4Q6FNo2L3gGK9+yLGajW/Oa5BPhKpC" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260811b" integrity="sha384-+tZaN/i52znBpn6gN2s7NgQ2RSeNTHFOu4F1lBIAu0PvEhJvXne7dc2NFJUc+eZM" crossorigin="anonymous">
 </head>
 <body>
 
@@ -563,6 +563,11 @@
             <button type="button" class="btn btn-secondary" id="assistantFocusBtn">Ask</button>
           </div>
           <div class="assistant-action-card">
+            <h3>What did I get done this week?</h3>
+            <p class="assistant-action-sub">A short recap of what you completed in the last 7 days.</p>
+            <button type="button" class="btn btn-secondary" id="assistantRecapBtn">Ask</button>
+          </div>
+          <div class="assistant-action-card">
             <h3>Break a task into subtasks</h3>
             <p class="assistant-action-sub">Pick a task; review suggestions before adding any.</p>
             <select id="assistantTaskSelect" class="assistant-task-select"></select>
@@ -677,6 +682,14 @@
 
       <p class="modal-help" id="editSelfDestructNote" hidden></p>
 
+      <div class="field">
+        <label>Attachments</label>
+        <ul id="editAttachmentList" class="attachment-list"></ul>
+        <input type="file" id="editAttachmentInput" hidden>
+        <button type="button" class="btn btn-ghost btn-sm" id="editAttachmentAddBtn">Add a file&hellip;</button>
+        <p class="assistant-action-sub">Encrypted the same way as the task itself. Stored only on this device — not included in sync, share links, or backups yet. Up to 8MB per file.</p>
+      </div>
+
       <div class="field pomodoro-field">
         <label>Time tracking</label>
         <div class="pomodoro-row">
@@ -691,6 +704,7 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-danger" id="editDeleteBtn">Delete</button>
         <button type="button" class="btn btn-ghost" id="editShareBtn">Share link&hellip;</button>
+        <button type="button" class="btn btn-ghost" id="editCertificateBtn">Certificate&hellip;</button>
         <div class="modal-actions-right">
           <button type="button" class="btn btn-ghost" id="editCancelBtn">Cancel</button>
           <button type="submit" class="btn btn-primary">Save</button>
@@ -1366,6 +1380,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260810s" integrity="sha384-HAgIte75Pflhf11QPWDolaHO8pUcuuN2oZjbFPz0YqdnOSQhJycKY45wPw6rnOX2" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260811a" integrity="sha384-+pCSaOVHuv61U4d57n8NqgB5QFRrSijeUyd4O+IhNGF4PcdkPP0eAgLra4RJCKU5" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

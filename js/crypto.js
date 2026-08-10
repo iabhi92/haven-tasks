@@ -141,6 +141,22 @@ export async function decryptTask(record, dek) {
   return JSON.parse(new TextDecoder().decode(plaintext));
 }
 
+// Same AES-GCM/DEK pattern as encryptTask()/decryptTask() above, but for raw binary bytes rather
+// than a JSON-serialized object — used for task attachments (docs/ARCHITECTURE.md "Encrypted
+// attachments"). Returns/accepts iv and ciphertext as raw ArrayBuffer/Uint8Array rather than
+// base64 strings: attachments are local-only (IndexedDB stores binary natively via structured
+// clone), so base64's ~33% size overhead would be pure waste with no transport to justify it,
+// unlike encryptTask()'s records, which do cross a JSON boundary (sync, share, export).
+export async function encryptBlob(bytes, dek) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, dek, bytes);
+  return { iv, ciphertext };
+}
+
+export async function decryptBlob(record, dek) {
+  return crypto.subtle.decrypt({ name: "AES-GCM", iv: record.iv }, dek, record.ciphertext);
+}
+
 // ---------- recovery code ----------
 
 // Crockford base32 — excludes I/L/O/U so a handwritten transcription of the

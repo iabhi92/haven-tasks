@@ -144,6 +144,15 @@ data."*
       signed it if the backup came from an unfamiliar device — that would need out-of-band key
       trust, a separate, harder feature. Old (pre-feature) plain-array exports still import fine,
       just unverifiable. See docs/ARCHITECTURE.md "Verifiable, signed backups".
+- [x] Redacted task certificates (prove one task's content/completion without disclosing the rest
+      of the vault) — Med. Shipped: `exportTaskCertificate()` reuses the exact same hybrid
+      Ed25519 + post-quantum signing as the full backup export above, scoped to one task instead
+      of the whole list, plus the signed history log's current chain-tip hash so a verifier can
+      confirm the certificate wasn't backdated against it. Same selective-disclosure axis as
+      fragment-key share links (title, not notes), not a new one. **Honest scope limit:** proves
+      "the chain had reached this tip," not "this task's own entry is included in the chain" — a
+      real Merkle-inclusion proof would be strictly stronger and is separate, harder future work,
+      not represented as done here. See docs/ARCHITECTURE.md §5e-2.
 
 ### The OMG feature (cheap, flashy, honest)
 
@@ -255,7 +264,12 @@ data."*
       "On-device AI assistant" for the full scope, including the Safari
       gap (a different, non-vendored WASM binary is needed there) and why
       the Playwright test for this feature mocks the model call instead
-      of running a real multi-hundred-MB download in the test suite.
+      of running a real multi-hundred-MB download in the test suite. Since
+      then, two more actions were added on the same infrastructure: a
+      free-text "Ask anything" prompt box, and "What did I get done this
+      week?" (a weekly recap over the last 7 days' completed tasks, see
+      docs/ARCHITECTURE.md §4h-2) — both zero new infrastructure, same
+      model/worker/plumbing, only new prompts.
 - [x] Local automation / rules engine — Med. Shipped: three triggers (task
       marked Done, due date passes while not Done, task created with a
       specific tag) × five actions (add/remove tag, set priority, set
@@ -371,7 +385,13 @@ data."*
 - [ ] Cryptographic delegation — hand off a task with a scoped, time-limited capability — High
 - [ ] Encrypted presence — see who's on a shared board without the server learning identities —
       High
-- [ ] Encrypted attachments — client-side encrypted, chunked, synced files — High
+- [x] Encrypted attachments — client-side encrypted, chunked, synced files — High. Shipped, scope
+      reduced from the original wording: AES-GCM under the vault DEK, real client-side encryption,
+      but **not** chunked and **not** synced — a flat 8MB-per-file cap instead of chunking, and
+      local-only for now (not in sync/share/WebRTC/export), matching notes' and time-locked tasks'
+      own first-pass scope cuts (see docs/ARCHITECTURE.md §4l). Verified for real: upload, download,
+      byte-for-byte decrypt match, remove, and survival across a real modal close/reopen (fresh
+      IndexedDB read, not leftover DOM state).
 - [ ] Metadata-aware reminders / web push (ping without the server knowing what) — High
 
 ### Ecosystem & polish (interleave as needed; mostly Layer 2+)
@@ -381,6 +401,15 @@ data."*
       fully offline, not just incidentally when the browser's normal HTTP
       cache happens to still have it. Scoped to app.html only — the
       marketing pages don't offer an install prompt.
+- [x] App-icon badge (due-today/overdue count, visible without unlocking) — Low. Shipped via the
+      standard Badging API — a count only, never a title or other content, the same "reveal
+      nothing but a number" property the lock screen and offline banner already have. See
+      docs/ARCHITECTURE.md §4m and docs/THREAT_MODEL.md A3a for the (small, disclosed) privacy
+      trade-off that implies.
+- [x] Share-sheet capture (share text from any app into Haven) — Low. Shipped via
+      manifest.json's `share_target` — Android only, iOS Safari doesn't support this in a web app
+      manifest as of this writing (see docs/ARCHITECTURE.md §4m). A real platform gap, not a bug
+      here; a genuine browser extension for desktop capture remains unbuilt.
 - [ ] Native desktop/mobile wrappers (Tauri) — Med
 - [x] Calendar view + CalDAV / iCal interop — Med. Shipped as a month-grid
       view of every task with a due date, plus one-way .ics export

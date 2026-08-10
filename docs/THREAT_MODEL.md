@@ -63,6 +63,22 @@
   than the stronger option," not "weak" outright. Documented as a real limitation, not hidden —
   see `docs/ARCHITECTURE.md`'s key-derivation section for the migration path once Argon2id lands.
 
+### A3a. Someone who glances at a locked device's home screen (not a device compromise)
+
+- **Capability:** sees whatever an installed PWA's icon shows without unlocking anything — the
+  app-icon badge count (docs/ARCHITECTURE.md §4m).
+- **Defense:** the badge is a bare integer — tasks due today or overdue, nothing else. It never
+  carries a title, a project name, a count broken out by category, or any other structured
+  content; `updateAppBadge()` computes exactly one number and nothing more. Reading it tells you
+  "there are N things," never what any of them are.
+- **Residual risk, stated plainly:** the count itself is real metadata exposure, deliberately
+  accepted, not overlooked — it's the entire feature. Someone glancing at a locked phone's home
+  screen learns whether the owner has anything due, and roughly how much. This is a materially
+  smaller exposure than a typical to-do app's default notification behavior (which usually shows
+  full task titles in a lock-screen banner) but it is not zero, and the badge deliberately isn't
+  cleared on lock — a user who wants zero exposure here can disable notifications/badging for
+  Haven at the OS level, the same opt-out every other app on the device already offers.
+
 ### A3b. Something that silently corrupts or backdates local task data (bug, rogue extension, disk bit rot)
 - **Capability:** direct read/write access to this device's IndexedDB, at the same level the app's
   own JavaScript has — a buggy migration, a misbehaving browser extension, or storage-layer
