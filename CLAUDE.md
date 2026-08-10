@@ -339,6 +339,56 @@ the founder for approval before shipping — approved as "ship."
   block centers in the section — text itself stays left-aligned for
   readability, only the block's position changed.
 
+## Shipped (2026-08-11): WebRTC quick-code relay, native-camera QR fix, 5 features, Merkle proofs
+
+Three separate pieces of work, all shipped and deployed live this session:
+
+- **Fixed a real bug reported from an actual iPhone**: scanning the WebRTC-pairing QR with iOS's
+  *native* Camera app (not Haven's own in-page scanner) triggered iOS's phone-number detector on a
+  numeric substring inside the raw SDP text, offering a "Call" action sheet instead of anything
+  useful. Fix: every QR this feature shows now encodes a real `https://` URL (any native camera
+  app's response to a URL is the familiar, unambiguous "Open in Safari"), gzip-compressed first —
+  the URL-wrapped SDP was dense enough that a real OpenCV decode test started failing
+  intermittently even at generous sizes; compression brought it back to the exact module count
+  already proven reliable elsewhere in this project.
+- **Added a "quick code" pairing mode** (now the default): a small relay
+  (`server/routes.py`'s `/webrtc-relay` endpoints, `server/storage.py`'s `webrtc_rooms` table)
+  hands the SDP offer/answer between two devices under one short, single-use, ~40-bit-entropy code
+  — pairing is "enter this code once," not a manual two-step QR/paste round trip. The relay only
+  ever sees connection metadata (never task content, which still flows peer-to-peer once
+  connected); the original fully-offline flow stays available as an explicit toggle for anyone who
+  wants zero server involvement. See `docs/ARCHITECTURE.md` §5-3, `docs/THREAT_MODEL.md` A4b-3.
+- **Five independently-scoped features**, all real, all verified with live Playwright runs against
+  production, not just locally: an app-icon badge (Badging API, due-today/overdue count only, never
+  cleared on lock — see `docs/THREAT_MODEL.md` A3a for the disclosed trade-off), Android
+  share-target capture into quick-add, a third on-device AI assistant action ("What did I get done
+  this week?" — zero new infra, same model/worker), redacted task certificates (sign one task, not
+  the whole vault — same disclosure axis as share links: title, not notes), and local-only
+  encrypted file/photo attachments (AES-GCM under the vault DEK, 8MB cap, not yet in
+  sync/share/export). See `docs/ARCHITECTURE.md` §4h-2, §4l, §4m, §5e-2.
+- **Selective Merkle-inclusion proofs**, added to the task-certificate feature above: a real
+  SHA-256 Merkle tree (`js/crypto.js`) over the vault's whole tamper-evident history log, with an
+  O(log n) inclusion proof that a specific task's entry is genuinely in the log without revealing
+  any sibling task's entry. Independently verifiable with **zero Haven install** via the new
+  `scripts/verify-task-certificate.mjs` (a single dependency-free Node file) — verified for real
+  against a live-downloaded certificate, plus three separate tamper scenarios (edited title,
+  corrupted Merkle leaf, forged signature) each independently confirmed rejected.
+- **Explicitly did NOT build, on purpose**: four other "hard mode" ideas from the same brainstorm
+  (true multi-person shared vaults, real-time collaborative CRDT note editing, forward-secret
+  ratcheted sync, searchable-encryption-based push notifications) — these are novel protocol design
+  problems, not compositions of already-correct primitives the way everything else in this project
+  is, and a subtly-wrong unsupervised implementation of any of them would be a false security claim
+  worse than not having the feature. Real technical scoping (the actual approach, precisely why
+  each is hard, what it would touch, rough size) written up instead: `docs/HARD_MODE_SCOPING.md`.
+  If the user wants one built, read that doc first — it's a starting point, not a stalling tactic.
+
+Real test-methodology bug caught mid-session, worth remembering: simulating "scan a QR with a
+native camera, which opens a fresh tab" by calling `page.goto()` on the *same* Playwright page to a
+URL differing only by hash is a **same-document navigation in Chromium — no reload, no fresh
+`boot()`** — a weaker test using that approach would have silently passed without ever exercising
+the real path. Fix: a genuinely fresh `context.newPage()` (same browser context/storage, fresh JS
+execution) is what actually mirrors a native app handing a link to the browser.
+
 ## In-flight / unfinished work — pick up here
 
 ### 1. Drag-and-drop bug report, unreproduced

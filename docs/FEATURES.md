@@ -377,9 +377,13 @@ data."*
 
 ## Layer 4 — Collaboration under E2EE (the flagship cluster — hardest, biggest)
 
-- [ ] Real-time multi-user editing with the server blind — Research · Signal: very high
+- [ ] Real-time multi-user editing with the server blind — Research · Signal: very high. Real
+      scoping written up (not built): docs/HARD_MODE_SCOPING.md §2 — gated on the item below,
+      since concurrent edits between *people* need a group key first, not just a merge algorithm.
 - [ ] ⭐ Revocation that works — remove a collaborator, rotate keys, lock them out of future
-      content (the problem everyone dodges) — Research · Signal: very high
+      content (the problem everyone dodges) — Research · Signal: very high. Real scoping written
+      up (not built): docs/HARD_MODE_SCOPING.md §1 ("True multi-person shared vaults") — the real
+      blocker is efficient re-keying at scale (MLS-shaped), not the revocation idea itself.
 - [x] Field-group CRDT merge for multi-*device*, single-user sync (Layer 2, shipped — see
       docs/ARCHITECTURE.md §5a-2). Two devices editing different parts of the same task offline
       (one marks it done, the other changes its due date) now both survive a sync instead of one
@@ -390,7 +394,8 @@ data."*
 - [ ] Full CRDT-based conflict-free *multi-user* merge (real-time collaboration, the server still
       blind) — a genuinely harder problem than the multi-device case above: per-scalar-field or
       per-item (OR-Set tags, map-by-id subtasks) merge granularity, plus reconciling concurrent
-      edits from different *people*, not just different devices of the same person — Research
+      edits from different *people*, not just different devices of the same person — Research.
+      Real scoping written up (not built): docs/HARD_MODE_SCOPING.md §2.
 - [ ] Cryptographic delegation — hand off a task with a scoped, time-limited capability — High
 - [ ] Encrypted presence — see who's on a shared board without the server learning identities —
       High
@@ -401,7 +406,13 @@ data."*
       own first-pass scope cuts (see docs/ARCHITECTURE.md §4l). Verified for real: upload, download,
       byte-for-byte decrypt match, remove, and survival across a real modal close/reopen (fresh
       IndexedDB read, not leftover DOM state).
-- [ ] Metadata-aware reminders / web push (ping without the server knowing what) — High
+- [ ] Metadata-aware reminders / web push (ping without the server knowing what) — High. Real
+      scoping written up (not built): docs/HARD_MODE_SCOPING.md §4 — the implementation is the
+      easy part, the searchable-encryption scheme design is what needs outside review first.
+- [ ] Forward-secret, ratcheted sync (a compromised device can't decrypt past or indefinite future
+      synced records) — Research. Not on this list until this session — real scoping written up
+      (not built): docs/HARD_MODE_SCOPING.md §3, the correctness-hardest of the four hard-mode
+      items scoped that session.
 
 ### Ecosystem & polish (interleave as needed; mostly Layer 2+)
 
