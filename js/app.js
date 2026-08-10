@@ -23,6 +23,7 @@ import { computeInsights } from "./insights.js?v=20260808b";
 import { generateICS } from "./ical.js?v=20260807a";
 import { parseCSVToTasks } from "./csv.js?v=20260807a";
 import { TEMPLATES, findTemplate } from "./templates.js?v=20260807a";
+import { qrcode } from "/vendor/qrcode/qrcode.mjs";
 import {
   renderBoard,
   renderList,
@@ -3575,6 +3576,7 @@ function wireShareModal() {
       const created = await createShareLink(shareModalTask, { ttlSeconds, maxViews, fields });
       shareModalCreated = created;
       output.value = created.url;
+      renderQrCode("shareQrCode", created.url);
       document.getElementById("shareBeforeSection").hidden = true;
       document.getElementById("shareAfterSection").hidden = false;
     } catch (err) {
@@ -3629,6 +3631,26 @@ function el(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+// Renders a scannable QR code for a share/dead-man's-switch link — vendor/qrcode/qrcode.mjs's
+// createSvgTag() returns a plain inline <svg> string (no <script> content), safe to insert
+// directly under this site's strict CSP. 'M' error correction is the library's own recommended
+// default; typeNumber 0 lets it auto-size to the URL's length rather than guessing a fixed size.
+//
+// cellSize is computed from the actual module count, not fixed — a selective-disclosure share
+// link's fragment carries one key per included field and can run 500+ characters, needing 2x+ the
+// modules a short dead-man's-switch link does (verified: 45 vs 97 modules for real examples of
+// each). A fixed cell size that looked fine for the short link squeezed the long one into modules
+// too small for a phone camera to resolve — this targets a roughly constant final size instead.
+const QR_TARGET_PX = 300;
+
+function renderQrCode(containerId, text) {
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  const cellSize = Math.max(2, Math.round(QR_TARGET_PX / qr.getModuleCount()));
+  document.getElementById(containerId).innerHTML = qr.createSvgTag({ cellSize, margin: cellSize * 2 });
 }
 
 const DEAD_MANS_SWITCHES_KEY = "haven_dead_mans_switches"; // localStorage: bookkeeping only,
@@ -3767,6 +3789,7 @@ function wireDeadManSwitchModal() {
       const ttlSeconds = Number(document.getElementById("dmsExpiry").value);
       const created = await createDeadMansSwitch({ title, notes }, squarings, { ttlSeconds });
       output.value = created.url;
+      renderQrCode("dmsQrCode", created.url);
       document.getElementById("dmsCreateSection").hidden = true;
       document.getElementById("dmsAfterSection").hidden = false;
       renderDeadMansSwitchList();

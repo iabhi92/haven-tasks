@@ -101,6 +101,7 @@ const otherFiles = [
   ...listFiles("vendor/transformers", ".mjs"),
   ...listFiles("vendor/transformers", ".wasm"),
   ...listFiles("vendor/transformers/onnxruntime-common", ".js"),
+  ...listFiles("vendor/qrcode", ".mjs"),
 ]
   .filter((f) => !ENTRY_ASSETS.some((a) => a.file === f))
   .concat(listFiles("css", ".css").filter((f) => !ENTRY_ASSETS.some((a) => a.file === f)));

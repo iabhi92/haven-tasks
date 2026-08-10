@@ -938,6 +938,37 @@ form, ciphertext included, not just "encrypted but the recipient wasn't given th
   profile" or persisted per-recipient preference; every share starts from every field checked and
   the sender re-chooses each time.
 
+### QR codes for share links and the dead-man's switch (extends the above)
+
+A scannable QR code next to every freshly created share link and dead-man's-switch link
+(`renderQrCode()`, `js/app.js`) — the same URL that's already in the text field, just also
+rendered as a code a phone camera can pick up directly, no typing or copy-paste across devices.
+
+- **Vendored, not CDN-loaded**, same reason as every other `vendor/` library — the site's CSP is
+  `script-src 'self'`. `vendor/qrcode/qrcode.mjs` (MIT, `kazuhikoarase/qrcode-generator`,
+  unmodified) is a small, dependency-free ES module; see its `SOURCE.md`.
+- **Size is computed from the actual payload, not fixed.** A selective-disclosure share link
+  (§5b) carries one key per included field in its fragment and can run 500+ characters; a
+  dead-man's-switch link carries none and stays short. Real measured difference: 45 modules for a
+  short link vs. 97 for a long one — more than double. `renderQrCode()` computes `cellSize` from
+  `getModuleCount()` to target a roughly constant ~300px final size regardless of payload length,
+  rather than squeezing a long link's much denser code into the same fixed box a short link would
+  use, which shipped once and had to be caught: a fixed-size render decoded fine for the short
+  dead-man's-switch link but failed a real OpenCV decode of the share-link version, since the
+  same box size gave it under half the pixels per module. Re-verified after the fix with a real
+  decode (not just a visual check) at realistic (2x/retina) resolution: both link types decode
+  back to their exact source URL, byte-for-byte.
+- **`createSvgTag()` is called without its `scalable` option**, deliberately — that option
+  suppresses the library's own explicit pixel `width`/`height` attributes in favor of pure CSS
+  sizing, which left the SVG's rendered size indeterminate in this layout (a computed zero-size,
+  invisible element) in real testing. Explicit intrinsic dimensions from the library itself, with
+  CSS `max-width: 100%` only as a responsive overflow cap, renders reliably.
+- **The rendered output is a plain inline `<svg>`** (`<path>`/`<rect>`/`<title>` elements only, no
+  `<script>`), inserted via `innerHTML` — safe under this site's CSP with no additional allowance
+  needed, and inherently free of injection risk regardless of the encoded URL's content, since the
+  URL only ever influences which QR *modules* are dark/light, never literal text reflected into
+  the SVG markup.
+
 ## 5c. Tamper-evident signed task history (Layer 2)
 
 Makes silent edits, deletions, or backdating of local task data provable rather than merely

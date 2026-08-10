@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260810e" integrity="sha384-ScqaK8mLlOW83plD6oP+Njf1eZfVDmWvndzxynfmuED0UcvimqgoJi8oNVacP9Xo" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260810g" integrity="sha384-oR0xOf9UnowcToyjtb9Wq3RFhTVGlesEb+8OkrS/81oGME5T9w+/vb8Mif0lzsHN" crossorigin="anonymous">
 </head>
 <body>
 
@@ -751,6 +751,10 @@
         <label for="shareLinkOutput">Share link</label>
         <input type="text" id="shareLinkOutput" readonly>
       </div>
+      <div class="qr-code-wrap" id="shareQrWrap">
+        <div class="qr-code-box" id="shareQrCode"></div>
+        <p class="modal-help">Scan with another device to open this link directly.</p>
+      </div>
       <p class="modal-help" id="shareRevokeStatus" role="status"></p>
       <div class="modal-actions">
         <button type="button" class="btn btn-danger" id="shareRevokeBtn">Revoke link</button>
@@ -815,6 +819,10 @@
       <div class="field">
         <label for="dmsLinkOutput">Dead-man's switch link</label>
         <input type="text" id="dmsLinkOutput" readonly>
+      </div>
+      <div class="qr-code-wrap" id="dmsQrWrap">
+        <div class="qr-code-box" id="dmsQrCode"></div>
+        <p class="modal-help">Scan with another device to open this link directly.</p>
       </div>
       <p class="modal-help">
         Share this now. As long as you cancel it before it unlocks, nobody sees the content.
@@ -1274,6 +1282,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260810e" integrity="sha384-3Z3toSOjnP2w1aMoBgL711EPfg60cQiFYo9dIEwM6C7tCCrmTw8mAM8w11ArsMu5" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260810i" integrity="sha384-ZHHJqnCxeSACNxSLfHH7QexAJglOnIrY7YfYBg78bt/wtoT3GgeznTK0J3Qu6SDz" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

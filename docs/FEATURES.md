@@ -175,6 +175,12 @@ data."*
       whether social recovery shares were actually handed to anyone, so faking a checkmark for
       either would be exactly the kind of fabricated trust signal this feature exists to avoid.
       See docs/ARCHITECTURE.md "Vault security-posture checklist".
+- [x] QR codes for share links and the dead-man's switch — Low · Signal: high. Shipped: every
+      freshly created link also renders as a scannable QR code, sized dynamically from the actual
+      payload (a selective-disclosure share link can be 2x+ denser than a dead-man's-switch link)
+      rather than a fixed box that decodes fine for one and fails for the other — caught with a
+      real OpenCV decode, not just a visual check. See docs/ARCHITECTURE.md "QR codes for share
+      links and the dead-man's switch".
 
 ## Layer 3 — Private intelligence & crypto-novel (the "wait, a todo app does that?" tier)
 
