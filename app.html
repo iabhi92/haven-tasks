@@ -46,7 +46,7 @@
      stylesheet and on js/app.js (and its ./store.js / ./ui.js imports) must be bumped
      by hand whenever those files change, or browsers will keep serving stale cached
      copies after a normal reload — a real, repeated issue during development. -->
-<link rel="stylesheet" href="css/style.css?v=20260811b" integrity="sha384-+tZaN/i52znBpn6gN2s7NgQ2RSeNTHFOu4F1lBIAu0PvEhJvXne7dc2NFJUc+eZM" crossorigin="anonymous">
+<link rel="stylesheet" href="css/style.css?v=20260811b" integrity="sha384-+nJ00NS8EEAqKI0cOZU60XickvjUNhJ6FW/KR2k8Fku3P5AfYXohkegL+WhqWCpl" crossorigin="anonymous">
 </head>
 <body>
 
@@ -543,10 +543,12 @@
         <h2>AI assistant</h2>
         <p class="reveal-intro">A small language model that runs entirely in your browser. It
           never sends a task, a title, or a note anywhere. Off by default: nothing downloads until
-          you click Enable below. The download (about 140MB, once) does need the internet; after
-          that, generating an answer is a local computation with zero network requests, even
-          offline. It's genuinely small, so answers are useful but plain-spoken rather than
-          polished, and on this device it takes roughly a minute per answer, not a few seconds.</p>
+          you click Enable below. The download (about 360MB, once) does need the internet and takes
+          a few minutes; after that, generating an answer is a local computation with zero network
+          requests, even offline, usually under a minute. It's genuinely small, so answers are
+          useful but plain-spoken rather than polished. It can also propose adding or deleting a
+          task from plain-language instructions — it only ever proposes the change; nothing happens
+          until you confirm it.</p>
 
         <div id="assistantEnableCard" class="assistant-enable-card">
           <button type="button" class="btn btn-primary" id="assistantEnableBtn">Enable AI assistant</button>
@@ -579,12 +581,23 @@
             <textarea id="assistantPromptInput" class="assistant-prompt-input" rows="2" maxlength="300" placeholder="e.g. what's overdue that I should reschedule?"></textarea>
             <button type="button" class="btn btn-secondary" id="assistantPromptBtn">Ask</button>
           </div>
+          <div class="assistant-action-card">
+            <h3>Add or delete a task</h3>
+            <p class="assistant-action-sub">Tell it what to do. It proposes the change; nothing happens until you confirm.</p>
+            <textarea id="assistantActionInput" class="assistant-prompt-input" rows="2" maxlength="200" placeholder="e.g. add a task to call the dentist tomorrow"></textarea>
+            <button type="button" class="btn btn-secondary" id="assistantActionBtn">Do it</button>
+          </div>
         </div>
 
         <div id="assistantOutput" class="assistant-output" hidden>
           <div id="assistantOutputText" class="assistant-output-text"></div>
           <ul id="assistantSuggestionList" class="assistant-suggestion-list" hidden></ul>
           <button type="button" class="btn btn-primary" id="assistantAddSubtasksBtn" hidden>Add selected as subtasks</button>
+          <div id="assistantActionConfirm" class="assistant-action-confirm" hidden>
+            <p id="assistantActionConfirmText"></p>
+            <button type="button" class="btn btn-primary" id="assistantActionConfirmBtn">Confirm</button>
+            <button type="button" class="btn btn-ghost" id="assistantActionCancelBtn">Cancel</button>
+          </div>
         </div>
       </section>
     </div>
@@ -1380,6 +1393,6 @@
 <a id="exportLink" hidden></a>
 <input type="file" id="importFileInput" accept="application/json,.json,.csv,text/csv" hidden>
 
-<script src="js/app.js?v=20260811b" integrity="sha384-gCLevkFYO2T95bF5s6Z/mqYerSsJ68XfBhw9Q/B+QI1/ZgY5yIoSfn595RzPm/g1" crossorigin="anonymous" type="module"></script>
+<script src="js/app.js?v=20260811e" integrity="sha384-LS/20lX+vbrIU0GPVhEwl2cO6s/N3wKYjS38+rSmHVSlyc9BStaa+9h5zYoZvnuP" crossorigin="anonymous" type="module"></script>
 </body>
 </html>

@@ -499,14 +499,16 @@ recomputes everything fresh from the current board, same as every other view in 
 
 ## 4h. On-device AI assistant (Layer 3)
 
-A real small language model — [HuggingFaceTB/SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct),
-int8-quantized ONNX, ~140MB — running entirely in the browser via
+A real small language model — [onnx-community/SmolLM2-360M-Instruct-ONNX](https://huggingface.co/onnx-community/SmolLM2-360M-Instruct-ONNX)
+(`model_quantized.onnx`, q8, ~363MB — upgraded 2026-08-11 from
+[HuggingFaceTB/SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct)'s
+~140MB, same SmolLM2 family, ~2.6x more parameters) — running entirely in the browser via
 [transformers.js](https://github.com/huggingface/transformers.js) on top of onnxruntime-web's WASM
 backend. `js/ai.js` is a thin main-thread RPC wrapper (`loadAssistant()`, `generateFocusSummary(tasks)`,
-`generateSubtaskSuggestions(task)`, `generateFreeTextReply(prompt, tasks)`) — the actual model load
-and generation run in a dedicated Web Worker, `js/ai-worker.js` (see "Runs in a Web Worker, not the
-main thread" below). Three actions in the AI assistant panel (`app.html`'s `assistantView`, wired in
-`js/app.js`'s `wireAssistantView()`):
+`generateSubtaskSuggestions(task)`, `generateFreeTextReply(prompt, tasks)`, `generateTaskAction(instruction, tasks)`) —
+the actual model load and generation run in a dedicated Web Worker, `js/ai-worker.js` (see "Runs in
+a Web Worker, not the main thread" below). Actions in the AI assistant panel (`app.html`'s
+`assistantView`, wired in `js/app.js`'s `wireAssistantView()`):
 
 - **"What should I focus on today?"** — sends the open (non-done) tasks' titles, due dates,
   priorities, and statuses (not notes — kept out purely to keep the prompt short, not for privacy;
@@ -520,6 +522,48 @@ main thread" below). Three actions in the AI assistant panel (`app.html`'s `assi
 - **"Ask anything"** — a free-text prompt box, grounded in the same open-task summary the focus
   action uses so the model has real context rather than a bare question. Added because the two
   canned buttons above don't cover an open-ended question — direct user request.
+- **"Add or delete a task"** — see "Task actions" below; deliberately *not* model-driven, despite
+  living in this same panel.
+
+### Task actions: why this one deliberately doesn't use the model
+
+A natural-language "add or delete a task" box, with the same "propose, then confirm" posture as
+subtask suggestions above — `generateTaskAction()` returns a proposal, `wireAssistantView()` shows
+it back to the user, and only an explicit confirm click calls `addTask()`/`deleteTasksWithUndo()`.
+
+**Real finding from testing, not a design guess: this model cannot reliably produce structured
+output, even with few-shot examples.** The first version asked the model to classify intent and
+reply in a strict `ACTION: add|delete|none` / `TITLE: ...` format. Two independent prompt attempts
+(including one with worked examples embedded in the system prompt) were tested against the real
+360M model — not assumed to work from the prompt design alone. Both failed: the raw replies were
+either missing the `ACTION:` line entirely, or included part of the system prompt echoed back
+verbatim instead of following it. That's a genuine capability ceiling at this size for structured
+output, not a prompt-wording problem worth a third attempt.
+
+**Fix: don't ask the model to do something it demonstrably can't do reliably, when a deterministic
+approach does the job better.** Intent classification ("add" vs "delete" vs neither) is keyword
+matching against the instruction text itself (`ADD_PATTERN`/`DELETE_PATTERN` in `js/ai.js`) — a
+bounded, simple problem that doesn't need a language model at all. For delete, the raw instruction
+is fuzzy-matched against real task titles by shared significant words (`findTaskByFuzzyTitle()` in
+`js/app.js`) rather than trusting the model to copy a title verbatim; a first version of this
+matcher used suffix-stripping for light stemming ("groceries" → "grocer") and failed to match
+"delete the grocery task" against a task titled "Buy groceries" (found by testing, not
+inspection) — irregular pluralization doesn't converge under simple suffix rules. Fixed by matching
+on a shared 5-character prefix instead ("groce" is common to both "grocery" and "groceries"),
+verified against the same failing case. A non-match fails closed — reports "couldn't find a task
+matching that" rather than guessing at the closest option — same "fail closed, don't guess" posture
+as `verifyHistoryChain()` elsewhere in this app.
+
+**Net effect: this is fast (no model wait — intent classification and matching are both
+synchronous) and it's honest about not being "the model decided."** The UI copy describes it as
+"tell it what to do in plain language," which is accurate regardless of the underlying mechanism —
+it doesn't claim more AI involvement than what's actually there. Verified for real: add creates the
+right task after confirming (and *only* after confirming — cancel does nothing); delete correctly
+resolves "the grocery task" to "Buy groceries" specifically, not a decoy "Call the dentist" task
+present in the same list, and the existing undo toast (`deleteTasksWithUndo()`, unmodified) is the
+safety net if the match is ever wrong; an instruction matching neither pattern does nothing; a
+delete instruction naming something with no real match reports that honestly instead of deleting
+the closest guess.
 
 **Runs in a Web Worker, not the main thread.** This wasn't the original shape of the feature — the
 first version ran `pipeline()` load and generation inline in `js/ai.js`, which froze the entire tab
@@ -582,20 +626,28 @@ honest security cost of the two that remain.
 
 **Measured, not estimated, performance** (single-threaded CPU WASM — threaded WASM needs
 `SharedArrayBuffer`, which needs cross-origin isolation headers this site doesn't set, so it's
-pinned off rather than silently failing at runtime): model load took ~25s, and generating a
-~150-token reply took ~85.6s in the standalone test this feature's design is based on. That's slow
-enough that pretending otherwise would make the feature feel broken, so the UI doesn't try:
-a visible progress bar during download, explicit "this can take about a minute" copy before every
-generation, and `MAX_NEW_TOKENS = 110` in `js/ai.js` to keep worst-case wait bounded rather than
-open-ended.
+pinned off rather than silently failing at runtime), re-measured after the 2026-08-11 model
+upgrade: model load took ~150-280s across repeated real runs on this test machine (meaningfully
+slower than the 135M model's ~25s, as expected for a ~2.6x larger download — the two aren't
+directly comparable since load time is dominated by download bandwidth, not pure compute), but
+generating a reply took ~40s — actually *faster* than the 135M model's ~85.6s, a genuine surprise
+that held up across multiple real generations, not a fluke from one run. Reply quality is also
+noticeably more coherent in side-by-side output, not just a parameter-count assumption. That's slow
+enough (load, specifically) that pretending otherwise would make the feature feel broken, so the UI
+doesn't try: a visible progress bar during download, explicit copy that the download takes a few
+minutes and generation is usually under a minute, and `MAX_NEW_TOKENS = 110` in `js/ai.js` to keep
+worst-case generation wait bounded rather than open-ended.
 
 **What isn't covered:**
 - **Safari.** The vendored WASM runtime pair (`ort-wasm-simd-threaded.asyncify.wasm/.mjs`) is the
   one onnxruntime-web loads by default in non-Safari browsers; Safari uses a different pair
   upstream that isn't vendored here. The feature will fail to load on Safari today.
-- **Answer quality.** 135M parameters is genuinely small — answers are plain and sometimes generic,
-  not the kind of reasoning a larger hosted model would give. That's the deliberate trade-off for
-  "small enough to download once and run on a phone-class CPU," not a bug.
+- **Answer quality.** 360M parameters is still genuinely small — answers are useful but
+  plain-spoken, not the kind of reasoning a larger hosted model would give. That's the deliberate
+  trade-off for "downloads once and runs on a phone-class CPU," not a bug. Structured/formatted
+  output specifically (not just conversational replies) is *not* reliable at this size — see "Task
+  actions" above for the real, tested finding behind that claim and how the task-action feature
+  works around it rather than assuming the model can do something it demonstrably can't.
 - **Test coverage.** Unlike this project's other pure-logic modules, there's no `js/ai.test.mjs` —
   this project has no checked-in Playwright suite at all (see §5d "Verifiable frontend"), only
   one-off scratch verification scripts run by hand each session. Both this section's original

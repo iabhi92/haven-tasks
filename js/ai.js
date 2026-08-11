@@ -1,12 +1,13 @@
 // On-device AI assistant (Layer 3 "genuinely current, distinctive one" —
 // see docs/FEATURES.md). A small instruction-tuned language model
-// (HuggingFaceTB/SmolLM2-135M-Instruct, int8-quantized ONNX, ~140MB) runs
-// entirely in the browser via transformers.js/onnxruntime-web's WASM
-// backend. Nothing here ever sends a task, a title, or a note anywhere —
-// once the model file itself is downloaded and cached, generation is a
-// local WASM computation with zero network requests. See "On-device AI
-// assistant" in docs/ARCHITECTURE.md for the honest scope: why WASM-only
-// (not WebGPU), why this exact model, and real measured timing.
+// (onnx-community/SmolLM2-360M-Instruct-ONNX, q8-quantized, ~363MB — upgraded
+// 2026-08-11 from the 135M/~140MB model, same SmolLM2 family) runs entirely
+// in the browser via transformers.js/onnxruntime-web's WASM backend. Nothing
+// here ever sends a task, a title, or a note anywhere — once the model file
+// itself is downloaded and cached, generation is a local WASM computation
+// with zero network requests. See "On-device AI assistant" in
+// docs/ARCHITECTURE.md for the honest scope: why WASM-only (not WebGPU), why
+// this exact model, and real measured timing.
 //
 // This module is loaded lazily via dynamic import — only once the user
 // opts in from the AI assistant panel — so the ~450KB runtime script and
@@ -32,7 +33,7 @@ let onProgressCallback = null;
 
 function getWorker() {
   if (worker) return worker;
-  worker = new Worker(new URL("./ai-worker.js?v=20260810a", import.meta.url), { type: "module" });
+  worker = new Worker(new URL("./ai-worker.js?v=20260811a", import.meta.url), { type: "module" });
   worker.addEventListener("message", (event) => {
     const msg = event.data;
     if (msg.type === "progress") {
@@ -225,6 +226,46 @@ export async function generateSubtaskSuggestions(task) {
     .map((line) => line.replace(/^[-*\d.)\s]+/, "").trim())
     .filter(Boolean)
     .slice(0, 8);
+}
+
+// Turns a plain-language instruction ("add a task to call the dentist tomorrow", "delete the
+// grocery task") into a proposed action — never executed directly from here; js/app.js's
+// wireAssistantView() shows it back to the user for explicit confirmation before calling
+// addTask()/deleteTasksWithUndo(), same "suggestions staged for review, never auto-applied"
+// posture as generateSubtaskSuggestions() above.
+//
+// Deliberately NOT model-driven, despite living in this file — a real finding from testing, not a
+// guess: asked (with few-shot examples) to reply in a strict "ACTION: / TITLE:" format, this
+// model's actual raw output was either missing the ACTION line entirely, or echoed part of the
+// system prompt back verbatim. That's a genuine capability ceiling at 360M params for structured
+// output, confirmed by two independent prompt attempts, not a wording problem worth a third try.
+// Add/delete intent classification is a simple, bounded problem that keyword matching handles
+// reliably and instantly (no ~40s+ generation wait) — using the model for something it
+// demonstrably can't do consistently, when a deterministic approach does the job better, would be
+// choosing "looks more like AI" over "actually works." Kept async for a stable call signature even
+// though nothing here awaits a model response.
+const ADD_PATTERN = /\b(add|create)\b|remind me to/i;
+const DELETE_PATTERN = /\b(delete|remove|cancel|clear)\b|get rid of/i;
+
+// Strips common lead-in phrases so "add a task to buy milk" becomes "Buy milk" — the same spirit
+// as parseQuickAdd()'s tag/date stripping elsewhere in this app, just for a different prefix shape.
+function extractAddTitle(instruction) {
+  const stripped = instruction
+    .replace(/^\s*(please\s+)?(add|create)\s+(a\s+)?(new\s+)?task\s*(to|for|called|titled)?\s*/i, "")
+    .replace(/^\s*remind me to\s*/i, "")
+    .trim();
+  return stripped ? stripped.charAt(0).toUpperCase() + stripped.slice(1) : "";
+}
+
+export async function generateTaskAction(instruction, tasks) {
+  if (DELETE_PATTERN.test(instruction)) {
+    return { action: "delete", title: instruction };
+  }
+  if (ADD_PATTERN.test(instruction)) {
+    const title = extractAddTitle(instruction);
+    return title ? { action: "add", title } : { action: "none", title: "" };
+  }
+  return { action: "none", title: "" };
 }
 
 // Free-text prompt — the user directly asked for this ("why isnt a box to

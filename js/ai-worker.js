@@ -16,7 +16,13 @@
 // could not have fixed this for a worker context.
 import { pipeline, env } from "/vendor/transformers/transformers.min.js";
 
-const MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct";
+// Upgraded from HuggingFaceTB/SmolLM2-135M-Instruct (2026-08-11) — same SmolLM2 family, ~2.6x more
+// parameters, a real capability step up while staying browser-feasible (verified against the
+// onnx-community org's real ONNX conversion, model_quantized.onnx at 363MB, not vendored — same
+// "fetched once, cached via the browser's Cache API" pattern as before). See
+// docs/ARCHITECTURE.md "On-device AI assistant" for real, measured load/generation timing —
+// meaningfully slower than the 135M model, not assumed proportional without testing.
+const MODEL_ID = "onnx-community/SmolLM2-360M-Instruct-ONNX";
 // Standard small sentence-embedding model for transformers.js semantic search (384-dim,
 // mean-pooled, q8 quantized — a few MB, independent opt-in from the ~140MB chat model above
 // since someone may want fast local search without the heavier generation model).

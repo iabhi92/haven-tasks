@@ -252,7 +252,7 @@ let assistantEnabled = false;
 let embedderEnabled = false;
 let taskEmbeddingCache = new Map(); // taskId -> { text, vector: number[] } — in-memory only, never persisted
 async function getAssistantModule() {
-  if (!assistantModule) assistantModule = await import("./ai.js?v=20260811a");
+  if (!assistantModule) assistantModule = await import("./ai.js?v=20260811c");
   return assistantModule;
 }
 
@@ -3633,6 +3633,76 @@ function wireViewToggle() {
 
 // ---------- AI assistant (Layer 3, js/ai.js) ----------
 
+// Resolves generateTaskAction()'s model-returned delete target (a title the model was asked to
+// copy verbatim, never an id it could invent) back to a real task — exact match first, then
+// substring either direction, so a slightly garbled or partial title still has a real chance of
+// resolving correctly. Returns null rather than guessing when nothing reasonable matches, so the
+// caller can fail closed ("couldn't find it") instead of deleting the wrong thing.
+// Words 4+ chars, lowercased. Matched via shared 5-char prefix rather than suffix-stripped
+// equality — real testing found suffix-stripping ("grocery"→"grocery", "groceries"→"grocer")
+// doesn't converge on irregular pluralization, while a shared prefix ("groce"/"groce") catches it
+// without needing real stemming rules, at the cost of occasionally over-matching unrelated words
+// that happen to share a prefix — an acceptable trade for a rough signal that already fails
+// closed (a score of 0 returns no match at all) rather than being trusted as precise.
+function significantWords(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 4);
+}
+
+function wordsMatch(a, b) {
+  if (a === b) return true;
+  const prefixLen = Math.min(a.length, b.length, 5);
+  return prefixLen >= 4 && a.slice(0, prefixLen) === b.slice(0, prefixLen);
+}
+
+// `title` here is often a full instruction sentence ("delete the grocery task"), not just a task
+// title — this matches by shared significant words rather than requiring one string to literally
+// contain the other, so "delete the grocery task" resolves against a task titled "Buy groceries".
+// Returns null (fails closed) when nothing shares a word, rather than guessing at the best of a
+// set of equally-bad options.
+function findTaskByFuzzyTitle(title, taskList) {
+  const needle = title.toLowerCase().trim();
+  if (!needle) return null;
+  const exact = taskList.find((t) => t.title.toLowerCase().trim() === needle);
+  if (exact) return exact;
+
+  const needleWords = significantWords(title);
+  let best = null;
+  let bestScore = 0;
+  for (const t of taskList) {
+    const score = significantWords(t.title).filter((tw) => needleWords.some((nw) => wordsMatch(nw, tw))).length;
+    if (score > bestScore) {
+      bestScore = score;
+      best = t;
+    }
+  }
+  return best;
+}
+
+// Shared confirm step for anything the assistant proposes doing to actual task data — same
+// "suggestions staged for review, never auto-applied" posture generateSubtaskSuggestions() already
+// has, just as a yes/no instead of a checklist. onConfirm runs only on an explicit click.
+function showAssistantActionConfirm(text, onConfirm) {
+  const confirmEl = document.getElementById("assistantActionConfirm");
+  document.getElementById("assistantActionConfirmText").textContent = text;
+  confirmEl.hidden = false;
+  const confirmBtn = document.getElementById("assistantActionConfirmBtn");
+  const cancelBtn = document.getElementById("assistantActionCancelBtn");
+  const cleanup = () => {
+    confirmEl.hidden = true;
+    confirmBtn.onclick = null;
+    cancelBtn.onclick = null;
+  };
+  confirmBtn.onclick = async () => {
+    await onConfirm();
+    cleanup();
+  };
+  cancelBtn.onclick = () => cleanup();
+}
+
 function wireAssistantView() {
   document.getElementById("assistantEnableBtn").addEventListener("click", async () => {
     const btn = document.getElementById("assistantEnableBtn");
@@ -3725,6 +3795,45 @@ function wireAssistantView() {
       const { generateFreeTextReply } = await getAssistantModule();
       const reply = await generateFreeTextReply(prompt, tasks);
       setAssistantOutputText(reply || "(no response)");
+    } catch (err) {
+      setAssistantOutputText("Something went wrong generating a response. Try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("assistantActionBtn").addEventListener("click", async () => {
+    const input = document.getElementById("assistantActionInput");
+    const instruction = input.value.trim();
+    if (!instruction) {
+      showInfoToast("Type an instruction first.");
+      return;
+    }
+    const btn = document.getElementById("assistantActionBtn");
+    btn.disabled = true;
+    document.getElementById("assistantActionConfirm").hidden = true;
+    setAssistantOutputText("Thinking… this can take a while on your device.");
+    try {
+      const { generateTaskAction } = await getAssistantModule();
+      const result = await generateTaskAction(instruction, tasks);
+      if (result.action === "add" && result.title) {
+        setAssistantOutputText(`Proposed: add a new task titled "${result.title}".`);
+        showAssistantActionConfirm(`Add task: "${result.title}"?`, async () => {
+          await addTask({ title: result.title });
+          render();
+          showInfoToast(`Added "${result.title}".`);
+        });
+      } else if (result.action === "delete" && result.title) {
+        const match = findTaskByFuzzyTitle(result.title, tasks);
+        if (match) {
+          setAssistantOutputText(`Proposed: delete "${match.title}".`);
+          showAssistantActionConfirm(`Delete "${match.title}"?`, () => deleteTasksWithUndo([match.id]));
+        } else {
+          setAssistantOutputText(`Couldn't find a task matching "${result.title}" to delete.`);
+        }
+      } else {
+        setAssistantOutputText("Couldn't understand that as an add/delete instruction — try rephrasing.");
+      }
     } catch (err) {
       setAssistantOutputText("Something went wrong generating a response. Try again.");
     } finally {

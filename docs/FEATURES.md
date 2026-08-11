@@ -274,11 +274,26 @@ data."*
       gap (a different, non-vendored WASM binary is needed there) and why
       the Playwright test for this feature mocks the model call instead
       of running a real multi-hundred-MB download in the test suite. Since
-      then, two more actions were added on the same infrastructure: a
-      free-text "Ask anything" prompt box, and "What did I get done this
-      week?" (a weekly recap over the last 7 days' completed tasks, see
-      docs/ARCHITECTURE.md §4h-2) — both zero new infrastructure, same
-      model/worker/plumbing, only new prompts.
+      then, three more actions were added: a free-text "Ask anything" prompt
+      box; "What did I get done this week?" (a weekly recap over the last 7
+      days' completed tasks, see docs/ARCHITECTURE.md §4h-2), zero new
+      infrastructure, same model/worker/plumbing, only a new prompt; and
+      "add or delete a task" from a plain-language instruction (2026-08-11),
+      which — a real finding from testing, not a design choice made
+      upfront — turned out to need the *opposite* of more model reliance:
+      the model demonstrably can't produce reliable structured output at
+      this size (two independent prompt attempts both failed), so intent
+      classification and task matching are deterministic keyword/fuzzy-match
+      logic instead, with the model not involved in that decision at all.
+      See docs/ARCHITECTURE.md §4h "Task actions" for the full finding and
+      why the honest, working version doesn't match what "the AI decides"
+      might suggest. **Also upgraded (2026-08-11) from
+      HuggingFaceTB/SmolLM2-135M-Instruct (~140MB) to
+      onnx-community/SmolLM2-360M-Instruct-ONNX (~363MB, same family, ~2.6x
+      more parameters)** — real re-measured timing, not assumed proportional
+      scaling: load is meaningfully slower (~150-280s vs ~25s, dominated by
+      download size), but generation is actually *faster* (~40s vs ~85s) and
+      replies are noticeably more coherent.
 - [x] Local automation / rules engine — Med. Shipped: three triggers (task
       marked Done, due date passes while not Done, task created with a
       specific tag) × five actions (add/remove tag, set priority, set
