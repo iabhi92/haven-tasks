@@ -1695,6 +1695,26 @@ task *data* has been fully offline-capable since Phase 1 (IndexedDB). The precac
 hand-maintained the same way the `?v=` cache-bust query strings already are (no build step); bump
 `CACHE_NAME` when the list changes so old caches get cleaned up on the next `activate`.
 
+**A real bug in that "scoped to app.html only" claim, caught from an actual user report (2026-08-11):**
+this doc said that for a while before it was actually true in code. `navigator.serviceWorker.register("/sw.js")`
+with no explicit `scope` option defaults to the service worker file's own directory — `/`, since
+`sw.js` lives at the site root — not to `app.html`. The `fetch` handler itself was always correctly
+narrow (`if (!APP_SHELL.includes(path)) return;` passes every non-app-shell request straight
+through untouched, confirmed by re-reading it, not assumed), so no marketing-page content was ever
+actually served stale or wrong — but an *active, controlling* service worker on a page is one of
+the standard signals browsers use to judge whether that page is an installable PWA, and the wide
+default scope meant the marketing pages had one they never asked for. A real user reported
+taskhavens.com's root page showing an unprompted native "Add to Dock" card in Safari; it didn't
+reproduce in Private Browsing, which was the tell — Safari doesn't run service workers there at
+all, pointing at the SW's scope rather than anything on the marketing page itself. **Fix:**
+`register("/sw.js", { scope: "/app.html" })`, plus explicitly unregistering any existing
+registration whose scope is exactly the site root before registering the narrow one — a scope
+change alone doesn't retroactively replace an already-active wider registration for visitors who'd
+registered the old one before this fix shipped. Verified for real: a simulated existing user (old
+wide-scope registration, then a reload running the fixed code) ends up with only the narrow
+registration, the root/marketing page has no controlling service worker afterward, and app.html's
+own offline support (a controlling SW, real vault setup working end to end) is unaffected.
+
 **Offline banner** (`wireOfflineBanner()`, `js/app.js`) — makes an already-true fact visible rather
 than adding new capability: `navigator.onLine`/the `online`/`offline` window events drive a small
 banner, nothing about how offline behavior actually works changes. Coming back online also fires

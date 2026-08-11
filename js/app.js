@@ -5657,8 +5657,26 @@ boot();
 // while offline, not the (already-offline-capable) task data itself. See
 // docs/ARCHITECTURE.md "PWA install".
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
+  window.addEventListener("load", async () => {
+    // Scoped to /app.html only, not site-wide — registering with no explicit scope defaults to
+    // the service worker file's own directory ("/", since sw.js lives at the root), meaning the
+    // marketing pages ended up "controlled" by a service worker they never asked for. An active,
+    // controlling service worker is one of the standard signals browsers use to decide a page is
+    // an installable PWA — a real user reported taskhavens.com's root page showing an unprompted
+    // native "Add to Dock" card, which didn't reproduce in Private Browsing (Safari doesn't run
+    // service workers there at all), confirming the SW's scope, not anything on the marketing
+    // page itself, was the cause. Existing visitors who already registered the old, wider scope
+    // need it explicitly removed — registering a narrower scope going forward doesn't
+    // retroactively replace an already-active wider registration.
+    try {
+      const existing = await navigator.serviceWorker.getRegistrations();
+      for (const reg of existing) {
+        if (reg.scope === location.origin + "/") await reg.unregister();
+      }
+    } catch {
+      // Best-effort cleanup — a failure here shouldn't block registering the correctly-scoped one.
+    }
+    navigator.serviceWorker.register("/sw.js", { scope: "/app.html" }).catch((err) => {
       console.error("Service worker registration failed (app still works fully online):", err);
     });
   });

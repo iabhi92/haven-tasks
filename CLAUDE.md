@@ -433,6 +433,32 @@ out first) and exact repro steps before touching `wireDragAndDrop()` in
   takes over. This is inherent to how SW updates propagate, not a bug in
   the fix — don't be surprised if a service-worker-related bug fix doesn't
   look instant when checking the live site right after deploying it.
+- **`navigator.serviceWorker.register(url)` with no explicit `scope` option
+  defaults to the SW file's own directory**, not to whatever page happens
+  to be calling `register()`. `sw.js` living at the site root meant the
+  default scope was `/` (the whole site) even though it was only ever
+  registered from `app.html` — silently making the marketing pages
+  "controlled" by a service worker they never asked for, which is one of
+  the standard signals browsers use to decide a page is an installable
+  PWA. Caught from a real user report (Safari showing an unprompted
+  "Add to Dock" card on the marketing page) — the tell was that it didn't
+  reproduce in Private Browsing, since Safari doesn't run service workers
+  there. Fix: register with an explicit narrower `scope`, **and**
+  explicitly `unregister()` any existing registration at the old wider
+  scope — a narrower scope going forward doesn't retroactively replace an
+  already-active wider one for existing visitors.
+- **Playwright's `page.screenshot({ fullPage: true })` does not fire real
+  scroll events** the way an actual user scrolling does — a real mistake
+  made this session, initially misdiagnosed as a broken CSP blocking a
+  GSAP scroll-triggered animation on the live marketing site. The
+  animation was actually fine; the test methodology was wrong twice over
+  (fullPage capture never triggered the ScrollTrigger `onEnter` callbacks,
+  and the check itself looked for a CSS class the GSAP code path never
+  applies — only the no-GSAP IntersectionObserver fallback does). Confirmed
+  by redoing it with real `page.mouse.wheel()` calls and checking actual
+  computed/inline opacity instead. If a scroll-triggered feature looks
+  broken in a screenshot-based check, redo it with real incremental
+  scrolling before concluding anything.
 
 ## MCP servers
 
